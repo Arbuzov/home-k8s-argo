@@ -1,0 +1,62 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: mcpo
+  namespace: argo-cd
+spec:
+  project: mcp
+  source:
+    repoURL: https://arbuzov.github.io/mcp-helm/
+    targetRevision: 0.2.7
+    chart: mcpo
+    helm:
+      # The Home Assistant Bearer token is sensitive. mcpo reads its whole
+      # config from config.json and does NOT expand env vars, so the token
+      # would otherwise land in a plaintext ConfigMap. Instead we use the
+      # chart's `existingConfigSecret` (added in mcpo 0.2.7): the full
+      # config.json — including the real token — lives ONLY in the out-of-band
+      # Secret `mcpo-secrets` (namespace mcp). The `config:` block below is
+      # kept as documentation and as the source for regenerating that Secret;
+      # the chart IGNORES it while existingConfigSecret is set. See README.md.
+      values: |
+        existingConfigSecret: mcpo-secrets
+        image:
+          tag: git-39b4867@sha256:f06525afac6b5d7c0712d6ec72f85203409c3285aad4a1acb977be16e409417b
+        ingress:
+          enabled: true
+          className: nginx
+          annotations:
+            nginx.ingress.kubernetes.io/auth-type: basic
+            nginx.ingress.kubernetes.io/auth-secret: mcp-basic-auth
+            nginx.ingress.kubernetes.io/auth-realm: "Authentication Required"
+          path: /mcpo
+          hosts:
+            - dev.whitediver.keenetic.link
+            - "*"
+        config:
+          mcpServers:
+            memory:
+              args:
+              - -y
+              - '@modelcontextprotocol/server-memory'
+              command: npx
+            jira:
+              type: sse
+              url: http://mcp-atlassian-jira:8000/sse
+            confluence:
+              type: sse
+              url: http://mcp-atlassian-confluence:8000/sse
+            home-assistant:
+              type: sse
+              url: http://192.168.99.89:8123/mcp_server/sse
+              headers:
+                Authorization: "Bearer REPLACE_WITH_HOMEASSISTANT_LLAT"
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: mcp
+  syncPolicy:
+    automated:
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true

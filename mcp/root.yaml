@@ -1,0 +1,29 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: mcp
+  namespace: argo-cd
+spec:
+  # The app-of-apps itself lives in the always-present `default` project so it
+  # can create the `mcp` AppProject below; the child Applications it deploys
+  # use `project: mcp`.
+  project: default
+  source:
+    repoURL: https://github.com/Arbuzov/local-cluster-argo.git
+    targetRevision: main
+    path: mcp
+    directory:
+      recurse: true
+      # Deploy the AppProject (project.yaml) and every service's
+      # Application manifest; exclude this file (root.yaml) so the
+      # app-of-apps never manages itself.
+      include: '{project.yaml,*/application*.yaml}'
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argo-cd
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - ServerSideApply=true

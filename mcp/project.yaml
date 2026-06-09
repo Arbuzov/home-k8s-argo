@@ -1,0 +1,28 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: mcp
+  namespace: argo-cd
+  annotations:
+    # Create the project before the Applications that reference it
+    # (the mcp app-of-apps applies both in one sync).
+    argocd.argoproj.io/sync-wave: "-1"
+spec:
+  description: MCP (Model Context Protocol) servers — deployed via the mcp app-of-apps (see mcp/README.md)
+  sourceRepos:
+    # The app-of-apps reads the child Application manifests from this repo.
+    - https://github.com/Arbuzov/local-cluster-argo.git
+    # Helm chart repos the mcp Applications pull from.
+    - https://arbuzov.github.io/mcp-helm/
+    - https://bjw-s-labs.github.io/helm-charts
+  destinations:
+    - server: https://kubernetes.default.svc
+      namespace: mcp
+    - server: https://kubernetes.default.svc
+      namespace: argo-cd
+  clusterResourceWhitelist:
+    - group: '*'
+      kind: '*'
+  namespaceResourceWhitelist:
+    - group: '*'
+      kind: '*'

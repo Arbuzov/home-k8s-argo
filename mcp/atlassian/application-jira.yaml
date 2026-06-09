@@ -1,0 +1,53 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: mcp-atlassian-jira
+  namespace: argo-cd
+spec:
+  project: mcp
+  source:
+    repoURL: https://arbuzov.github.io/mcp-helm/
+    targetRevision: 0.2.27
+    chart: mcp-atlassian
+    helm:
+      values: |
+        extraArgs:
+          - --transport
+          - streamable-http
+        image:
+          repository: ghcr.io/arbuzov/mcp-atlassian
+          tag: latest
+        # Non-secret env only. JIRA_USERNAME / JIRA_API_TOKEN come from
+        # envFrom secretRef below — see README.md.
+        env:
+          JIRA_URL: https://jira.corp.example
+          MCP_VERY_VERBOSE: true
+          MCP_LOGGING_STDOUT: true
+          TRANSPORT: streamable-http
+        envFrom:
+          - secretRef:
+              name: mcp-atlassian-jira-credentials
+        livenessProbe:
+          enabled: false
+        readinessProbe:
+          enabled: false
+        ingress:
+          enabled: true
+          className: nginx
+          annotations:
+            nginx.ingress.kubernetes.io/auth-type: basic
+            nginx.ingress.kubernetes.io/auth-secret: mcp-basic-auth
+            nginx.ingress.kubernetes.io/auth-realm: "Authentication Required"
+          path: /mcp/jira
+          hosts:
+            - dev.whitediver.keenetic.link
+            - "*"
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: mcp
+  syncPolicy:
+    automated:
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true

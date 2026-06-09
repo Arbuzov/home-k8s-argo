@@ -1,0 +1,69 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: mcp-atlassian-confluence
+  namespace: argo-cd
+spec:
+  project: mcp
+  source:
+    repoURL: https://arbuzov.github.io/mcp-helm/
+    targetRevision: 0.2.27
+    chart: mcp-atlassian
+    helm:
+      values: |
+        extraArgs:
+          - --transport
+          - streamable-http
+        # Non-secret env (URLs, flags). API token & VPN credentials come
+        # from envFrom secretRefs below — see README.md.
+        env:
+          CONFLUENCE_URL: https://confluence.corp.example
+          CONFLUENCE_SSL_VERIFY: 'false'
+          MCP_VERY_VERBOSE: true
+          MCP_LOGGING_STDOUT: true
+          TRANSPORT: streamable-http
+        envFrom:
+          - secretRef:
+              name: mcp-atlassian-confluence-credentials
+        livenessProbe:
+          enabled: false
+        readinessProbe:
+          enabled: false
+        ingress:
+          enabled: true
+          className: nginx
+          annotations:
+            nginx.ingress.kubernetes.io/auth-type: basic
+            nginx.ingress.kubernetes.io/auth-secret: mcp-basic-auth
+            nginx.ingress.kubernetes.io/auth-realm: "Authentication Required"
+          path: /mcp/confluence
+          hosts:
+            - dev.whitediver.keenetic.link
+            - "*"
+        sidecars:
+          - name: vpn-sidecar
+            image: docker.io/aw1cks/openconnect
+            env:
+              - name: URL
+                value: "https://vpn.corp.example"
+              - name: AUTH_GROUP
+                value: DUO
+              - name: EXTRA_ARGS
+                value: '--servercert pin-sha256:REDACTED'
+            envFrom:
+              - secretRef:
+                  name: mcp-atlassian-vpn-credentials
+            securityContext:
+              privileged: true
+              capabilities:
+                add:
+                  - NET_ADMIN
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: mcp
+  syncPolicy:
+    automated:
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true

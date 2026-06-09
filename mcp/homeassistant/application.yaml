@@ -1,0 +1,25 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: mcp-homeassistant
+  namespace: argo-cd
+spec:
+  project: mcp
+  source:
+    repoURL: https://arbuzov.github.io/mcp-helm/
+    chart: mcp-homeassistant
+    targetRevision: 0.2.4
+    helm:
+      values: |
+        image:
+          repository: voska/hass-mcp
+          tag: "latest"
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: mcp
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: true
+    syncOptions:
+      - CreateNamespace=true

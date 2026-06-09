@@ -1,0 +1,173 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: basic-memory
+  namespace: argo-cd
+spec:
+  project: mcp
+  source:
+    repoURL: https://bjw-s-labs.github.io/helm-charts
+    chart: app-template
+    targetRevision: 3.6.0
+    helm:
+      values: |
+        controllers:
+          basic-memory:
+            type: deployment
+            pod:
+              nodeSelector:
+                kubernetes.io/hostname: kube-master
+              securityContext:
+                fsGroup: 1000
+                fsGroupChangePolicy: OnRootMismatch
+            containers:
+              app:
+                image:
+                  repository: ghcr.io/basicmachines-co/basic-memory
+                  tag: "latest"
+                # Image default CMD is `mcp --transport sse`, whose SSE message
+                # callback is advertised at the server root (/messages/) and so
+                # bypasses the /mcp/basic-memory ingress prefix. Run streamable-http
+                # mounted at the full external path so every URL the server emits
+                # stays correctly prefixed (mirrors mcpo's --path-prefix approach).
+                command:
+                  - basic-memory
+                args:
+                  - mcp
+                  - --transport
+                  - streamable-http
+                  - --host
+                  - 0.0.0.0
+                  - --port
+                  - "8000"
+                  - --path
+                  - /mcp/basic-memory
+                env:
+                  BASIC_MEMORY_HOME: /app/data
+                  BASIC_MEMORY_DEFAULT_PROJECT: main
+                  BASIC_MEMORY_SYNC_CHANGES: "true"
+                  BASIC_MEMORY_LOG_LEVEL: INFO
+                  BASIC_MEMORY_NO_PROMOS: "1"
+                  # Semantic (vector) search. These mirror the image defaults
+                  # (enabled, local FastEmbed bge-small-en-v1.5, no API key) but
+                  # are pinned here so the behaviour stays deterministic if the
+                  # `latest` image ever changes its defaults. The embedding model
+                  # cache is NOT persisted, so on each pod start FastEmbed
+                  # re-downloads the model from HuggingFace and re-embeds the
+                  # rebuilt SQLite index; if HF is unreachable at start, search
+                  # silently falls back to text until the model is available.
+                  BASIC_MEMORY_SEMANTIC_SEARCH_ENABLED: "true"
+                  BASIC_MEMORY_SEMANTIC_EMBEDDING_PROVIDER: fastembed
+                  BASIC_MEMORY_SEMANTIC_EMBEDDING_MODEL: bge-small-en-v1.5
+                  BASIC_MEMORY_SEMANTIC_MIN_SIMILARITY: "0.55"
+                ports:
+                  - name: http
+                    containerPort: 8000
+                resources:
+                  requests:
+                    memory: 256Mi
+                    cpu: 50m
+                  limits:
+                    memory: 1Gi
+                probes:
+                  liveness:
+                    enabled: true
+                    custom: true
+                    spec:
+                      tcpSocket:
+                        port: 8000
+                      initialDelaySeconds: 30
+                      periodSeconds: 30
+                  readiness:
+                    enabled: true
+                    custom: true
+                    spec:
+                      tcpSocket:
+                        port: 8000
+                      initialDelaySeconds: 10
+                      periodSeconds: 10
+
+        service:
+          basic-memory:
+            controller: basic-memory
+            ports:
+              http:
+                port: 8000
+
+        ingress:
+          basic-memory:
+            className: nginx
+            annotations:
+              nginx.ingress.kubernetes.io/auth-type: basic
+              nginx.ingress.kubernetes.io/auth-secret: mcp-basic-auth
+              nginx.ingress.kubernetes.io/auth-realm: "Authentication Required"
+            hosts:
+              - host: dev.whitediver.keenetic.link
+                paths:
+                  # No rewrite: the app serves streamable-http at this exact path
+                  # (--path /mcp/basic-memory), so the original URL is passed through.
+                  - path: /mcp/basic-memory
+                    pathType: Prefix
+                    service:
+                      identifier: basic-memory
+                      port: http
+
+        # SMB-backed data volume + its StorageClass, both managed by this
+        # one Application (no out-of-band files). app-template prefixes
+        # every object name with the release name, so the class is
+        # `basic-memory-smb` and the PVC is `basic-memory-data-smb`.
+        # The CSI subDir is derived from the PVC namespace+name
+        # (pvc-mcp-basic-memory-data-smb), so the share folder — and thus
+        # the data — is independent of the class name. Only the markdown
+        # note tree lives here; the SQLite index is rebuilt off-volume on
+        # each start. uid/gid=1000 matches the image's appuser.
+        persistence:
+          data:
+            enabled: true
+            type: persistentVolumeClaim
+            accessMode: ReadWriteOnce
+            size: 5Gi
+            storageClass: basic-memory-smb
+            nameOverride: data-smb
+            retain: true
+            advancedMounts:
+              basic-memory:
+                app:
+                  - path: /app/data
+
+        rawResources:
+          smb:
+            apiVersion: storage.k8s.io/v1
+            kind: StorageClass
+            spec:
+              provisioner: smb.csi.k8s.io
+              reclaimPolicy: Retain
+              volumeBindingMode: Immediate
+              allowVolumeExpansion: true
+              parameters:
+                source: "//192.168.99.44/smb-csi"
+                subDir: "pvc-${pvc.metadata.namespace}-${pvc.metadata.name}"
+                csi.storage.k8s.io/provisioner-secret-name: smbcreds
+                csi.storage.k8s.io/provisioner-secret-namespace: smb
+                csi.storage.k8s.io/node-stage-secret-name: smbcreds
+                csi.storage.k8s.io/node-stage-secret-namespace: smb
+              mountOptions:
+                - vers=3.1.1
+                - serverino
+                - actimeo=1
+                - cache=none
+                - nobrl
+                - uid=1000
+                - gid=1000
+                - dir_mode=0700
+                - file_mode=0600
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: mcp
+  syncPolicy:
+    automated:
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
