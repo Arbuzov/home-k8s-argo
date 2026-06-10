@@ -3,6 +3,8 @@ kind: Application
 metadata:
   name: mcp-kubernetes
   namespace: argo-cd
+  finalizers:  # cascade-delete this app's resources when removed from the app-of-apps; see mcp/README.md
+    - resources-finalizer.argocd.argoproj.io
 spec:
   project: mcp
   source:

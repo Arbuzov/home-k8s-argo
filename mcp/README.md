@@ -8,10 +8,10 @@ everything under `mcp/` automatically.
 ## Pieces
 
 | File | Kind | Purpose |
-| ------------------------- | ------------- | -------------------------------------------------------------------- |
-| [`project.yaml`](project.yaml) | `AppProject`  | The `mcp` project — restricts sources/destinations for the group |
-| [`root.yaml`](root.yaml)       | `Application` | The **app-of-apps** — deploys `project.yaml` + every child app |
-| `<service>/application*.yaml`  | `Application` | One MCP server each (`project: mcp`) |
+| --- | --- | --- |
+| [`project.yaml`](project.yaml) | `AppProject` | The `mcp` project — restricts sources/destinations for the group |
+| [`root.yaml`](root.yaml) | `Application` | The **app-of-apps** — deploys `project.yaml` + every child app |
+| `<service>/application*.yaml` | `Application` | One MCP server each (`project: mcp`) |
 
 Services: `atlassian` (Jira + Confluence), `basic-memory`, `graphiti`,
 `homeassistant`, `kubernetes`, `mcpo`. Each has its own `README.md` for the
@@ -44,3 +44,25 @@ is private, register repo credentials in Argo CD first; a public HTTPS repo
 needs none.)
 
 Create each service's Secrets (see its `README.md`) before its first sync.
+
+## Disabling a service (without deleting its manifest)
+
+To stop deploying one app while keeping its manifest in git, add it to the
+app-of-apps `exclude` glob in [`root.yaml`](root.yaml):
+
+```yaml
+    directory:
+      recurse: true
+      include: '{project.yaml,*/application*.yaml}'
+      exclude: '{graphiti/application.yaml}'   # disabled apps, comma-separated
+```
+
+Commit + push and Argo CD drops that `Application`. Because every child
+carries the `resources-finalizer.argocd.argoproj.io` finalizer, pruning the
+`Application` **cascade-deletes its workloads** (Deployments, Services,
+Ingresses, …) for a clean teardown. StatefulSet PVCs (e.g. graphiti's neo4j
+data) are retained, so re-enabling — remove the path from `exclude` and push —
+redeploys and re-binds the existing data.
+
+List several to disable more at once:
+`exclude: '{graphiti/application.yaml,kubernetes/application.yaml}'`.
