@@ -18,7 +18,9 @@ spec:
       # Application manifest; exclude this file (root.yaml) so the
       # app-of-apps never manages itself.
       include: '{project.yaml,*/application*.yaml}'
-      exclude: '{graphiti/application.yaml}'
+      # Disabled until their charts run as HTTP/SSE servers (currently stdio
+      # -> crashloop): mcp-helm homeassistant/kubernetes need a stdio->SSE bridge.
+      exclude: '{graphiti/application.yaml,homeassistant/application.yaml,kubernetes/application.yaml}'
   destination:
     server: https://kubernetes.default.svc
     namespace: argo-cd
