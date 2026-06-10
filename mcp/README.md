@@ -57,11 +57,19 @@ app-of-apps `exclude` glob in [`root.yaml`](root.yaml):
       exclude: '{graphiti/application.yaml}'   # disabled apps, comma-separated
 ```
 
-Commit + push and Argo CD drops that `Application`. Because every child
-carries the `resources-finalizer.argocd.argoproj.io` finalizer, pruning the
-`Application` **cascade-deletes its workloads** (Deployments, Services,
-Ingresses, …) for a clean teardown. StatefulSet PVCs (e.g. graphiti's neo4j
-data) are retained, so re-enabling — remove the path from `exclude` and push —
+Commit + push, then **re-apply the app-of-apps** — `root.yaml` is excluded
+from its own `include` (it never manages itself), so a git push alone does
+**not** update the live app-of-apps spec:
+
+```sh
+kubectl apply -f mcp/root.yaml
+```
+
+Argo CD then drops that `Application`. Because every child carries the
+`resources-finalizer.argocd.argoproj.io` finalizer, pruning the `Application`
+**cascade-deletes its workloads** (Deployments, Services, Ingresses, …) for a
+clean teardown. StatefulSet PVCs (e.g. graphiti's neo4j data) are retained, so
+re-enabling — remove the path from `exclude`, push, and re-apply `root.yaml` —
 redeploys and re-binds the existing data.
 
 List several to disable more at once:
