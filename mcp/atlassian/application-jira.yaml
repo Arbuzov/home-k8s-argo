@@ -45,6 +45,10 @@ spec:
             nginx.ingress.kubernetes.io/auth-type: basic
             nginx.ingress.kubernetes.io/auth-secret: mcp-basic-auth
             nginx.ingress.kubernetes.io/auth-realm: "Authentication Required"
+            # The MCP server 307-redirects /mcp/jira -> /mcp/jira/ and remote
+            # MCP clients (claude.ai connectors) don't follow POST redirects.
+            # Rewrite to the trailing-slash form so the redirect never happens.
+            nginx.ingress.kubernetes.io/rewrite-target: /mcp/jira/$2
           path: /mcp/jira
           hosts:
             - dev.whitediver.keenetic.link

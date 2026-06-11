@@ -44,6 +44,9 @@ spec:
             nginx.ingress.kubernetes.io/auth-type: basic
             nginx.ingress.kubernetes.io/auth-secret: mcp-basic-auth
             nginx.ingress.kubernetes.io/auth-realm: "Authentication Required"
+            # Same trailing-slash rewrite as the Jira app — remote MCP
+            # clients don't follow the server's 307 POST redirect.
+            nginx.ingress.kubernetes.io/rewrite-target: /mcp/confluence/$2
           path: /mcp/confluence
           hosts:
             - dev.whitediver.keenetic.link
