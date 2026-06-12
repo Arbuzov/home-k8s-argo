@@ -16,6 +16,16 @@ spec:
         extraArgs:
           - --transport
           - streamable-http
+          # Stateless: don't tie requests to an in-memory session. With the
+          # default stateful mode every pod restart invalidated all client
+          # sessions and SDK 1.9.4 answered them 400 (not the spec's 404), so
+          # remote clients (claude.ai connector) got stuck erroring forever.
+          - --stateless
+        # 0.21.1: first upstream release line with --stateless; the chart's
+        # default 0.11.9 (SDK 1.9.4) predates it.
+        image:
+          repository: ghcr.io/sooperset/mcp-atlassian
+          tag: 0.21.1
         # Non-secret env (URLs, flags). API token comes from the
         # mcp-atlassian-confluence-credentials Secret via envSecrets — the
         # chart has no envFrom value for the main container, see README.md.
