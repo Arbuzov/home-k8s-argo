@@ -20,7 +20,7 @@ spec:
       include: '{project.yaml,*/application*.yaml}'
       # Disabled until their charts run as HTTP/SSE servers (currently stdio
       # -> crashloop): mcp-helm homeassistant/kubernetes need a stdio->SSE bridge.
-      exclude: '{graphiti/application.yaml,homeassistant/application.yaml,kubernetes/application.yaml,atlassian/application-confluence.yaml}'
+      exclude: '{graphiti/application.yaml,homeassistant/application.yaml,kubernetes/application.yaml}'
   destination:
     server: https://kubernetes.default.svc
     namespace: argo-cd

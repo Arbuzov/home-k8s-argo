@@ -58,7 +58,7 @@ spec:
               - name: URL
                 value: "https://vpn.corp.example"
               - name: AUTH_GROUP
-                value: DUO
+                value: VPN_GROUP_A
               - name: EXTRA_ARGS
                 value: '--servercert pin-sha256:REDACTED'
             envFrom:
