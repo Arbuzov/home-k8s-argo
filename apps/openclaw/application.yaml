@@ -1,0 +1,54 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: openclaw
+  namespace: argo-cd
+spec:
+  project: default
+  source:
+    repoURL: https://serhanekicii.github.io/openclaw-helm
+    targetRevision: 1.3.19
+    chart: openclaw
+    helm:
+      values: |
+        app-template:
+          controllers:
+            main:
+              containers:
+                main:
+                  envFrom:
+                    - secretRef:
+                        name: openclaw-env-secret
+                  resources:
+                    requests:
+                      cpu: 100m
+                      memory: 256Mi
+                    limits:
+                      cpu: 500m
+                      memory: 1Gi
+                chromium:
+                  resources:
+                    requests:
+                      cpu: 50m
+                      memory: 128Mi
+                    limits:
+                      cpu: 300m
+                      memory: 512Mi
+          ingress:
+            main:
+              enabled: true
+              className: nginx
+              hosts:
+                - host: dev.whitediver.keenetic.link
+                  paths:
+                    - path: /openclaw
+                      pathType: Prefix
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: openclaw
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

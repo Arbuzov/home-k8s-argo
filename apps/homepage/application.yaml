@@ -1,0 +1,198 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: homepage
+  namespace: argo-cd
+  finalizers:  # cascade-delete this app's resources when removed from the app-of-apps; see apps/README.md
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: apps
+  source:
+    repoURL: https://unknowniq.github.io/helm-charts/
+    targetRevision: 1.8.3
+    helm:
+      values: |
+        env:
+          - name: HOMEPAGE_ALLOWED_HOSTS
+            value: homepage.whitediver.keenetic.link
+          # Secret-backed tokens. The homepage app substitutes {{HOMEPAGE_VAR_*}}
+          # placeholders in the config below from these env vars at runtime.
+          # Real values live only in Secret `homepage-secrets` (namespace
+          # homepage), created out-of-band — see README.md.
+          - name: HOMEPAGE_VAR_ARGOCD_TOKEN
+            valueFrom:
+              secretKeyRef:
+                name: homepage-secrets
+                key: HOMEPAGE_VAR_ARGOCD_TOKEN
+          - name: HOMEPAGE_VAR_HA_TOKEN
+            valueFrom:
+              secretKeyRef:
+                name: homepage-secrets
+                key: HOMEPAGE_VAR_HA_TOKEN
+        image:
+          tag: v1.12.3
+        config:
+          settings:
+            theme: dark
+            color: gray
+            target: _self
+            layout:
+              - Multimedia:
+                  style: column
+                  columns: 1
+              - Home:
+                  style: column
+                  columns: 1
+              - Monitor:
+                  style: column
+                  columns: 1
+              - System:
+                  style: column
+                  columns: 1
+          bookmarks:
+            - AI:
+              - "Claude":
+                - href: https://claude.ai/
+                  icon: https://uxwing.com/wp-admin/admin-ajax.php?action=resize_image&size=48x48&file=claude-ai-icon.png&category_slug=brands-and-social-media
+              - "ChatGPT":
+                - abbr: CG
+                  href: https://chatgpt.com/
+              - "ChatGPT Codex":
+                - abbr: CX
+                  href: https://chatgpt.com/codex/
+              - n8n:
+                - icon: https://avatars.githubusercontent.com/u/45487711?s=48&v=4
+                  href: https://n8n.whitediver.keenetic.link/
+            - Developer:
+              - "Github Arbuzov":
+                - icon: https://github.com/favicon.ico
+                  href: https://github.com/arbuzov
+              - "GitLab Corp":
+                - icon: https://about.gitlab.com/images/press/gitlab-logo-500-rgb.png
+                  href: https://gitlab.corp.example/dashboard/home
+              - "Jenkins Corp":
+                - icon: https://jenkins.corp.example/favicon.ico
+                  href: https://jenkins.corp.example
+              - "Jira Corp":
+                - icon: https://jira.corp.example/favicon.ico
+                  href: https://jira.corp.example/secure/Dashboard.jspa
+              - "Dashboard Corp":
+                - icon: https://upload.wikimedia.org/wikipedia/commons/thumb/3/3b/Grafana_icon.svg/250px-Grafana_icon.svg.png
+                  href: https://dashboard.corp.example/grafana/d/REDACTED-DASHBOARD-ID/lab-overview
+            - Media:
+              - "Photos":
+                - icon: pigallery2.png
+                  href: https://photos.whitediver.keenetic.link
+            - News:
+              - "RBC":
+                - icon: https://s0.rbk.ru/v1_static/images/common/logo.svg
+                  href: https://rbc.ru/
+              - "Linkedin":
+                - icon: https://upload.wikimedia.org/wikipedia/commons/thumb/c/ca/LinkedIn_logo_initials.png/250px-LinkedIn_logo_initials.png
+                  href: https://www.linkedin.com/
+              - "IDBank":
+                - icon: https://idbank.am/documents/IDBank_logo_300x300.png
+                  href: https://idbank.am/ru/
+
+          services:
+            - Infrastructure:
+                - Argo CD:
+                    icon: https://argo-cd.readthedocs.io/en/stable/assets/logo.png
+                    description: Declarative GitOps for Kubernetes
+                    href: https://dev.whitediver.keenetic.link/argo-cd/
+                    widget:
+                      type: argocd
+                      url: https://dev.whitediver.keenetic.link/argo-cd/
+                      # Substituted at runtime from env HOMEPAGE_VAR_ARGOCD_TOKEN
+                      # (Secret homepage-secrets). See README.md.
+                      key: "{{HOMEPAGE_VAR_ARGOCD_TOKEN}}"
+
+            - Home assistant:
+                - Home assistant:
+                    icon: https://images.icon-icons.com/2407/PNG/512/home_assistant_icon_146164.png
+                    href: https://home.whitediver.keenetic.link/
+                    # Substituted at runtime from env HOMEPAGE_VAR_HA_TOKEN
+                    # (Secret homepage-secrets). See README.md.
+                    key: "{{HOMEPAGE_VAR_HA_TOKEN}}"
+                    widget:
+                      type: homeassistant
+                      url: https://homeassistant.whitediver.keenetic.link/
+
+          widgets:
+            - logo:
+                icon: https://avatars.githubusercontent.com/u/1662280?s=200&v=4
+            - kubernetes:
+                cluster:
+                  show: true
+                  cpu: true
+                  memory: true
+                  showLabel: true
+                  label: "k8s-local"
+                nodes:
+                  show: true
+                  cpu: true
+                  memory: true
+                  showLabel: true
+
+
+            - search:
+                provider: [google, duckduckgo, bing, baidu, brave]
+                target: _blank
+            - openmeteo:
+                label: Moscow
+                latitude: 55.751244
+                longitude: 37.618423
+                timezone: Europe/Moscow
+                units: metric
+                cache: 5
+                format:
+                  maximumFractionDigits: 1
+
+            - datetime:
+                text_size: md
+                locale: ru-RU
+                format:
+                  hour: 2-digit
+                  minute: 2-digit
+                  hourCycle: h23
+                  timeZone: America/Toronto
+                  timeZoneName: shortOffset
+            - datetime:
+                text_size: md
+                locale: ru-RU
+                format:
+                  hour: 2-digit
+                  minute: 2-digit
+                  hourCycle: h23
+                  timeZone: Europe/Moscow
+                  timeZoneName: shortOffset
+            - datetime:
+                text_size: md
+                locale: ru-RU
+                format:
+                  hour: 2-digit
+                  minute: 2-digit
+                  hourCycle: h23
+                  timeZone: Australia/Sydney
+                  timeZoneName: shortOffset
+
+        ingress:
+          main:
+            enabled: true
+            ingressClassName: nginx
+            hosts:
+            - host: homepage.whitediver.keenetic.link
+              paths:
+              - path: /
+                pathType: Prefix
+    chart: homepage
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: homepage
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true

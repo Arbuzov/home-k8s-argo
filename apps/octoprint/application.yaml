@@ -1,0 +1,66 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: octoprint
+  namespace: argo-cd
+  finalizers:  # cascade-delete this app's resources when removed from the app-of-apps; see apps/README.md
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: apps
+  source:
+    repoURL: https://arbuzov.github.io/octoprint
+    targetRevision: 0.3.5
+    helm:
+      values: |
+        image:
+          tag: latest
+        ingress:
+          enabled: true
+          annotations:
+            nginx.ingress.kubernetes.io/rewrite-target: /$2
+          path: /octoprint(/|$)(.*)
+          hostname: 'dev.whitediver.keenetic.link'
+          ingressClassName: nginx
+          tls: true
+          selfSigned: true
+          extraHosts:
+            - name: ''
+              path: /octoprint(/|$)(.*)
+        persistence:
+          enabled: true
+          storageClassName: local-path
+        livenessProbe:
+          enabled: false
+        readinessProbe:
+          enabled: false
+        startupProbe:
+          enabled: false
+        nodeSelector:
+          kubernetes.io/hostname: kube-master
+        config:
+          overlay: |-
+            server:
+              enableCsrfProtection: false
+              reverseProxy:
+                prefixFallback: /octoprint
+                schemeFallback: https
+                hostFallback: 192.168.99.44
+                useXForwardedHost: true
+                useXForwardedPort: true
+                trustedProxies:
+                  - "10.0.0.0/8"
+                  - "192.168.0.0/16"
+                  - "172.16.0.0/12"
+                  - "::ffff:10.0.0.0/8"
+                  - "10.244.0.0/16"
+                  - "10.244.2.114"
+    chart: octoprint
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: octoprint
+  syncPolicy:
+    automated:
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true

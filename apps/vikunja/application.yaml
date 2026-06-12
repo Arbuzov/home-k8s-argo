@@ -1,0 +1,115 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: vikunja
+  namespace: argo-cd
+  finalizers:  # cascade-delete this app's resources when removed from the app-of-apps; see apps/README.md
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: apps
+  source:
+    repoURL: ghcr.io/go-vikunja/helm-chart
+    chart: vikunja
+    targetRevision: v2.0.2
+    helm:
+      values: |-
+        vikunja:
+          image:
+            repository: vikunja/vikunja
+            tag: "latest"
+
+          podSecurityContext:
+            runAsUser: 999
+            runAsGroup: 999
+            fsGroup: 999
+            runAsNonRoot: true
+          securityContext:
+            runAsUser: 999
+            runAsGroup: 999
+            runAsNonRoot: true
+
+          persistence:
+            database:
+              enabled: true
+              accessMode: ReadWriteOnce
+              size: 2Gi
+              mountPath: /db
+              storageClass: smb
+            data:
+              enabled: true
+              accessMode: ReadWriteOnce
+              size: 2Gi
+              mountPath: /app/vikunja/files
+              storageClass: smb
+
+          env:
+            VIKUNJA_DATABASE_TYPE: "sqlite"
+            VIKUNJA_DATABASE_PATH: "/db/vikunja.db"
+            # Google OIDC clientid/clientsecret injected from Secret `vikunja-oidc`
+            # (namespace vikunja), created out-of-band — see README.md. The
+            # provider `google:` key must stay in config.yml below for these env
+            # overrides to bind onto the providers map.
+            VIKUNJA_AUTH_OPENID_PROVIDERS_GOOGLE_CLIENTID:
+              valueFrom:
+                secretKeyRef:
+                  name: vikunja-oidc
+                  key: google-clientid
+            VIKUNJA_AUTH_OPENID_PROVIDERS_GOOGLE_CLIENTSECRET:
+              valueFrom:
+                secretKeyRef:
+                  name: vikunja-oidc
+                  key: google-clientsecret
+
+          configMaps:
+            config:
+              enabled: true
+              data:
+                config.yml: |
+                  service:
+                    publicurl: "https://tasks.whitediver.keenetic.link/"
+                    enableregistration: false
+                    customlogourl: "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNTYgMjU2IiB3aWR0aD0iMjU2IiBoZWlnaHQ9IjI1NiIgcm9sZT0iaW1nIiBhcmlhLWxhYmVsPSJ3aGl0ZWRpdmVyIj4KICA8ZGVmcz4KICAgIDxsaW5lYXJHcmFkaWVudCBpZD0ib2NlYW4iIHgxPSIwIiB5MT0iMCIgeDI9IjEiIHkyPSIxIj4KICAgICAgPHN0b3Agb2Zmc2V0PSIwIiBzdG9wLWNvbG9yPSIjMjJkM2VlIi8+CiAgICAgIDxzdG9wIG9mZnNldD0iMC41NSIgc3RvcC1jb2xvcj0iIzBlYTViNyIvPgogICAgICA8c3RvcCBvZmZzZXQ9IjEiIHN0b3AtY29sb3I9IiMwYjNhNjYiLz4KICAgIDwvbGluZWFyR3JhZGllbnQ+CiAgICA8bGluZWFyR3JhZGllbnQgaWQ9ImdsYXNzIiB4MT0iMCIgeTE9IjAiIHgyPSIwIiB5Mj0iMSI+CiAgICAgIDxzdG9wIG9mZnNldD0iMCIgc3RvcC1jb2xvcj0iIzBiM2E2NiIvPgogICAgICA8c3RvcCBvZmZzZXQ9IjEiIHN0b3AtY29sb3I9IiMwNzJhNGQiLz4KICAgIDwvbGluZWFyR3JhZGllbnQ+CiAgPC9kZWZzPgoKICA8cmVjdCB3aWR0aD0iMjU2IiBoZWlnaHQ9IjI1NiIgcng9IjU4IiBmaWxsPSJ1cmwoI29jZWFuKSIvPgoKICA8IS0tIGJ1YmJsZXMgLS0+CiAgPGcgZmlsbD0iI2ZmZmZmZiIgb3BhY2l0eT0iMC41Ij4KICAgIDxjaXJjbGUgY3g9IjE5NiIgY3k9IjU4IiByPSI4Ii8+CiAgICA8Y2lyY2xlIGN4PSIyMTIiIGN5PSI4MiIgcj0iNSIvPgogIDwvZz4KCiAgPCEtLSBkaXZlIG1hc2sgLS0+CiAgPGc+CiAgICA8IS0tIGhlYWQgc3RyYXAgLS0+CiAgICA8cmVjdCB4PSIyOCIgeT0iMTEyIiB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwIiByeD0iMTAiIGZpbGw9IiNmZmZmZmYiIG9wYWNpdHk9IjAuOSIvPgogICAgPCEtLSBtYXNrIHNraXJ0IC0tPgogICAgPHJlY3QgeD0iNjIiIHk9IjkyIiB3aWR0aD0iMTMyIiBoZWlnaHQ9IjYwIiByeD0iMjciIGZpbGw9IiNmZmZmZmYiLz4KICAgIDwhLS0gbm9zZSBwb2NrZXQgLS0+CiAgICA8cGF0aCBkPSJNMTA0LDE1MCBRMTA4LDE4NCAxMjgsMTg2IFExNDgsMTg0IDE1MiwxNTAgWiIgZmlsbD0iI2ZmZmZmZiIvPgogICAgPCEtLSBsZW5zZXMgLS0+CiAgICA8ZWxsaXBzZSBjeD0iOTgiIGN5PSIxMjMiIHJ4PSIyMiIgcnk9IjE4IiBmaWxsPSJ1cmwoI2dsYXNzKSIvPgogICAgPGVsbGlwc2UgY3g9IjE1OCIgY3k9IjEyMyIgcng9IjIyIiByeT0iMTgiIGZpbGw9InVybCgjZ2xhc3MpIi8+CiAgICA8IS0tIGdsaW50cyAtLT4KICAgIDxwYXRoIGQ9Ik04NiwxMTQgcTEwLC02IDIwLDAgcS0xMCw1IC0yMCwwIFoiIGZpbGw9IiNmZmZmZmYiIG9wYWNpdHk9IjAuNjUiLz4KICAgIDxwYXRoIGQ9Ik0xNDYsMTE0IHExMCwtNiAyMCwwIHEtMTAsNSAtMjAsMCBaIiBmaWxsPSIjZmZmZmZmIiBvcGFjaXR5PSIwLjY1Ii8+CiAgPC9nPgo8L3N2Zz4K"
+                  auth:
+                    local:
+                      enabled: false
+                    openid:
+                      enabled: true
+                      redirecturl: "https://tasks.whitediver.keenetic.link/auth/openid/"
+                      providers:
+                        google:
+                          name: "Google"
+                          authurl: "https://accounts.google.com"
+                          # clientid/clientsecret are NOT set here — they are
+                          # injected via env from Secret `vikunja-oidc` (see the
+                          # env: block above and README.md). This `google:` key
+                          # must remain for the env overrides to bind.
+                          scope: "openid profile email"
+
+          ingress:
+            main:
+              enabled: true
+              ingressClassName: nginx
+              annotations:
+                nginx.ingress.kubernetes.io/proxy-body-size: "0"
+              hosts:
+                - host: tasks.whitediver.keenetic.link
+                  paths:
+                    - path: /
+                      pathType: Prefix
+
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: vikunja
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

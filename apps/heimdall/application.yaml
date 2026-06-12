@@ -1,0 +1,120 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: heimdall
+  namespace: argo-cd
+spec:
+  project: default
+  source:
+    repoURL: https://k8s-at-home.com/charts/
+    targetRevision: 8.4.2
+    helm:
+      values: |-
+        env:
+          - name: PUID
+            value: "999"
+          - name: PGID
+            value: "999"
+        image:
+          tag: 2.7.6
+        probes:
+          startup:
+            enabled: false
+          liveness:
+            enabled: false
+          readiness:
+            enabled: false
+        resources:
+          requests:
+            cpu: "100m"
+            memory: "128Mi"
+          limits:
+            cpu: "100m"
+            memory: "128Mi"
+        nodeSelector:
+          kubernetes.io/hostname: kube-worker-1
+        persistence:
+          config:
+            enabled: true
+            type: pvc
+            mountPath: /config
+            storageClass: "smb"
+            size: 1Gi
+            accessMode: ReadWriteOnce
+            subPath: ""
+            readOnly: false
+          postgres-data:
+            enabled: true
+            type: pvc
+            mountPath: /var/lib/postgresql/data
+            storageClass: "smb-pg"
+            size: 5Gi
+            accessMode: ReadWriteOnce
+            subPath: ""
+            readOnly: false
+        ingress:
+          main:
+            annotations:
+              nginx.ingress.kubernetes.io/rewrite-target: /$2
+              nginx.ingress.kubernetes.io/use-regex: "true"
+              nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+            enabled: true
+            ingressClassName: nginx
+            tls:
+              - secretName: chart-heimdal-tls
+                hosts:
+                  - dev.whitediver.keenetic.link
+            hosts:
+              - host: dev.whitediver.keenetic.link
+                paths:
+                  - path: /heimdall(/|$)(.*)
+                    pathType: Prefix
+        # Postgres sidecar — DB credentials come from the pre-existing
+        # `heimdall-postgres` Secret (see README.md). Do not inline them.
+        additionalContainers:
+          postgres:
+            name: postgres
+            image: postgres:15
+            imagePullPolicy: IfNotPresent
+            envFrom:
+              - secretRef:
+                  name: heimdall-postgres
+            env:
+              - name: PGDATA
+                value: "/var/lib/postgresql/data/pgdata"
+            securityContext:
+              runAsUser: 999
+              runAsGroup: 999
+            ports:
+              - containerPort: 5432
+                name: postgres
+                protocol: TCP
+            volumeMounts:
+              - name: postgres-data
+                mountPath: /var/lib/postgresql/data
+            resources:
+              requests:
+                memory: "256Mi"
+                cpu: "250m"
+              limits:
+                memory: "512Mi"
+                cpu: "500m"
+        service:
+          main:
+            enabled: true
+            ports:
+              http:
+                port: 80
+                protocol: TCP
+                targetPort: 80
+                enabled: true
+    chart: heimdall
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: heimdall
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
