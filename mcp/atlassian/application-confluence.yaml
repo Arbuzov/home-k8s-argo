@@ -55,6 +55,9 @@ spec:
           - name: vpn-sidecar
             image: docker.io/aw1cks/openconnect
             env:
+              # asa1, NOT asa: the VPN_GROUP_A group exists on both
+              # concentrators but only asa1 (203.0.113.11) passes traffic —
+              # asa (.242) authenticates and then blackholes all TCP.
               - name: URL
                 value: "https://vpn.corp.example"
               - name: AUTH_GROUP

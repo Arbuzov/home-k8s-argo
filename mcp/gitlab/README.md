@@ -21,15 +21,15 @@ the sidecar's resolver can reach — the chart's `hostAliases` value pins it
 to 10.20.0.156 (`corp-host.example`) in `/etc/hosts` instead. If GitLab
 moves hosts, update that IP.
 
-> **Known issue (2026-06-12):** the `VPN_GROUP_A` tunnel group on
-> `vpn.corp.example` authenticates and establishes, but passes no TCP —
-> not to corp subnets, not to the internet (only UDP/53 to public resolvers
-> gets through). The confluence sidecar has the same problem, so until the
-> ASA group policy / vpn-filter is fixed corp-side, both MCP servers accept
-> MCP sessions but fail actual API calls. The other ASA groups are no help
-> for a sidecar: `DUO` needs MFA + client cert (it's what AnyConnect on the
-> workstation uses, against `vpn.corp.example`), `VPN_GROUP_C` rejects
-> these credentials, `VPN_GROUP_D` wants a client certificate.
+> **Gotcha — two concentrators (2026-06-12):** the `VPN_GROUP_A` tunnel
+> group exists on both `vpn.corp.example` (203.0.113.10) and
+> `vpn.corp.example` (.243), but only **asa1** passes traffic. On asa
+> the tunnel authenticates and establishes, then blackholes all TCP (only
+> UDP/53 to public resolvers gets through) — that kept both this and the
+> confluence MCP dead until the sidecars were pointed at asa1. The other
+> groups are no help for a sidecar: `DUO` needs MFA + client cert (what
+> AnyConnect on the workstation uses), `VPN_GROUP_C` rejects these
+> credentials, `VPN_GROUP_D` wants a client certificate.
 
 ## Required out-of-band secrets
 
