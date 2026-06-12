@@ -37,11 +37,9 @@ spec:
             - "*"
         config:
           mcpServers:
-            memory:
-              args:
-              - -y
-              - '@modelcontextprotocol/server-memory'
-              command: npx
+            # No stdio `memory` server: npx-on-start hung ~30s every boot and
+            # never connected, losing the race against the liveness probe
+            # (203 restarts). Basic Memory covers the use case anyway.
             # The atlassian servers speak streamable-http (not SSE) and live
             # under /mcp/<name>. Keep the trailing slash: the server 307s the
             # slashless form and mcpo's client doesn't follow POST redirects.
