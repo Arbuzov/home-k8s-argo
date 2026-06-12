@@ -41,14 +41,16 @@ spec:
             # never connected, losing the race against the liveness probe
             # (203 restarts). Basic Memory covers the use case anyway.
             # The atlassian servers speak streamable-http (not SSE) and live
-            # under /mcp/<name>. Keep the trailing slash: the server 307s the
-            # slashless form and mcpo's client doesn't follow POST redirects.
+            # under /mcp/<name>. Mind the trailing slash — each version 307s
+            # the non-canonical form and mcpo's client doesn't follow POST
+            # redirects: jira (0.11.x image) wants the slash, confluence
+            # (0.21.x) wants it absent.
             jira:
               type: streamable_http
               url: http://mcp-atlassian-jira:8000/mcp/jira/
             confluence:
               type: streamable_http
-              url: http://mcp-atlassian-confluence:8000/mcp/confluence/
+              url: http://mcp-atlassian-confluence:8000/mcp/confluence
             home-assistant:
               type: sse
               url: http://192.168.99.89:8123/mcp_server/sse

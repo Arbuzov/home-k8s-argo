@@ -54,9 +54,13 @@ spec:
             nginx.ingress.kubernetes.io/auth-type: basic
             nginx.ingress.kubernetes.io/auth-secret: mcp-basic-auth
             nginx.ingress.kubernetes.io/auth-realm: "Authentication Required"
-            # Same trailing-slash rewrite as the Jira app — remote MCP
-            # clients don't follow the server's 307 POST redirect.
-            nginx.ingress.kubernetes.io/rewrite-target: /mcp/confluence/$2
+            # 0.21.1 inverted the canonical path vs 0.11.x: the SLASHLESS
+            # /mcp/confluence is served and /mcp/confluence/ 307s back to it
+            # (with an http:// Location, doubly broken). Rewrite everything to
+            # the slashless form — remote MCP clients don't follow 307 POSTs.
+            # NB: opposite of the Jira app, whose 0.11.x image still wants the
+            # trailing slash.
+            nginx.ingress.kubernetes.io/rewrite-target: /mcp/confluence$2
           path: /mcp/confluence
           hosts:
             - dev.whitediver.keenetic.link
