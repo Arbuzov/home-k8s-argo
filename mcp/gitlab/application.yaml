@@ -13,6 +13,14 @@ spec:
     chart: mcp-gitlab
     helm:
       values: |
+        # Pin the image above the chart appVersion (2.0.7). 2.0.19 is the
+        # newest tag published to Docker Hub; the GitHub repo's 2.1.x is NOT
+        # pushed there and anyway rejects static-PAT + STREAMABLE_HTTP in
+        # favour of OAuth/REMOTE_AUTHORIZATION, which would break this setup.
+        # The app.kubernetes.io/version label still reads 2.0.7 (it tracks
+        # Chart.AppVersion, not image.tag) — only the running image changes.
+        image:
+          tag: "2.0.19"
         # Non-secret env only. GITLAB_PERSONAL_ACCESS_TOKEN comes from the
         # mcp-gitlab-credentials Secret via envSecrets, see README.md.
         env:
