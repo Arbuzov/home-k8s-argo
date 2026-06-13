@@ -13,7 +13,9 @@ spec:
     helm:
       values: |
         image:
-          tag: latest
+          # Pinned for reproducible GitOps; bump deliberately. 1.11.7 is the latest
+          # stable (the floating `latest` tag lags at 1.11.6).
+          tag: 1.11.7
         # Printer is a CP210x USB-serial board on kube-master, exposed as /dev/ttyUSB0.
         # The chart bind-mounts this host device onto the container's (hardcoded) /dev/ttyACM0.
         # Default was /dev/ttyACM0, which does not exist on the host -> kubelet created an empty
