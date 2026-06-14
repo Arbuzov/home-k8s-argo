@@ -74,6 +74,23 @@ spec:
               capabilities:
                 add:
                   - NET_ADMIN
+            # OpenConnect runs with --background, so when the corp concentrator
+            # drops the tunnel (e.g. idle timeout) the process exits but the
+            # container's PID 1 (dnsmasq) keeps running — the pod stays Running
+            # with a dead tunnel and every Confluence call times out. This
+            # liveness probe fails once tun127 loses its address, so Kubernetes
+            # restarts the sidecar, which re-establishes the tunnel and routes
+            # in the shared netns. self-heals the drop (same as mcp/gitlab).
+            livenessProbe:
+              exec:
+                command:
+                  - /bin/sh
+                  - -c
+                  - ip addr show tun127 | grep -q "inet "
+              initialDelaySeconds: 60
+              periodSeconds: 30
+              timeoutSeconds: 5
+              failureThreshold: 3
   destination:
     server: https://kubernetes.default.svc
     namespace: mcp
