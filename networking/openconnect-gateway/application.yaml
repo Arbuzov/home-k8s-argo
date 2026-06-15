@@ -1,0 +1,25 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: openconnect-gateway
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/Arbuzov/home-cluster-helm.git
+    targetRevision: HEAD
+    path: arbuzov/networking/openconnect-gateway
+    helm:
+      valueFiles:
+        - values.yaml
+  destination:
+    server: https://kubernetes.default.svc
+    # Deploys into mcp so it can reuse the mcp-atlassian-vpn-credentials Secret
+    # and share the namespace (pod-IP routing + Service DNS) with its clients.
+    namespace: mcp
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

@@ -50,27 +50,33 @@ spec:
             - dev.whitediver.keenetic.link
             - "*"
         sidecars:
-          - name: vpn-sidecar
+          # route-manager: corp traffic (confluence.corp.example = 10.20.0.181,
+          # in 10.20.0.0/24) now goes through the shared `openconnect-gateway` pod
+          # instead of a per-pod VPN tunnel (per-pod sidecars all logged in as the
+          # same corp user, and the concentrator routes only one session per user →
+          # two tunnels blackholed each other). This sidecar resolves the gateway's
+          # headless Service and keeps `ip route replace 10.20.0.0/24 via
+          # <gateway-pod-ip>` in place, so the route self-repairs if the gateway pod
+          # IP changes. confluence.corp.example resolves via cluster DNS; only the
+          # L3 path moves to the gateway.
+          - name: route-manager
             image: docker.io/aw1cks/openconnect
-            env:
-              - name: URL
-                value: "https://vpn.corp.example"
-              - name: AUTH_GROUP
-                value: VPN_GROUP_A
-              - name: EXTRA_ARGS
-                value: '--servercert pin-sha256:REDACTED'
-              - name: USER
-                valueFrom:
-                  secretKeyRef:
-                    name: mcp-atlassian-vpn-credentials
-                    key: USERNAME
-              - name: PASS
-                valueFrom:
-                  secretKeyRef:
-                    name: mcp-atlassian-vpn-credentials
-                    key: PASSWORD
+            command: ["/bin/sh", "-c"]
+            args:
+              - |
+                SVC=openconnect-gateway.mcp.svc.cluster.local
+                CIDR=10.20.0.0/24
+                while true; do
+                  GW=$(getent hosts "$SVC" 2>/dev/null | awk '{print $1; exit}')
+                  if [ -n "$GW" ]; then
+                    CUR=$(ip route show "$CIDR" 2>/dev/null | sed -n 's/.*via \([0-9.]*\).*/\1/p')
+                    if [ "$GW" != "$CUR" ]; then
+                      ip route replace "$CIDR" via "$GW" && echo "route-manager: $CIDR via $GW"
+                    fi
+                  fi
+                  sleep 15
+                done
             securityContext:
-              privileged: true
               capabilities:
                 add:
                   - NET_ADMIN
