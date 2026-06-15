@@ -2,7 +2,10 @@ apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
   name: openconnect-gateway
-  namespace: argocd
+  # This cluster's Argo CD watches the `argo-cd` namespace (where the mcp and
+  # platform Applications live). The older networking apps say `argocd`, but that
+  # namespace does not exist here.
+  namespace: argo-cd
 spec:
   project: default
   source:
