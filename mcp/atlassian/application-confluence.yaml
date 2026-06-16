@@ -37,6 +37,21 @@ spec:
           enabled: false
         readinessProbe:
           enabled: false
+        # Co-locate this pod on the SAME node as the openconnect-gateway pod (which
+        # itself lands on any node labelled vpn-gateway-capable=true). The
+        # route-manager sidecar below installs `10.20.0.0/24 via <gateway-pod-ip>`;
+        # a pod-IP next-hop is only on-link (and thus a valid route) when this pod
+        # shares the gateway's node. Off-node it fails with "Network unreachable"
+        # (and `onlink` doesn't help — ARP for the cross-node next-hop never resolves),
+        # so corp traffic never reaches the VPN. podAffinity makes us follow the
+        # gateway to whatever node it picks, instead of hard-coding a hostname.
+        affinity:
+          podAffinity:
+            requiredDuringSchedulingIgnoredDuringExecution:
+              - labelSelector:
+                  matchLabels:
+                    app.kubernetes.io/name: openconnect-gateway
+                topologyKey: kubernetes.io/hostname
         ingress:
           enabled: true
           className: nginx

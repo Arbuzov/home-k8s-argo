@@ -34,12 +34,18 @@ vpn:
 routedCidrs:
   - 10.20.0.0/24
 
-# Pin to a node whose kernel has the iptable_nat module. The RPi workers
-# (kube-worker-3) FAIL with "can't initialize iptables table 'nat'"; kube-master
-# works. MASQUERADE for forwarded traffic requires nat, so the gateway must land
-# here.
+# Schedule onto any node whose kernel can init the iptable_nat table (MASQUERADE
+# for forwarded client traffic needs it) — not a hard-coded host. Label capable
+# nodes out-of-band:
+#   kubectl label node <node> vpn-gateway-capable=true
+# Verified capable: kube-master, kube-worker-1, kube-worker-2 (kernel 6.1.21-v8+).
+# kube-worker-3 (6.18 rpt-rpi kernel) FAILS with "can't initialize iptables table
+# 'nat'" and is intentionally left unlabeled. Client MCP pods (gitlab/confluence)
+# follow this pod onto whichever capable node it lands on via podAffinity — their
+# route-manager sidecar needs the gateway pod IP to be an on-link next-hop, i.e.
+# on the same node.
 nodeSelector:
-  kubernetes.io/hostname: kube-master
+  vpn-gateway-capable: "true"
 
 tolerations: []
 affinity: {}
