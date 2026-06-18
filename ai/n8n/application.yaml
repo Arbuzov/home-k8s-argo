@@ -214,10 +214,53 @@ spec:
                 - name: redis
                   port: 6379
                   targetPort: 6379
+          # StorageClass for Postgres on the smb-csi share. The smb share is NOT
+          # POSIX (raw mode is forced 0777, chmod is a no-op), so Postgres can't
+          # run PGDATA on it via hostPath. CIFS mount options translate ownership
+          # and mode for the client: uid/gid=999 + dir_mode=0700/file_mode=0600
+          # make Postgres see a 0700 dir it owns. subDir is deterministic
+          # (pvc-<ns>-<pvc> = pvc-n8n-postgres-n8n-pg), so the data survives a
+          # PVC delete/recreate. See README.
+          - apiVersion: storage.k8s.io/v1
+            kind: StorageClass
+            metadata:
+              name: smb-pg
+            provisioner: smb.csi.k8s.io
+            parameters:
+              csi.storage.k8s.io/node-stage-secret-name: smbcreds
+              csi.storage.k8s.io/node-stage-secret-namespace: smb
+              csi.storage.k8s.io/provisioner-secret-name: smbcreds
+              csi.storage.k8s.io/provisioner-secret-namespace: smb
+              source: //192.168.99.44/smb-csi
+              subDir: "pvc-${pvc.metadata.namespace}-${pvc.metadata.name}"
+            mountOptions:
+              - vers=3.1.1
+              - serverino
+              - actimeo=1
+              - cache=none
+              - uid=999
+              - gid=999
+              - dir_mode=0700
+              - file_mode=0600
+            allowVolumeExpansion: true
+            reclaimPolicy: Retain
+            volumeBindingMode: Immediate
+          # PVC for Postgres data (binds to subDir pvc-n8n-postgres-n8n-pg)
+          - apiVersion: v1
+            kind: PersistentVolumeClaim
+            metadata:
+              name: postgres-n8n-pg
+              namespace: n8n
+            spec:
+              accessModes:
+                - ReadWriteOnce
+              resources:
+                requests:
+                  storage: 5Gi
+              storageClassName: smb-pg
           # PostgreSQL Deployment (consumes Secret postgres-n8n created out-of-band).
-          # Data lives directly on kube-master's local disk (see README) — no
-          # CIFS/PVC. hostPath is node-local, so the pod is pinned to kube-master
-          # and uses a Recreate strategy (never two postmasters on one PGDATA).
+          # Pinned to kube-master (co-located with the smb server) and Recreate so
+          # two postmasters never share one PGDATA.
           - apiVersion: apps/v1
             kind: Deployment
             metadata:
@@ -240,12 +283,9 @@ spec:
                   nodeSelector:
                     kubernetes.io/hostname: kube-master
                   securityContext:
-                    # Data on the smb-csi share is owned by 1000:1000 on the real
-                    # disk (Samba stores as 1000; the old CIFS uid=999 mount option
-                    # only faked client-side ownership). hostPath exposes the real
-                    # perms, so Postgres must run as 1000 to own its PGDATA.
-                    fsGroup: 1000
-                    fsGroupChangePolicy: OnRootMismatch
+                    # uid/gid 999 matches the smb-pg mount options (uid=999), which
+                    # present the share to Postgres as 999:999 / 0700.
+                    fsGroup: 999
                   containers:
                     - name: postgres
                       image: postgres:15
@@ -272,8 +312,8 @@ spec:
                         - name: PGDATA
                           value: /var/lib/postgresql/data/pgdata
                       securityContext:
-                        runAsUser: 1000
-                        runAsGroup: 1000
+                        runAsUser: 999
+                        runAsGroup: 999
                       ports:
                         - containerPort: 5432
                           name: tcp
@@ -289,12 +329,8 @@ spec:
                           cpu: "500m"
                   volumes:
                     - name: data
-                      hostPath:
-                        # Same bytes the CIFS PVC used to serve; PGDATA=<here>/pgdata.
-                        # type: Directory => pod won't start if the path is missing
-                        # (fail-safe: never silently init an empty DB).
-                        path: /srv/kubernetes/nfs/smb-csi/pvc-n8n-postgres-n8n-pg
-                        type: Directory
+                      persistentVolumeClaim:
+                        claimName: postgres-n8n-pg
           # Service for PostgreSQL
           - apiVersion: v1
             kind: Service
