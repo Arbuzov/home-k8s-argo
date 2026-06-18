@@ -240,7 +240,11 @@ spec:
                   nodeSelector:
                     kubernetes.io/hostname: kube-master
                   securityContext:
-                    fsGroup: 999
+                    # Data on the smb-csi share is owned by 1000:1000 on the real
+                    # disk (Samba stores as 1000; the old CIFS uid=999 mount option
+                    # only faked client-side ownership). hostPath exposes the real
+                    # perms, so Postgres must run as 1000 to own its PGDATA.
+                    fsGroup: 1000
                     fsGroupChangePolicy: OnRootMismatch
                   containers:
                     - name: postgres
@@ -268,8 +272,8 @@ spec:
                         - name: PGDATA
                           value: /var/lib/postgresql/data/pgdata
                       securityContext:
-                        runAsUser: 999
-                        runAsGroup: 999
+                        runAsUser: 1000
+                        runAsGroup: 1000
                       ports:
                         - containerPort: 5432
                           name: tcp

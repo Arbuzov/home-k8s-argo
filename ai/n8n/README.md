@@ -87,15 +87,20 @@ kubectl apply -f ai/root.yaml
 kubectl -n n8n rollout status deploy/postgres-n8n
 ```
 
-If postgres then refuses to start with *"data directory has invalid
-permissions / wrong ownership"*, the on-disk files aren't owned by uid 999
-(CIFS faked that via mount options; the real FS enforces it). One-time fix on
-kube-master, data untouched:
+### Ownership: Postgres runs as uid 1000 (not 999)
 
-```sh
-chown -R 999:999 /srv/kubernetes/nfs/smb-csi/pvc-n8n-postgres-n8n-pg
-chmod 700 /srv/kubernetes/nfs/smb-csi/pvc-n8n-postgres-n8n-pg/pgdata
-```
+The `smb-csi` share is **not POSIX** — on kube-master's real disk every file
+is owned by `1000:1000` (Samba stores as 1000; the old CIFS `uid=999` mount
+option only faked client-side ownership). Under CIFS, Postgres-as-999 worked
+because the kernel ignored real ownership; over `hostPath` the real FS is
+enforced, so Postgres-as-999 fails with *"data directory has wrong
+ownership"*. `chown`-ing to 999 isn't an option — the share sits under an
+NFS path with `root_squash`, so even a root container's `chown` is denied.
+
+So the Deployment runs Postgres as **`runAsUser/runAsGroup/fsGroup: 1000`**,
+matching the on-disk owner. Postgres only requires PGDATA to be owned by its
+euid (the username is irrelevant), and its entrypoint's `chmod 700 pgdata`
+then succeeds because it runs as the owner. No host-side fix needed.
 
 ### Why the data can't be lost here
 
