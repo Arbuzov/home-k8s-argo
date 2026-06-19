@@ -289,6 +289,9 @@ spec:
                 spec:
                   nodeSelector:
                     kubernetes.io/hostname: kube-master
+                  # Give the preStop fast-stop time to finish before SIGKILL, so the
+                  # next start skips crash recovery (the long "not accepting connections").
+                  terminationGracePeriodSeconds: 60
                   securityContext:
                     # uid/gid 999 matches the smb-pg mount options (uid=999), which
                     # present the share to Postgres as 999:999 / 0700.
@@ -324,15 +327,32 @@ spec:
                       ports:
                         - containerPort: 5432
                           name: tcp
+                      # Service only routes when the DB actually accepts connections,
+                      # so n8n/backups don't hit a still-starting Postgres.
+                      readinessProbe:
+                        exec:
+                          command: ["pg_isready", "-U", "n8n", "-d", "n8n"]
+                        initialDelaySeconds: 10
+                        periodSeconds: 10
+                        timeoutSeconds: 5
+                        failureThreshold: 3
+                      # Clean fast shutdown on SIGTERM (k8s default is a slow smart
+                      # shutdown that hits SIGKILL → crash recovery next boot).
+                      lifecycle:
+                        preStop:
+                          exec:
+                            command: ["pg_ctl", "-D", "/var/lib/postgresql/data/pgdata", "-m", "fast", "-w", "stop"]
                       volumeMounts:
                         - name: data
                           mountPath: /var/lib/postgresql/data
                       resources:
+                        # requests == limits => Guaranteed QoS: not OOMKilled at 512Mi
+                        # (uses ~110Mi) and evicted last under node memory pressure.
                         requests:
-                          memory: "128Mi"
-                          cpu: "100m"
+                          memory: "512Mi"
+                          cpu: "500m"
                         limits:
-                          memory: "256Mi"
+                          memory: "512Mi"
                           cpu: "500m"
                   volumes:
                     - name: data
