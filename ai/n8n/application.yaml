@@ -423,12 +423,74 @@ spec:
                             - sh
                             - -c
                             - |
-                              set -e
                               ts=$(date +%F)
-                              n8n export:workflow --all --output=/backup/workflows-$ts.json
-                              n8n export:credentials --all --output=/backup/credentials-$ts.json
+                              # Postgres can be mid-restart (CIFS) — retry ~10 min.
+                              i=0
+                              while true; do
+                                if n8n export:workflow --all --output=/backup/workflows-$ts.json && n8n export:credentials --all --output=/backup/credentials-$ts.json; then break; fi
+                                i=$((i+1)); [ $i -ge 30 ] && { echo "export failed after retries"; exit 1; }
+                                echo "db not ready, retry $i in 20s"; sleep 20
+                              done
                               find /backup -name 'workflows-*.json' -mtime +14 -delete
                               find /backup -name 'credentials-*.json' -mtime +14 -delete
+                              ls -la /backup
+                          volumeMounts:
+                            - name: backup
+                              mountPath: /backup
+                      volumes:
+                        - name: backup
+                          persistentVolumeClaim:
+                            claimName: n8n-backup
+          # Nightly whole-DB dump (pg_dump) — captures EVERYTHING the per-object
+          # export above can't: users, projects, variables, data tables, tags,
+          # execution history, workflow versions, settings, installed nodes, etc.
+          # Pinned to kube-master (postgres + image are local there = reliable),
+          # waits for postgres (CIFS restarts), 14-day retention.
+          - apiVersion: batch/v1
+            kind: CronJob
+            metadata:
+              name: n8n-db-backup
+              namespace: n8n
+            spec:
+              schedule: "30 3 * * *"
+              concurrencyPolicy: Forbid
+              successfulJobsHistoryLimit: 3
+              failedJobsHistoryLimit: 3
+              jobTemplate:
+                spec:
+                  backoffLimit: 2
+                  template:
+                    spec:
+                      restartPolicy: Never
+                      nodeSelector:
+                        kubernetes.io/hostname: kube-master
+                      securityContext:
+                        runAsUser: 999
+                        runAsGroup: 999
+                        fsGroup: 999
+                      containers:
+                        - name: pgdump
+                          image: postgres:15
+                          imagePullPolicy: IfNotPresent
+                          env:
+                            - name: PGPASSWORD
+                              valueFrom:
+                                secretKeyRef:
+                                  name: postgres-n8n
+                                  key: POSTGRES_PASSWORD
+                          command:
+                            - sh
+                            - -c
+                            - |
+                              set -e
+                              ts=$(date +%F)
+                              i=0
+                              until pg_isready -h postgres-n8n -U n8n -d n8n; do
+                                i=$((i+1)); [ $i -ge 60 ] && { echo "db never ready"; exit 1; }
+                                echo "waiting for db ($i)"; sleep 5
+                              done
+                              pg_dump -h postgres-n8n -U n8n -d n8n | gzip -c > /backup/db-$ts.sql.gz
+                              find /backup -name 'db-*.sql.gz' -mtime +14 -delete
                               ls -la /backup
                           volumeMounts:
                             - name: backup

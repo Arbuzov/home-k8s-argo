@@ -91,21 +91,43 @@ kubectl -n n8n rollout status deploy/postgres-n8n
 
 ## Backups
 
-A `CronJob` `n8n-backup` runs nightly (03:00) and exports **all workflows and
-credentials** to the `n8n-backup` PVC (`smb` class, share subdir
-`pvc-n8n-n8n-backup`), as timestamped JSON, 14-day retention. Credentials are
-exported **encrypted** — they're only restorable with the **same**
-`N8N_ENCRYPTION_KEY` (in the `n8n-secrets` Secret), so back that key up too.
+Two nightly CronJobs write to the `n8n-backup` PVC (`smb` class, subdir
+`pvc-n8n-n8n-backup`), 14-day retention. Both retry/wait because Postgres on
+CIFS can be mid-restart.
+
+| Job | Time | Tool | Covers | Restore |
+|-----|------|------|--------|---------|
+| `n8n-backup` | 03:00 | `n8n export:*` | workflows + credentials (**encrypted**), as portable JSON | `n8n import:workflow/credentials` (same encryption key) |
+| `n8n-db-backup` | 03:30 | `pg_dump \| gzip` | **the whole DB — everything below** | `gunzip … \| psql` into an empty DB |
+
+**What's in n8n (and which job catches it).** The n8n CLI can export *only*
+workflows and credentials — there is **no `export:user`**. Everything else
+lives in Postgres and is captured **only by the `pg_dump` job**:
+
+- **Users** (`user`, `user_api_keys`, `user_favorites`) — incl. password hashes
+- **Roles / RBAC** (`role`, `role_scope`, `scope`, `role_mapping_rule*`)
+- **Projects & membership** (`project`, `project_relation`) and **ownership /
+  sharing** (`shared_workflow`, `shared_credentials`)
+- **Variables** (`variables`), **Tags** (`tag_entity`)
+- **Data Tables** (`data_table*` — e.g. your `claude_state`)
+- **Execution history** (`execution_entity`, `execution_data`, annotations)
+- **Workflow version history** (`workflow_history`, published versions)
+- **Settings** (`settings`), **installed community nodes** (`installed_*`)
+- **Webhooks** (`webhook_entity`), **log streaming** (`event_destinations`),
+  **SSO/LDAP identities** (`auth_identity`), insights, chat-hub, AI-assistant data
+
+⚠ Whichever you restore, you still need the **same `N8N_ENCRYPTION_KEY`**
+(Secret `n8n-secrets`) — credentials are encrypted with it. Back that key up too.
 
 ```sh
-# Run a backup now (don't wait for 03:00):
-kubectl -n n8n create job --from=cronjob/n8n-backup n8n-backup-manual
+# Run either backup now (don't wait for the schedule):
+kubectl -n n8n create job --from=cronjob/n8n-backup    n8n-backup-now
+kubectl -n n8n create job --from=cronjob/n8n-db-backup n8n-db-backup-now
 
-# Restore into a (running) n8n — same encryption key required:
+# Portable restore (into a running n8n) — workflows + credentials:
 n8n import:workflow --separate --input=/backup/workflows-YYYY-MM-DD.json
 n8n import:credentials --input=/backup/credentials-YYYY-MM-DD.json
-```
 
-A whole-DB `pg_dump` would be even simpler and captures everything (incl.
-executions), but isn't portable across n8n/Postgres versions — the per-object
-export above is the restorable, version-tolerant option.
+# Full restore (users + everything) — into an EMPTY database:
+gunzip -c /backup/db-YYYY-MM-DD.sql.gz | psql -h postgres-n8n -U n8n -d n8n
+```
