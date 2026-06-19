@@ -94,8 +94,54 @@ spec:
                 - icon: https://idbank.am/documents/IDBank_logo_300x300.png
                   href: https://idbank.am/ru/
 
+          # Tiles mirror the cluster's live Ingress hosts/paths
+          # (`kubectl get ingress -A`); the cluster is the source of truth.
+          # Group names match settings.layout above so the column layout
+          # applies. Plain tiles only — widgets that need an API key/token are
+          # provisioned out-of-band via Secret homepage-secrets (see README);
+          # add them per service as the secrets land.
           services:
-            - Infrastructure:
+            - Multimedia:
+                - Jellyfin:
+                    icon: jellyfin.png
+                    description: Media server
+                    href: https://dev.whitediver.keenetic.link/jellyfin
+                - Photos:
+                    icon: pigallery2.png
+                    description: PiGallery2 photo gallery
+                    href: https://photos.whitediver.keenetic.link
+            - Home:
+                - Home assistant:
+                    icon: https://images.icon-icons.com/2407/PNG/512/home_assistant_icon_146164.png
+                    href: https://home.whitediver.keenetic.link/
+                    # Substituted at runtime from env HOMEPAGE_VAR_HA_TOKEN
+                    # (Secret homepage-secrets). See README.md.
+                    key: "{{HOMEPAGE_VAR_HA_TOKEN}}"
+                    widget:
+                      type: homeassistant
+                      url: https://homeassistant.whitediver.keenetic.link/
+                - n8n:
+                    icon: n8n.png
+                    description: Workflow automation
+                    href: https://n8n.whitediver.keenetic.link/
+                - Vikunja:
+                    icon: vikunja.png
+                    description: Tasks
+                    href: https://tasks.whitediver.keenetic.link/
+                - OctoPrint:
+                    icon: octoprint.png
+                    description: 3D printer control
+                    href: https://dev.whitediver.keenetic.link/octoprint/
+            - Monitor:
+                - Grafana:
+                    icon: grafana.png
+                    description: Dashboards
+                    href: https://dev.whitediver.keenetic.link/grafana/
+                - Prometheus:
+                    icon: prometheus.png
+                    description: Metrics
+                    href: https://dev.whitediver.keenetic.link/prometheus
+            - System:
                 - Argo CD:
                     icon: https://argo-cd.readthedocs.io/en/stable/assets/logo.png
                     description: Declarative GitOps for Kubernetes
@@ -106,17 +152,23 @@ spec:
                       # Substituted at runtime from env HOMEPAGE_VAR_ARGOCD_TOKEN
                       # (Secret homepage-secrets). See README.md.
                       key: "{{HOMEPAGE_VAR_ARGOCD_TOKEN}}"
-
-            - Home assistant:
-                - Home assistant:
-                    icon: https://images.icon-icons.com/2407/PNG/512/home_assistant_icon_146164.png
-                    href: https://home.whitediver.keenetic.link/
-                    # Substituted at runtime from env HOMEPAGE_VAR_HA_TOKEN
-                    # (Secret homepage-secrets). See README.md.
-                    key: "{{HOMEPAGE_VAR_HA_TOKEN}}"
-                    widget:
-                      type: homeassistant
-                      url: https://homeassistant.whitediver.keenetic.link/
+                - Basic Memory (MCP):
+                    icon: mdi-brain
+                    description: Knowledge base
+                    href: https://dev.whitediver.keenetic.link/mcp/basic-memory
+                - Confluence (MCP):
+                    icon: confluence.png
+                    href: https://dev.whitediver.keenetic.link/mcp/confluence/
+                - Jira (MCP):
+                    icon: jira.png
+                    href: https://dev.whitediver.keenetic.link/mcp/jira/
+                - GitLab (MCP):
+                    icon: gitlab.png
+                    href: https://dev.whitediver.keenetic.link/mcp/gitlab/
+                - MCPO:
+                    icon: mdi-api
+                    description: MCP-to-OpenAPI proxy
+                    href: https://dev.whitediver.keenetic.link/mcpo/
 
           widgets:
             - logo:
