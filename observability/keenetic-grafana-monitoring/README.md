@@ -32,3 +32,13 @@ kubectl create secret generic keenetic-grafana-monitoring-config \
   --namespace influxdb \
   --from-file=config.ini=./config.ini
 ```
+
+## InfluxDB database
+
+The exporter writes to the InfluxDB v1.x database named by `bucket` (`keenetic`).
+It must exist first, or the pod CrashLoopBackOffs on the first write
+(`404 database not found`):
+
+```sh
+kubectl exec -n influxdb influxdb-0 -- influx -execute 'CREATE DATABASE keenetic'
+```
