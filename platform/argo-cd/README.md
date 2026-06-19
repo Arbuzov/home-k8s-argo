@@ -5,7 +5,7 @@ Application is **self-managing** — once Argo CD is bootstrapped, applying this
 manifest hands ownership of the install over to Argo CD, which then upgrades
 itself on every change to `spec.source.targetRevision` or the inline values.
 
-Current target: chart **`9.5.21`** (Argo CD **`v3.4.3`**), repo
+Current target: chart **`9.5.22`** (Argo CD **`v3.4.4`**), repo
 `https://argoproj.github.io/argo-helm`.
 
 `application.yaml` is kept **comment-free by convention** — every rationale
