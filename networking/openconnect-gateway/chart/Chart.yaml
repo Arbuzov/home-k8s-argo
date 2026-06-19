@@ -1,6 +1,0 @@
-apiVersion: v2
-name: openconnect-gateway
-description: Single shared OpenConnect (Cisco AnyConnect) VPN gateway; selected pods route corp subnets through it via NAT
-type: application
-version: 1.0.0
-appVersion: "1.0.0"
