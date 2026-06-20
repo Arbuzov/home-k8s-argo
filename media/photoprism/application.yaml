@@ -96,6 +96,11 @@ spec:
             enabled: true
             ingressClassName: nginx
             annotations:
+              # Keenetic router terminates TLS and forwards HTTP to nginx, so
+              # nginx's default HTTP->HTTPS redirect loops forever. Disable it,
+              # same as pigallery2/jellyfin on this cluster.
+              nginx.ingress.kubernetes.io/ssl-redirect: "false"
+              nginx.ingress.kubernetes.io/proxy-body-size: "100m"
               nginx.ingress.kubernetes.io/auth-type: basic
               nginx.ingress.kubernetes.io/auth-secret: photoprism-basic-auth
               nginx.ingress.kubernetes.io/auth-realm: "Authentication Required"
