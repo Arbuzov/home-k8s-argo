@@ -1,0 +1,31 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: media
+  namespace: argo-cd
+spec:
+  # App-of-apps for the media group. Unlike apps/mcp/platform this group has
+  # no dedicated AppProject — every media child Application uses
+  # `project: default`, so this app-of-apps stays in `default` too.
+  project: default
+  source:
+    repoURL: https://github.com/Arbuzov/local-cluster-argo.git
+    targetRevision: main
+    path: media
+    directory:
+      recurse: true
+      # Every service's Application manifest. bootstrap.yaml sits at the
+      # media/ root, so `*/application*.yaml` never matches it — the
+      # app-of-apps doesn't manage itself.
+      include: '{*/application*.yaml}'
+      # opds-shelf stays in git but is held back from this cluster.
+      exclude: '{opds-shelf/application.yaml}'
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argo-cd
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - ServerSideApply=true

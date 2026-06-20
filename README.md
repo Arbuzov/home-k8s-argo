@@ -36,13 +36,15 @@ Two delivery models live side by side:
 
 ### App-of-apps groups — pull-based GitOps
 
-`apps/`, `mcp/` and `platform/` each ship a `bootstrap.yaml` app-of-apps that
-points Argo CD at this repo on GitHub over HTTPS and reconciles that group's
-`AppProject` (`<group>/project.yaml`) plus every enabled child `Application`
-automatically. Bootstrap each once, after the repo is pushed to GitHub:
+`apps/`, `media/`, `mcp/` and `platform/` each ship a `bootstrap.yaml`
+app-of-apps that points Argo CD at this repo on GitHub over HTTPS and
+reconciles that group's `AppProject` (`<group>/project.yaml`, where the group
+has one) plus every enabled child `Application` automatically. Bootstrap each
+once, after the repo is pushed to GitHub:
 
 ```sh
 kubectl apply -f apps/bootstrap.yaml
+kubectl apply -f media/bootstrap.yaml
 kubectl apply -f mcp/bootstrap.yaml
 kubectl apply -f platform/bootstrap.yaml
 ```
@@ -51,9 +53,11 @@ From then on Argo CD watches `main`: edit a `<group>/<service>/application.yaml`
 commit and push, and it syncs on its own (each app-of-apps runs `automated`
 sync with `prune` + `selfHeal`). The children belong to their group's
 AppProject (`project: apps` / `mcp` / `platform`); the app-of-apps itself stays
-in `default` so it can create that project. Each group's `README.md` documents
-which children are enabled vs. held back via the `bootstrap.yaml` `exclude` glob
-(`platform/` currently deploys only `argo-cd` + `arc-operator`).
+in `default` so it can create that project. `media/` is the exception — it has
+no AppProject, so its children and its app-of-apps both stay in `default`. Each
+group's `README.md` documents which children are enabled vs. held back via the
+`bootstrap.yaml` `exclude` glob (`platform/` currently deploys only `argo-cd` +
+`arc-operator`; `media/` holds back `opds-shelf`).
 
 ### Everything else — push-based
 
