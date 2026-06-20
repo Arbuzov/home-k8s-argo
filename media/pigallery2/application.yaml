@@ -1,0 +1,128 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: pigallery2
+  namespace: argo-cd
+spec:
+  project: default
+  source:
+    repoURL: https://bjw-s-labs.github.io/helm-charts
+    chart: app-template
+    targetRevision: 3.6.0
+    helm:
+      values: |
+        controllers:
+          pigallery2:
+            pod:
+              nodeSelector:
+                kubernetes.io/hostname: kube-worker-1
+            containers:
+              app:
+                image:
+                  repository: bpatrik/pigallery2
+                  tag: latest
+                env:
+                  NODE_ENV: production
+                ports:
+                  - name: http
+                    containerPort: 80
+                    protocol: TCP
+                resources:
+                  requests:
+                    memory: 128Mi
+                    cpu: 100m
+                  limits:
+                    memory: 512Mi
+        service:
+          app:
+            controller: pigallery2
+            ports:
+              http:
+                port: 80
+        ingress:
+          app:
+            className: nginx
+            annotations:
+              nginx.ingress.kubernetes.io/ssl-redirect: "false"
+              nginx.ingress.kubernetes.io/proxy-body-size: "100m"
+            hosts:
+              - host: photos.whitediver.keenetic.link
+                paths:
+                  - path: /
+                    pathType: Prefix
+                    service:
+                      identifier: app
+                      port: http
+            tls:
+              - secretName: chart-pigallery2-tls
+                hosts:
+                  - photos.whitediver.keenetic.link
+        persistence:
+          config:
+            type: persistentVolumeClaim
+            accessMode: ReadWriteOnce
+            size: 1Gi
+            storageClass: smb
+            globalMounts:
+              - path: /app/data/config
+          photos:
+            type: persistentVolumeClaim
+            existingClaim: pigallery2-photos
+            globalMounts:
+              - path: /app/data/images
+                readOnly: true
+          tmp:
+            type: emptyDir
+            globalMounts:
+              - path: /app/data/tmp
+        rawResources:
+          pv:
+            apiVersion: v1
+            kind: PersistentVolume
+            nameOverride: photos
+            spec:
+              spec:
+                capacity:
+                  storage: 200Gi
+                accessModes:
+                  - ReadWriteMany
+                persistentVolumeReclaimPolicy: Retain
+                storageClassName: ""
+                csi:
+                  driver: smb.csi.k8s.io
+                  volumeHandle: pigallery2-photos
+                  nodeStageSecretRef:
+                    name: smbcreds
+                    namespace: smb
+                  volumeAttributes:
+                    source: "//192.168.99.44/pictures"
+                mountOptions:
+                  - dir_mode=0755
+                  - file_mode=0644
+                  - uid=1000
+                  - gid=1000
+                  - vers=3.1.1
+                  - serverino
+                  - nobrl
+          pvc:
+            apiVersion: v1
+            kind: PersistentVolumeClaim
+            nameOverride: photos
+            spec:
+              spec:
+                accessModes:
+                  - ReadWriteMany
+                resources:
+                  requests:
+                    storage: 200Gi
+                volumeName: pigallery2-photos
+                storageClassName: ""
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: pigallery2
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
