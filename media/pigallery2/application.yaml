@@ -42,6 +42,10 @@ spec:
                 port: 80
         ingress:
           app:
+            # Disabled while pigallery2 is parked at replicas 0 — photoprism now
+            # serves photos.whitediver.keenetic.link. To hand the host back:
+            # re-enable this and disable the photoprism ingress.
+            enabled: false
             className: nginx
             annotations:
               nginx.ingress.kubernetes.io/ssl-redirect: "false"

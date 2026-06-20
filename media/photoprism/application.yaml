@@ -15,7 +15,8 @@ spec:
           repository: photoprism/photoprism
           tag: "latest"
         env:
-          PHOTOPRISM_SITE_URL: "https://dev.whitediver.keenetic.link/photoprism/"
+          PHOTOPRISM_SITE_URL: "https://photos.whitediver.keenetic.link/"
+          PHOTOPRISM_WORKERS: "2"          # cap indexing concurrency (default = #cores) to bound RAM/CPU spikes
           PHOTOPRISM_DEBUG: "false"
           PHOTOPRISM_READONLY: "true"
           PHOTOPRISM_PUBLIC: "true"
@@ -29,6 +30,17 @@ spec:
         securityContext:
           runAsUser: 999
           runAsGroup: 999
+        # Pinned to kube-worker-3 (Pi 5, 8Gi RAM). Memory is bounded so a heavy
+        # index run can never take the node down again: the pod is OOM-killed at
+        # the limit instead of the kubelet hanging (what knocked out worker-1).
+        nodeSelector:
+          kubernetes.io/hostname: kube-worker-3
+        resources:
+          requests:
+            cpu: 250m
+            memory: 512Mi
+          limits:
+            memory: 3Gi
         probes:
           startup:
             enabled: true
@@ -88,18 +100,14 @@ spec:
               nginx.ingress.kubernetes.io/auth-secret: photoprism-basic-auth
               nginx.ingress.kubernetes.io/auth-realm: "Authentication Required"
             hosts:
-              - host: dev.whitediver.keenetic.link
+              - host: photos.whitediver.keenetic.link
                 paths:
-                  - path: /photoprism
-                    pathType: ImplementationSpecific
-              - host: ""
-                paths:
-                  - path: /photoprism
-                    pathType: ImplementationSpecific
+                  - path: /
+                    pathType: Prefix
             tls:
               - secretName: chart-photoprism-tls
                 hosts:
-                  - dev.whitediver.keenetic.link
+                  - photos.whitediver.keenetic.link
   destination:
     server: https://kubernetes.default.svc
     namespace: photoprism
