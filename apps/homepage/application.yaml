@@ -60,9 +60,6 @@ spec:
               - "ChatGPT Codex":
                 - abbr: CX
                   href: https://chatgpt.com/codex/
-              - n8n:
-                - icon: https://avatars.githubusercontent.com/u/45487711?s=48&v=4
-                  href: https://n8n.whitediver.keenetic.link/
             - Developer:
               - "Github Arbuzov":
                 - icon: https://github.com/favicon.ico
@@ -79,10 +76,6 @@ spec:
               - "Dashboard Corp":
                 - icon: https://upload.wikimedia.org/wikipedia/commons/thumb/3/3b/Grafana_icon.svg/250px-Grafana_icon.svg.png
                   href: https://dashboard.corp.example/grafana/d/REDACTED-DASHBOARD-ID/lab-overview
-            - Media:
-              - "Photos":
-                - icon: pigallery2.png
-                  href: https://photos.whitediver.keenetic.link
             - News:
               - "RBC":
                 - icon: https://s0.rbk.ru/v1_static/images/common/logo.svg
