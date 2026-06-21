@@ -101,7 +101,7 @@ Two out-of-band Secrets (nothing sensitive in git, per repo convention):
 kubectl -n opds-shelf create secret generic opds-shelf-oauth2 \
   --from-literal=client-id='<google-client-id>' \
   --from-literal=client-secret='<google-client-secret>' \
-  --from-literal=cookie-secret="$(openssl rand -base64 32)"
+  --from-literal=cookie-secret="$(openssl rand -base64 48 | tr -dc 'A-Za-z0-9' | head -c 32)"
 
 # 2. htpasswd for the /opds basic-auth gate (e-reader credentials)
 kubectl -n opds-shelf create secret generic opds-shelf-basic-auth \
