@@ -85,6 +85,11 @@ addresses). `--cookie-secure=false` + an explicit `--redirect-url` because the
 Keenetic router terminates TLS and forwards plain HTTP to nginx (same reason
 every ingress here sets `ssl-redirect: "false"`).
 
+oauth2-proxy is pinned to `kube-master` (`nodeSelector`) because that is the
+only node here that reaches `quay.io` (its CDN times out from the workers);
+every other image in this stack is on ghcr.io/docker.io, which the workers can
+pull.
+
 ## Secrets
 
 Two out-of-band Secrets (nothing sensitive in git, per repo convention):
