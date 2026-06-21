@@ -252,11 +252,17 @@ spec:
             allowVolumeExpansion: true
             reclaimPolicy: Retain
             volumeBindingMode: Immediate
-          # PVC for Postgres data (binds to subDir pvc-n8n-postgres-n8n-pg)
+          # PVC for Postgres data — local-path (kube-master local disk).
+          # Postgres on CIFS/SMB corrupts its WAL on an ungraceful kill
+          # ("could not open file pg_wal/...: Invalid argument" → recovery
+          # PANICs, unrecoverable). The pod is pinned to kube-master, so
+          # node-local storage is reliable and POSIX-correct; rebuildable from
+          # the nightly pg_dump (n8n-backup PVC) if the node is ever lost.
+          # (The smb-pg StorageClass above is now unused — kept harmless.)
           - apiVersion: v1
             kind: PersistentVolumeClaim
             metadata:
-              name: postgres-n8n-pg
+              name: postgres-n8n-local
               namespace: n8n
             spec:
               accessModes:
@@ -264,7 +270,7 @@ spec:
               resources:
                 requests:
                   storage: 5Gi
-              storageClassName: smb-pg
+              storageClassName: local-path
           # PostgreSQL Deployment (consumes Secret postgres-n8n created out-of-band).
           # Pinned to kube-master (co-located with the smb server) and Recreate so
           # two postmasters never share one PGDATA.
@@ -357,7 +363,7 @@ spec:
                   volumes:
                     - name: data
                       persistentVolumeClaim:
-                        claimName: postgres-n8n-pg
+                        claimName: postgres-n8n-local
           # Service for PostgreSQL
           - apiVersion: v1
             kind: Service
