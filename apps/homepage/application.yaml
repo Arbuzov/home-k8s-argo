@@ -101,6 +101,10 @@ spec:
                     icon: photoprism.png
                     description: Photo gallery
                     href: https://photos.whitediver.keenetic.link
+                - Calibre-Web:
+                    icon: calibre-web.png
+                    description: E-book library
+                    href: https://dev.whitediver.keenetic.link/calibre-web
             - Home:
                 - Home assistant:
                     icon: https://images.icon-icons.com/2407/PNG/512/home_assistant_icon_146164.png
