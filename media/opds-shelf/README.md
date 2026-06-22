@@ -123,11 +123,14 @@ runtime state, not GitOps. On a fresh config volume:
    restart the calibre-web pod.
 3. Import the ~2.5 GB of loose books when ready (drop into `/ingest` for the
    importer, or `calibredb add --with-library /books <files>`).
-4. Enable Google login: set the shared Google client id/secret on the `google`
-   row of `oauthProvider` and `active=1`, restart the pod (registers
-   `/login/google`), then — logged in as `admin` — Profile → **Link to Google**.
-   Register `https://books.whitediver.keenetic.link/login/google/authorized` on
-   the Google client.
+4. Enable Google login (all in `app.db`): on the `google` row of `oauthProvider`
+   set the shared client id/secret + `active=1`; and `UPDATE settings SET
+   config_login_type=2` (OAuth login type — **required**, else the profile shows
+   no Link button; local `admin` login still works). Restart the pod (registers
+   `/login/google`). Register the redirect URI
+   `https://books.whitediver.keenetic.link/login/google/authorized` on the Google
+   client. Then log in locally as `admin`, open **Profile → Google OAuth Settings
+   → Link**; afterwards "Login with Google" signs that linked user in.
 
 > Do **not** carry a stale `app.db` across a major Calibre-Web version: the
 > image is `:latest`, and a schema-incompatible `app.db` makes every request
