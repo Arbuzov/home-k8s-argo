@@ -8,14 +8,22 @@ under `media/` automatically.
 
 | File | Kind | Purpose |
 | --- | --- | --- |
-| [`project.yaml`](project.yaml) | `AppProject` | The `media` project (sync-wave `-1`) — restricts sources/destinations for the group |
+| [`project.yaml`](project.yaml) | `AppProject` | The `media` project — restricts sources/destinations for the group |
 | [`bootstrap.yaml`](bootstrap.yaml) | `Application` | The **app-of-apps** — deploys `project.yaml` + every enabled child app |
 | `<service>/application.yaml` | `Application` | One app each (`project: media`) |
 
-Services: `photoprism` (deployed, serves `photos.whitediver.keenetic.link`),
-`jellyfin`, `pigallery2`, `opds-shelf` — the last three are **kept in git but
-held back** via the `exclude` glob in `bootstrap.yaml`. The app-of-apps itself
-stays in the `default` project so it can create the `media` AppProject.
+Services: `photoprism` (serves `photos.whitediver.keenetic.link`) and
+`opds-shelf` (`dev.whitediver.keenetic.link/{calibre-web,calibre,opds}`) are
+deployed; `jellyfin` and `pigallery2` are **kept in git but held back** via the
+`exclude` glob in `bootstrap.yaml`. The app-of-apps itself stays in the
+`default` project so it can create the `media` AppProject.
+
+> `project.yaml` deliberately carries **no `sync-wave`**. With `sync-wave: -1`
+> Argo applies the AppProject first and then waits for it to report *healthy*
+> before the wave-0 resources — but AppProjects expose no health, so the media
+> sync deadlocks ("waiting for healthy state of AppProject/media"). Without the
+> wave, the project applies in the same batch as everything else (it already
+> exists, so ordering is moot).
 
 ## Bootstrap
 

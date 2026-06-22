@@ -3,10 +3,6 @@ kind: AppProject
 metadata:
   name: media
   namespace: argo-cd
-  annotations:
-    # Create the project before the Applications that reference it
-    # (the media app-of-apps applies both in one sync).
-    argocd.argoproj.io/sync-wave: "-1"
 spec:
   description: Media services (photoprism, jellyfin, pigallery2, opds-shelf) — deployed via the media app-of-apps (see media/README.md)
   sourceRepos:
