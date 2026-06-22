@@ -193,8 +193,6 @@ metadata:
   annotations:
     nginx.ingress.kubernetes.io/ssl-redirect: "false"
     nginx.ingress.kubernetes.io/proxy-body-size: "100m"
-    nginx.ingress.kubernetes.io/configuration-snippet: |
-      set $pass_access_scheme https;
 spec:
   ingressClassName: nginx
   rules:

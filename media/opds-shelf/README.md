@@ -92,13 +92,14 @@ Google client id/secret and `active=1`; a pod restart then registers the
 > (it does — KeenDNS preset `books`).
 >
 > **https callback:** the router terminates TLS, so nginx sees plain HTTP and
-> Calibre-Web — which derives the scheme **only** from the `X-Scheme` header
-> (`reverseproxy.py`), not `X-Forwarded-Proto` — would build an `http://`
-> callback that Google rejects. The Ingress therefore injects `X-Scheme: https`
-> via a `configuration-snippet`, which needs the ingress-nginx controller to
-> allow snippets: `allow-snippet-annotations: true` + `annotations-risk-level:
-> Critical` on its ConfigMap. That controller lives in `local-cluster-helm` —
-> persist the setting there (set here at runtime).
+> Calibre-Web — which derives the scheme from the `X-Scheme` header
+> (`reverseproxy.py`) — would build an `http://` callback that Google rejects.
+> Fix: **`use-forwarded-headers: "true"`** on the ingress-nginx controller
+> ConfigMap, so nginx derives `$pass_access_scheme` (→ `X-Scheme`) from the
+> router's `X-Forwarded-Proto: https`. (A per-ingress `X-Scheme` snippet does
+> **not** work — ingress-nginx overrides `$pass_access_scheme` internally.) That
+> controller lives in `local-cluster-helm` — persist the setting there (it's set
+> at runtime here).
 
 **Access control / first login:** Calibre-Web has no email-domain filter, so
 keep public registration **off** and link accounts explicitly. Log in once
