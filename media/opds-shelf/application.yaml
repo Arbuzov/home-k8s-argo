@@ -136,6 +136,12 @@ spec:
       selfHeal: true
     syncOptions:
       - CreateNamespace=true
+  ignoreDifferences:
+    - group: apps
+      kind: StatefulSet
+      name: opds-shelf-calibre
+      jsonPointers:
+        - /spec/volumeClaimTemplates
 ---
 apiVersion: v1
 kind: Namespace
