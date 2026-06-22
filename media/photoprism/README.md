@@ -3,8 +3,9 @@
 PhotoPrism photo library, served at <https://photos.whitediver.keenetic.link/>.
 Originals are mounted **read-only** from the cluster's `pictures` SMB share
 (`//192.168.99.44/pictures`) — the same share pigallery2/jellyfin read. Pinned
-to `kube-worker-3` with a 3Gi memory cap so a heavy index run can't take the
-node down.
+to `kube-worker-3` with a 4Gi memory cap so a heavy index run can't take the
+node down. Indexing runs 3 workers (`PHOTOPRISM_WORKERS=3`) across the Pi 5's
+4 cores; TensorFlow stays disabled to keep RAM bounded.
 
 ## Out-of-band Secret: `photoprism-oidc`
 
