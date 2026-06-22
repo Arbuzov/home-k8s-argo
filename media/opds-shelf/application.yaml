@@ -9,7 +9,7 @@ spec:
   project: media
   source:
     repoURL: https://arbuzov.github.io/opds-shelf/
-    targetRevision: 0.3.0
+    targetRevision: 0.4.0
     helm:
       values: |-
         fullnameOverride: "opds-shelf"
@@ -79,6 +79,8 @@ spec:
             PGID: "999"
             TZ: "Europe/Moscow"
             ENABLE_LIBRARY_WRITE: "false"
+          extraEnv:
+            OAUTHLIB_RELAX_TOKEN_SCOPE: "1"
           resources:
             requests:
               memory: "128Mi"
