@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__MCP_DOCKER__kubectl_describe"
+    ]
+  }
+}
