@@ -6,10 +6,6 @@ metadata:
 spec:
   project: observability
   source:
-    # Local wrapper chart. (The old helm.influxdata.com/influxdb@0.1.0 reference
-    # was bogus and never resolved.) config.ini — with the router password and
-    # InfluxDB token — is mounted from the out-of-band Secret
-    # `keenetic-grafana-monitoring-config` in the influxdb namespace; see README.
     repoURL: https://github.com/Arbuzov/home-cluster-helm.git
     targetRevision: HEAD
     path: arbuzov/observability/keenetic-grafana-monitoring

@@ -3,7 +3,7 @@ kind: Application
 metadata:
   name: octoprint
   namespace: argo-cd
-  finalizers:  # cascade-delete this app's resources when removed from the app-of-apps; see apps/README.md
+  finalizers:
     - resources-finalizer.argocd.argoproj.io
 spec:
   project: apps
@@ -13,13 +13,7 @@ spec:
     helm:
       values: |
         image:
-          # Pinned for reproducible GitOps; bump deliberately. 1.11.7 is the latest
-          # stable (the floating `latest` tag lags at 1.11.6).
           tag: 1.11.7
-        # Printer is a CP210x USB-serial board on kube-master (appears as /dev/ttyUSB0).
-        # hostDev bind-mounts the host's live /dev (devtmpfs) into the pod, so the device is
-        # visible even if it (re)appears after the pod starts -> no pod restart on USB replug.
-        # `device` is the legacy single-node mount; ignored while hostDev.enabled is true.
         device: /dev/ttyUSB0
         hostDev:
           enabled: true
@@ -64,8 +58,6 @@ spec:
                   - "10.244.0.0/16"
                   - "10.244.2.114"
             serial:
-              # Auto-detect and connect to the printer on startup (port/baud left on AUTO
-              # so a ttyUSB0<->ttyUSB1 re-enumeration still resolves).
               autoconnect: true
     chart: octoprint
   destination:

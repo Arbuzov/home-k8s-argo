@@ -3,7 +3,7 @@ kind: Application
 metadata:
   name: pigallery2
   namespace: argo-cd
-  finalizers:  # cascade-delete this app's resources when removed from the media app-of-apps; config + photos PVs are Retain, so data survives — see media/README.md
+  finalizers:
     - resources-finalizer.argocd.argoproj.io
 spec:
   project: media
@@ -44,10 +44,6 @@ spec:
                 port: 80
         ingress:
           app:
-            # NOTE: photoprism currently serves photos.whitediver.keenetic.link.
-            # pigallery2 is held back from the cluster via the media bootstrap
-            # exclude (not deployed), so this ingress is dormant and does not
-            # clash. If pigallery2 is re-enabled, move the host off photoprism.
             className: nginx
             annotations:
               nginx.ingress.kubernetes.io/ssl-redirect: "false"

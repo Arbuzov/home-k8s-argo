@@ -6,15 +6,12 @@ metadata:
 spec:
   description: Media services (photoprism, jellyfin, pigallery2, opds-shelf) — deployed via the media app-of-apps (see media/README.md)
   sourceRepos:
-    # The app-of-apps reads the child Application manifests from this repo.
     - https://github.com/Arbuzov/local-cluster-argo.git
-    # Helm chart repos the media Applications pull from.
     - https://andrenarchy.github.io/helm-charts
     - https://jellyfin.github.io/jellyfin-helm
     - https://bjw-s-labs.github.io/helm-charts
     - https://arbuzov.github.io/opds-shelf/
   destinations:
-    # Each app deploys into its own namespace.
     - server: https://kubernetes.default.svc
       namespace: photoprism
     - server: https://kubernetes.default.svc
@@ -26,7 +23,6 @@ spec:
     - server: https://kubernetes.default.svc
       namespace: argo-cd
   clusterResourceWhitelist:
-    # photoprism + pigallery2 create cluster-scoped PersistentVolumes.
     - group: '*'
       kind: '*'
   namespaceResourceWhitelist:

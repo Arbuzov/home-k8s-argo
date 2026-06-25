@@ -27,8 +27,10 @@ Each service is a directory with:
 - `application.yaml` — the Argo CD `Application` resource
 - `application-<variant>.yaml` — when one chart is reused for multiple
   Applications (currently only `mcp/atlassian/` for Jira + Confluence)
-- `README.md` — present **only** when the service needs out-of-band
-  Secrets that you must `kubectl create` before the first sync
+- `README.md` — present when the service needs out-of-band Secrets that
+  you must `kubectl create` before the first sync, or when a manifest
+  value needs rationale that (by convention) must not live in a YAML
+  comment (see [`CLAUDE.md`](CLAUDE.md))
 
 ## How services are deployed
 

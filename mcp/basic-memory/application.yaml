@@ -3,7 +3,7 @@ kind: Application
 metadata:
   name: basic-memory
   namespace: argo-cd
-  finalizers:  # cascade-delete this app's resources when removed from the app-of-apps; see mcp/README.md
+  finalizers:
     - resources-finalizer.argocd.argoproj.io
 spec:
   project: mcp
@@ -27,11 +27,6 @@ spec:
                 image:
                   repository: ghcr.io/basicmachines-co/basic-memory
                   tag: "latest"
-                # Image default CMD is `mcp --transport sse`, whose SSE message
-                # callback is advertised at the server root (/messages/) and so
-                # bypasses the /mcp/basic-memory ingress prefix. Run streamable-http
-                # mounted at the full external path so every URL the server emits
-                # stays correctly prefixed (mirrors mcpo's --path-prefix approach).
                 command:
                   - basic-memory
                 args:
@@ -50,14 +45,6 @@ spec:
                   BASIC_MEMORY_SYNC_CHANGES: "true"
                   BASIC_MEMORY_LOG_LEVEL: INFO
                   BASIC_MEMORY_NO_PROMOS: "1"
-                  # Semantic (vector) search. These mirror the image defaults
-                  # (enabled, local FastEmbed bge-small-en-v1.5, no API key) but
-                  # are pinned here so the behaviour stays deterministic if the
-                  # `latest` image ever changes its defaults. The embedding model
-                  # cache is NOT persisted, so on each pod start FastEmbed
-                  # re-downloads the model from HuggingFace and re-embeds the
-                  # rebuilt SQLite index; if HF is unreachable at start, search
-                  # silently falls back to text until the model is available.
                   BASIC_MEMORY_SEMANTIC_SEARCH_ENABLED: "true"
                   BASIC_MEMORY_SEMANTIC_EMBEDDING_PROVIDER: fastembed
                   BASIC_MEMORY_SEMANTIC_EMBEDDING_MODEL: bge-small-en-v1.5
@@ -106,23 +93,12 @@ spec:
             hosts:
               - host: dev.whitediver.keenetic.link
                 paths:
-                  # No rewrite: the app serves streamable-http at this exact path
-                  # (--path /mcp/basic-memory), so the original URL is passed through.
                   - path: /mcp/basic-memory
                     pathType: Prefix
                     service:
                       identifier: basic-memory
                       port: http
 
-        # SMB-backed data volume + its StorageClass, both managed by this
-        # one Application (no out-of-band files). app-template prefixes
-        # every object name with the release name, so the class is
-        # `basic-memory-smb` and the PVC is `basic-memory-data-smb`.
-        # The CSI subDir is derived from the PVC namespace+name
-        # (pvc-mcp-basic-memory-data-smb), so the share folder — and thus
-        # the data — is independent of the class name. Only the markdown
-        # note tree lives here; the SQLite index is rebuilt off-volume on
-        # each start. uid/gid=1000 matches the image's appuser.
         persistence:
           data:
             enabled: true

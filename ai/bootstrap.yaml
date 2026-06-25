@@ -4,9 +4,6 @@ metadata:
   name: ai
   namespace: argo-cd
 spec:
-  # The app-of-apps itself lives in the always-present `default` project so it
-  # can create the `ai` AppProject below; the child Applications it deploys
-  # use `project: ai`.
   project: default
   source:
     repoURL: https://github.com/Arbuzov/local-cluster-argo.git
@@ -14,9 +11,6 @@ spec:
     path: ai
     directory:
       recurse: true
-      # Deploy the AppProject (project.yaml) and every service's
-      # Application manifest; exclude this file (bootstrap.yaml) so the
-      # app-of-apps never manages itself.
       include: '{project.yaml,*/application*.yaml}'
   destination:
     server: https://kubernetes.default.svc

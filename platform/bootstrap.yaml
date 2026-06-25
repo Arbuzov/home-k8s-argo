@@ -4,9 +4,6 @@ metadata:
   name: platform
   namespace: argo-cd
 spec:
-  # The app-of-apps itself lives in the always-present `default` project so it
-  # can create the `platform` AppProject below; the child Applications it
-  # deploys use `project: platform`.
   project: default
   source:
     repoURL: https://github.com/Arbuzov/local-cluster-argo.git
@@ -14,12 +11,7 @@ spec:
     path: platform
     directory:
       recurse: true
-      # Deploy the AppProject (project.yaml) and every service's
-      # Application manifest; exclude this file (bootstrap.yaml) so the
-      # app-of-apps never manages itself.
       include: '{project.yaml,*/application*.yaml}'
-      # Rolling out only argo-cd + arc-operator for now; the rest stay in git
-      # but are not deployed by the app-of-apps yet.
       exclude: '{kubernetes-dashboard/application.yaml,metrics-server/application.yaml}'
   destination:
     server: https://kubernetes.default.svc

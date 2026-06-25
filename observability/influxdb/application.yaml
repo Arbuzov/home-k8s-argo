@@ -35,9 +35,7 @@ spec:
             cpu: "100m"
           limits:
             memory: "2Gi"
-            cpu: "250m"
-        # Slow WAL replay on this Pi-class node was killing the pod inside the
-        # default 60s liveness window, producing an ever-growing crash loop.
+            cpu: "500m"
         livenessProbe:
           path: "/ping"
           initialDelaySeconds: 600
@@ -50,22 +48,17 @@ spec:
         config:
           monitor:
             store-enabled: false
-          # Tighten in-memory cache and force WAL → TSM snapshots aggressively
-          # so WAL replay after a restart doesn't load tens of MBs back into RAM.
-          # Memory limit was bumped to 2Gi because the inmem index for the
-          # homeassistant DB doesn't fit in 1Gi during catch-up write storms.
           data:
-            cache-max-memory-size: "128m"
-            cache-snapshot-memory-size: "5m"
-            cache-snapshot-write-cold-duration: "10s"
+            index-version: "tsi1"
+            cache-max-memory-size: "512m"
+            cache-snapshot-memory-size: "64m"
+            cache-snapshot-write-cold-duration: "10m"
             max-concurrent-compactions: 1
+            compact-full-write-cold-duration: "8760h"
   destination:
     server: https://kubernetes.default.svc
     namespace: influxdb
   ignoreDifferences:
-    # Chart renders volumeClaimTemplates with `annotations: null`; the API
-    # server stores them as absent. VCTs are immutable on a StatefulSet so
-    # there's nothing Argo CD could fix anyway.
     - group: apps
       kind: StatefulSet
       jsonPointers:

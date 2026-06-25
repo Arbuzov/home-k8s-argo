@@ -3,7 +3,7 @@ kind: Application
 metadata:
   name: homepage
   namespace: argo-cd
-  finalizers:  # cascade-delete this app's resources when removed from the app-of-apps; see apps/README.md
+  finalizers:
     - resources-finalizer.argocd.argoproj.io
 spec:
   project: apps
@@ -15,10 +15,6 @@ spec:
         env:
           - name: HOMEPAGE_ALLOWED_HOSTS
             value: homepage.whitediver.keenetic.link
-          # Secret-backed tokens. The homepage app substitutes {{HOMEPAGE_VAR_*}}
-          # placeholders in the config below from these env vars at runtime.
-          # Real values live only in Secret `homepage-secrets` (namespace
-          # homepage), created out-of-band — see README.md.
           - name: HOMEPAGE_VAR_ARGOCD_TOKEN
             valueFrom:
               secretKeyRef:
@@ -87,16 +83,8 @@ spec:
                 - icon: https://idbank.am/documents/IDBank_logo_300x300.png
                   href: https://idbank.am/ru/
 
-          # Tiles mirror the cluster's live Ingress hosts/paths
-          # (`kubectl get ingress -A`); the cluster is the source of truth.
-          # Group names match settings.layout above so the column layout
-          # applies. Plain tiles only — widgets that need an API key/token are
-          # provisioned out-of-band via Secret homepage-secrets (see README);
-          # add them per service as the secrets land.
           services:
             - Multimedia:
-                # jellyfin + pigallery2 are held back via media/bootstrap.yaml
-                # (not deployed); photoprism now serves photos.whitediver...
                 - PhotoPrism:
                     icon: photoprism.png
                     description: Photo gallery
@@ -109,8 +97,6 @@ spec:
                 - Home assistant:
                     icon: https://images.icon-icons.com/2407/PNG/512/home_assistant_icon_146164.png
                     href: https://home.whitediver.keenetic.link/
-                    # Substituted at runtime from env HOMEPAGE_VAR_HA_TOKEN
-                    # (Secret homepage-secrets). See README.md.
                     key: "{{HOMEPAGE_VAR_HA_TOKEN}}"
                     widget:
                       type: homeassistant
@@ -144,8 +130,6 @@ spec:
                     widget:
                       type: argocd
                       url: https://dev.whitediver.keenetic.link/argo-cd/
-                      # Substituted at runtime from env HOMEPAGE_VAR_ARGOCD_TOKEN
-                      # (Secret homepage-secrets). See README.md.
                       key: "{{HOMEPAGE_VAR_ARGOCD_TOKEN}}"
 
           widgets:

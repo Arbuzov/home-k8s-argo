@@ -4,31 +4,18 @@ metadata:
   name: platform
   namespace: argo-cd
   annotations:
-    # Create the project before the Applications that reference it
-    # (the platform app-of-apps applies both in one sync).
     argocd.argoproj.io/sync-wave: "-1"
 spec:
   description: Cluster plumbing — deployed via the platform app-of-apps (see platform/README.md)
   sourceRepos:
-    # The app-of-apps reads the child Application manifests from this repo.
     - https://github.com/Arbuzov/local-cluster-argo.git
-    # Helm chart repos the platform Applications pull from.
     - https://argoproj.github.io/argo-helm
     - https://actions-runner-controller.github.io/actions-runner-controller
-    # Add when kubernetes-dashboard / metrics-server are enabled in bootstrap.yaml:
-    #   - https://kubernetes.github.io/dashboard/
-    #   - https://kubernetes-sigs.github.io/metrics-server/
   destinations:
-    # argo-cd self-manages into its own namespace; this is also where the
-    # AppProject and the app-of-apps Application live.
     - server: https://kubernetes.default.svc
       namespace: argo-cd
-    # arc-operator (actions-runner-controller).
     - server: https://kubernetes.default.svc
       namespace: arc-system
-    # Add when enabling the disabled services in bootstrap.yaml:
-    #   - namespace: kubernetes-dashboard   # kubernetes-dashboard
-    #   - namespace: kube-system            # metrics-server
   clusterResourceWhitelist:
     - group: '*'
       kind: '*'

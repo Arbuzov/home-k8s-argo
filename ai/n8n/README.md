@@ -39,30 +39,52 @@ so do it manually here).
 - `N8N_ENCRYPTION_KEY` is referenced by all three n8n tiers
   (`main`, `worker`, `webhook`) via `extraEnv.valueFrom.secretKeyRef`.
 - `DB_POSTGRESDB_PASSWORD` overrides `db.postgresdb.password` from the
-  chart values — n8n picks env vars over file config.
+  chart values — n8n picks env vars over file config. The `worker` and
+  `webhook` tiers need this env explicitly too (`main` carries its own
+  copy); without it they crash with
+  `SASL: ... client password must be a string`.
+- **Do NOT add `valuesObject` to the `helm:` block.** An empty
+  `valuesObject` wins over `values`, and the chart silently renders its
+  defaults (no worker/webhook/db tiers).
 
-## Postgres storage (smb-pg PVC, pinned to kube-master)
+## Postgres storage (hostPath on kube-master)
 
-Postgres data lives on the `smb-csi` share via the dedicated **`smb-pg`**
-StorageClass (PVC `postgres-n8n-pg`, subDir `pvc-n8n-postgres-n8n-pg`).
+Postgres data lives on a **hostPath** — `/var/lib/postgres-n8n-data` on
+kube-master, real local POSIX disk — **not** on `smb-pg` and **not** on the
+cluster `local-path` class. Both of those are CIFS-backed here (uid forced to
+`1000`, chown/chmod denied even as root), and Postgres **corrupts its WAL on
+an ungraceful kill over CIFS**: `could not open file pg_wal/...: Invalid
+argument` → recovery PANICs → crashloop. Local disk avoids that. The pod is
+**pinned to kube-master** (`nodeSelector`) so the hostPath is always the same
+physical disk; if the node is lost, rebuild from the nightly `pg_dump`.
 
-It does **not** use a plain `hostPath` to the underlying directory, even
-though kube-master is the Samba server. That path is a **CIFS mount that
-forces mode `0777`** (chmod is a no-op, even for the owner) and stores files
-as `1000:1000`. Stock Postgres hard-refuses any PGDATA whose mode isn't
-`0700`/`0750` and there's no flag to disable that check — so hostPath fails
-with *"data directory has invalid permissions"*. The `smb-pg` mount options
-(`uid=999,gid=999,dir_mode=0700,file_mode=0600`) make the kernel **present**
-the share to Postgres as a `0700` dir it owns, which is the only thing that
-satisfies the check. Hence Postgres runs as `runAsUser/Group/fsGroup: 999`.
+The **`smb-pg` StorageClass is still defined in the manifest but is now
+unused** (kept for reference / possible reuse). It was the previous attempt:
+the underlying `smb-csi` share forces mode `0777` (chmod is a no-op) and
+stores files `1000:1000`, while stock Postgres hard-refuses any PGDATA whose
+mode isn't `0700`/`0750` with no flag to disable the check. `smb-pg`'s mount
+options (`uid=999,gid=999,dir_mode=0700,file_mode=0600`) make the kernel
+*present* the share as a `0700` dir Postgres owns, satisfying the check — but
+the CIFS WAL corruption above made it unusable for a live DB.
 
-Kept from the operational tuning: the pod is **pinned to kube-master** (the
-smb server) and uses a **Recreate** strategy so two postmasters never share
-one PGDATA, plus `-c synchronous_commit=off`.
+Operational tuning on the Postgres Deployment:
 
-`reclaimPolicy: Retain` + the deterministic subDir mean the data survives a
-PVC delete/recreate: a re-provisioned `postgres-n8n-pg` remaps to the same
-share folder.
+- **Runs as `999:999`** (`runAsUser/Group`, `fsGroup: 999`). hostPath volumes
+  are **not** chowned by `fsGroup`, so a root `initContainer` (`init-pgdata`)
+  makes PGDATA owned `999:999` / `0700` before Postgres starts (it refuses
+  otherwise). The initContainer is idempotent on restart.
+- **`Recreate` strategy** so two postmasters never share one PGDATA, plus
+  `-c synchronous_commit=off`.
+- **Clean fast shutdown:** a `preStop` `pg_ctl ... -m fast` stop, and
+  `terminationGracePeriodSeconds: 60` to let it finish before SIGKILL — the
+  k8s default is a slow smart shutdown that hits SIGKILL and forces crash
+  recovery (the long "not accepting connections") on the next boot.
+- **`readinessProbe` is `pg_isready`** so the Service only routes once the DB
+  actually accepts connections — n8n/backups don't hit a still-starting
+  Postgres.
+- **Guaranteed QoS** (`requests == limits`, `512Mi`/`500m`): it uses ~110Mi,
+  so it's not OOMKilled at 512Mi and is evicted last under node memory
+  pressure.
 
 ## Migrating / registering (one-time)
 
@@ -93,7 +115,11 @@ kubectl -n n8n rollout status deploy/postgres-n8n
 
 Two nightly CronJobs write to the `n8n-backup` PVC (`smb` class, subdir
 `pvc-n8n-n8n-backup`), 14-day retention. Both retry/wait because Postgres on
-CIFS can be mid-restart.
+CIFS can be mid-restart. The `n8n-backup` (export) job sets
+`enableServiceLinks: false` — its own `N8N_PORT` config clashes with the
+legacy service-link env k8s would otherwise inject for the `n8n` Service. The
+`n8n-db-backup` job is pinned to kube-master (Postgres + the `postgres:15`
+image are local there).
 
 | Job | Time | Tool | Covers | Restore |
 |-----|------|------|--------|---------|

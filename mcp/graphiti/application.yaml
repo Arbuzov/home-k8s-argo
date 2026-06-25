@@ -3,7 +3,7 @@ kind: Application
 metadata:
   name: graphiti-mcp
   namespace: argo-cd
-  finalizers:  # cascade-delete this app's resources when removed from the app-of-apps; see mcp/README.md
+  finalizers:
     - resources-finalizer.argocd.argoproj.io
 spec:
   project: mcp
@@ -27,8 +27,6 @@ spec:
                 image:
                   repository: neo4j
                   tag: "5.26.0"
-                # NEO4J_AUTH comes from the out-of-band Secret
-                # `graphiti-neo4j-auth` (see README.md).
                 envFrom:
                   - secretRef:
                       name: graphiti-neo4j-auth
@@ -101,8 +99,6 @@ spec:
                   MODEL_NAME: gpt-4.1-mini
                   CONFIG_PATH: /app/mcp/config/config-docker-neo4j.yaml
                   GRAPHITI_TELEMETRY_ENABLED: "false"
-                # NEO4J_USER / NEO4J_PASSWORD and OPENAI_API_KEY come from
-                # the out-of-band Secret `graphiti-mcp-secrets`.
                 envFrom:
                   - secretRef:
                       name: graphiti-mcp-secrets

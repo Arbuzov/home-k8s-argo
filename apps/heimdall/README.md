@@ -13,4 +13,5 @@ kubectl -n heimdall create secret generic heimdall-postgres \
   --from-literal=POSTGRES_PASSWORD="$(openssl rand -base64 24)"
 ```
 
-The sidecar pulls all three keys via `envFrom.secretRef`.
+The sidecar pulls all three keys via `envFrom.secretRef`. Keep them in the
+Secret — never inline the DB credentials into `helm.values`.

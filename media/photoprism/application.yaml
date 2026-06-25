@@ -16,28 +16,18 @@ spec:
           tag: "latest"
         env:
           PHOTOPRISM_SITE_URL: "https://photos.whitediver.keenetic.link/"
-          PHOTOPRISM_WORKERS: "3"               # 3 of the Pi 5's 4 cores: parallel indexing, leaves a core for kubelet/other pods. Originals are over SMB so workers overlap network I/O wait.
-          PHOTOPRISM_DISABLE_TENSORFLOW: "true" # no TF classification/faces — TF is the big RAM consumer
+          PHOTOPRISM_WORKERS: "3"
+          PHOTOPRISM_DISABLE_TENSORFLOW: "true"
           PHOTOPRISM_DEBUG: "false"
           PHOTOPRISM_READONLY: "true"
-          PHOTOPRISM_PUBLIC: "false"        # OIDC requires non-public mode (public mode disables auth)
+          PHOTOPRISM_PUBLIC: "false"
           PHOTOPRISM_DEFAULT_TLS: "false"
           PHOTOPRISM_LOG_LEVEL: "debug"
-          # Absolute path so the sqlite DB lands on the persistent storage
-          # volume, not the server's ephemeral CWD (/run, tmpfs). On SMB use a
-          # rollback journal (TRUNCATE) — WAL needs an mmap'd -shm file that
-          # CIFS can't provide; the smb mount uses nobrl + single writer.
           PHOTOPRISM_DATABASE_DSN: "/photoprism/storage/index.db?_busy_timeout=30000&_journal=TRUNCATE&_txlock=immediate&_fk=1"
           PHOTOPRISM_DATABASE_CONNS: 1
           PHOTOPRISM_DATABASE_CONNS_IDLE: 0
           PHOTOPRISM_DISABLE_CHOWN: "true"
           UID: "999"
-          # Google OIDC via the cluster's shared Google OAuth client (same one
-          # argo-cd/vikunja use). Client id/secret + a generated admin password
-          # are injected from Secret `photoprism-oidc` (created out-of-band, see
-          # README.md). The shared Google client MUST list this redirect URI:
-          #   https://photos.whitediver.keenetic.link/api/v1/oidc/redirect
-          # Allowlist is inherited from that client's Google consent screen.
           PHOTOPRISM_OIDC_URI: "https://accounts.google.com"
           PHOTOPRISM_OIDC_PROVIDER: "Google"
           PHOTOPRISM_OIDC_REGISTER: "true"
@@ -59,11 +49,6 @@ spec:
         securityContext:
           runAsUser: 999
           runAsGroup: 999
-        # Pinned to kube-worker-3 (Pi 5, 8Gi RAM). Memory is bounded so a heavy
-        # index run can never take the node down again: the pod is OOM-killed at
-        # the limit instead of the kubelet hanging (what knocked out worker-1).
-        # 4Gi gives the 3 parallel workers headroom (TF stays disabled, so no
-        # RAM bomb); node still has margin as other pods sit far below their limits.
         nodeSelector:
           kubernetes.io/hostname: kube-worker-3
         resources:
@@ -108,17 +93,11 @@ spec:
             size: 20Gi
             storageClass: smb
             mountPath: /photoprism/storage
-          # Originals = the cluster's current media folder: the `pictures`
-          # SMB share //192.168.99.44/pictures (same share pigallery2 and
-          # jellyfin read). Statically bound to the photoprism-pictures PV
-          # at the end of this file; mounted read-only so PhotoPrism never
-          # mutates the shared library (its index/thumbnails live in the
-          # `config` storage volume, and PHOTOPRISM_READONLY is "true").
           originals:
             enabled: true
             accessMode: ReadWriteMany
             size: 200Gi
-            storageClass: "-"          # "-" -> storageClassName "" (static bind, no dynamic provisioning)
+            storageClass: "-"
             volumeName: photoprism-pictures
             mountPath: /photoprism/originals
             readOnly: true
@@ -127,15 +106,8 @@ spec:
             enabled: true
             ingressClassName: nginx
             annotations:
-              # Keenetic router terminates TLS and forwards HTTP to nginx, so
-              # nginx's default HTTP->HTTPS redirect loops forever. Disable it,
-              # same as pigallery2/jellyfin on this cluster.
               nginx.ingress.kubernetes.io/ssl-redirect: "false"
               nginx.ingress.kubernetes.io/proxy-body-size: "100m"
-              # No basic-auth: PhotoPrism handles login itself (Google OIDC +
-              # admin password, PHOTOPRISM_PUBLIC=false). The OIDC callback
-              # /api/v1/oidc/redirect must be reachable without an outer auth
-              # layer, so the nginx basic-auth annotations are removed.
             hosts:
               - host: photos.whitediver.keenetic.link
                 paths:
@@ -156,10 +128,6 @@ spec:
       - CreateNamespace=true
       - ServerSideApply=true
 ---
-# Static SMB-CSI volume for the cluster's current photo media folder.
-# Mirrors media/pigallery2 (same //192.168.99.44/pictures share). Bound to
-# the chart-created PVC photoprism-originals (namespace photoprism) via the
-# claimRef below + that PVC's volumeName. uid/gid 999 match PhotoPrism's user.
 apiVersion: v1
 kind: PersistentVolume
 metadata:

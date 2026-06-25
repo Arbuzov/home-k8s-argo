@@ -25,6 +25,10 @@ Services: `photoprism` (serves `photos.whitediver.keenetic.link`) and
 > wave, the project applies in the same batch as everything else (it already
 > exists, so ordering is moot).
 
+The `media` AppProject's `clusterResourceWhitelist` is open (`group: '*'`,
+`kind: '*'`) because `photoprism` and `pigallery2` create cluster-scoped
+`PersistentVolume` resources; the project would otherwise reject them.
+
 ## Bootstrap
 
 ```sh

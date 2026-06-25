@@ -17,6 +17,12 @@ Services: `atlassian` (Jira + Confluence), `basic-memory`, `gitlab`,
 `graphiti`, `homeassistant`, `kubernetes`, `mcpo`. Each has its own
 `README.md` for the out-of-band Secrets it expects.
 
+The `mcp` AppProject's `sourceRepos` whitelists the two Helm chart repos the
+child Applications pull from — `https://arbuzov.github.io/mcp-helm/` and
+`https://bjw-s-labs.github.io/helm-charts` — alongside this repo (the
+app-of-apps source). Adding a child whose chart lives elsewhere means adding
+its repo here first, or the project rejects the sync.
+
 ## How it deploys (app-of-apps)
 
 - [`bootstrap.yaml`](bootstrap.yaml) is the app-of-apps. Its source is this repo on
@@ -74,3 +80,12 @@ redeploys and re-binds the existing data.
 
 List several to disable more at once:
 `exclude: '{graphiti/application.yaml,kubernetes/application.yaml}'`.
+
+### Currently excluded
+
+`graphiti`, `homeassistant`, and `kubernetes` are held back in the `exclude`
+glob. `homeassistant` and `kubernetes` use `mcp-helm` charts that currently run
+the server in **stdio** mode, which crashloops under Argo CD — they need a
+stdio→SSE (HTTP) bridge before they can be enabled. `graphiti` is a different
+chart (`bjw-s` `app-template`, a neo4j-backed server) and is held back
+separately. Remove each from `exclude` once it's ready to deploy.

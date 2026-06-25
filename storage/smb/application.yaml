@@ -16,11 +16,6 @@ spec:
           TZ: UTC
           WSDD2_ENABLE: '1'
           SAMBA_LOG_LEVEL: '2'
-          # Samba auth comes from the existing `smbcreds` Secret (namespace smb) —
-          # the same credentials the CSI driver and other workloads use to mount
-          # these shares, so it is the single source of truth. The crazy-max/samba
-          # image interpolates ${VAR} inside config.yml at runtime, so the password
-          # never lands in git nor in the rendered ConfigMap. See README.md.
           SAMBA_USER:
             valueFrom:
               secretKeyRef:
@@ -83,10 +78,6 @@ spec:
             data:
               config.yml: |
                 auth:
-                  # user/password are interpolated from env ${SAMBA_USER} /
-                  # ${SAMBA_PASSWORD} by the crazy-max/samba image at runtime
-                  # (see the env: block above, sourced from the `smbcreds`
-                  # Secret). No cleartext credential in git or in the ConfigMap.
                   - user: ${SAMBA_USER}
                     group: ${SAMBA_USER}
                     uid: 1000

@@ -4,10 +4,6 @@ metadata:
   name: storage
   namespace: argo-cd
 spec:
-  # App-of-apps for the storage group. Unlike apps/media/mcp/platform this
-  # group has no AppProject (no project.yaml), so both this app-of-apps and
-  # its children stay in the always-present `default` project — `storage/smb`
-  # is already `project: default`.
   project: default
   source:
     repoURL: https://github.com/Arbuzov/local-cluster-argo.git
@@ -15,11 +11,6 @@ spec:
     path: storage
     directory:
       recurse: true
-      # Every service's Application manifest. bootstrap.yaml sits at the
-      # storage/ root, so `*/application*.yaml` never matches it — the
-      # app-of-apps doesn't manage itself. Toggle a service on/off by
-      # renaming its manifest in/out of this glob (see /enable, /disable);
-      # editing the glob would need a manual re-apply, renaming does not.
       include: '*/application*.yaml'
   destination:
     server: https://kubernetes.default.svc

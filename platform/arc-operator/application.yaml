@@ -15,9 +15,6 @@ spec:
     helm:
       skipCrds: true
       values: |
-        # The chart's own authSecret.create=true expects a github_token
-        # inlined here. We disable that path and rely on a Secret we create
-        # out-of-band (see README.md) so the PAT never lands in git.
         authSecret:
           create: false
           name: controller-manager

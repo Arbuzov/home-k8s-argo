@@ -3,7 +3,7 @@ kind: Application
 metadata:
   name: vikunja
   namespace: argo-cd
-  finalizers:  # cascade-delete this app's resources when removed from the app-of-apps; see apps/README.md
+  finalizers:
     - resources-finalizer.argocd.argoproj.io
 spec:
   project: apps
@@ -45,10 +45,6 @@ spec:
           env:
             VIKUNJA_DATABASE_TYPE: "sqlite"
             VIKUNJA_DATABASE_PATH: "/db/vikunja.db"
-            # Google OIDC clientid/clientsecret injected from Secret `vikunja-oidc`
-            # (namespace vikunja), created out-of-band — see README.md. The
-            # provider `google:` key must stay in config.yml below for these env
-            # overrides to bind onto the providers map.
             VIKUNJA_AUTH_OPENID_PROVIDERS_GOOGLE_CLIENTID:
               valueFrom:
                 secretKeyRef:
@@ -79,10 +75,6 @@ spec:
                         google:
                           name: "Google"
                           authurl: "https://accounts.google.com"
-                          # clientid/clientsecret are NOT set here — they are
-                          # injected via env from Secret `vikunja-oidc` (see the
-                          # env: block above and README.md). This `google:` key
-                          # must remain for the env overrides to bind.
                           scope: "openid profile email"
 
           ingress:

@@ -3,7 +3,7 @@ kind: Application
 metadata:
   name: mcpo
   namespace: argo-cd
-  finalizers:  # cascade-delete this app's resources when removed from the app-of-apps; see mcp/README.md
+  finalizers:
     - resources-finalizer.argocd.argoproj.io
 spec:
   project: mcp
@@ -12,14 +12,6 @@ spec:
     targetRevision: 0.2.7
     chart: mcpo
     helm:
-      # The Home Assistant Bearer token is sensitive. mcpo reads its whole
-      # config from config.json and does NOT expand env vars, so the token
-      # would otherwise land in a plaintext ConfigMap. Instead we use the
-      # chart's `existingConfigSecret` (added in mcpo 0.2.7): the full
-      # config.json — including the real token — lives ONLY in the out-of-band
-      # Secret `mcpo-secrets` (namespace mcp). The `config:` block below is
-      # kept as documentation and as the source for regenerating that Secret;
-      # the chart IGNORES it while existingConfigSecret is set. See README.md.
       values: |
         existingConfigSecret: mcpo-secrets
         image:
@@ -37,9 +29,6 @@ spec:
             - "*"
         config:
           mcpServers:
-            # No stdio `memory` server: npx-on-start hung ~30s every boot and
-            # never connected, losing the race against the liveness probe
-            # (203 restarts). Basic Memory covers the use case anyway.
             jira:
               type: streamable_http
               url: http://mcp-atlassian-jira:8000/mcp/jira

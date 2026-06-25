@@ -24,7 +24,10 @@ From then on, edit a `storage/<service>/application.yaml`, commit and push to
 `main`, and Argo CD syncs it on its own (`automated` sync with `prune` +
 `selfHeal`). Toggle a service with `/enable` / `/disable` — they rename the
 manifest in/out of the `*/application*.yaml` include glob; the app-of-apps
-itself never needs re-applying.
+itself never needs re-applying. (`bootstrap.yaml` sits at the `storage/` root,
+so the `*/application*.yaml` glob never matches it and it doesn't manage
+itself; editing the glob itself would need a manual re-apply, renaming does
+not.)
 
 Out-of-band Secrets each service expects are listed in its own `README.md`
 (`smb` needs `smbcreds` in namespace `smb` before its first sync).

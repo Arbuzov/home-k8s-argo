@@ -69,8 +69,6 @@ spec:
                 paths:
                   - path: /heimdall(/|$)(.*)
                     pathType: Prefix
-        # Postgres sidecar — DB credentials come from the pre-existing
-        # `heimdall-postgres` Secret (see README.md). Do not inline them.
         additionalContainers:
           postgres:
             name: postgres

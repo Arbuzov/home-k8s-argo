@@ -4,15 +4,11 @@ metadata:
   name: observability
   namespace: argo-cd
   annotations:
-    # Create the project before the Applications that reference it
-    # (the observability app-of-apps applies both in one sync).
     argocd.argoproj.io/sync-wave: "-1"
 spec:
   description: Metrics / logs apps — deployed via the observability app-of-apps
   sourceRepos:
-    # The app-of-apps reads the child Application manifests from this repo.
     - https://github.com/Arbuzov/local-cluster-argo.git
-    # Local wrapper chart the keenetic-grafana-monitoring Application pulls from.
     - https://github.com/Arbuzov/home-cluster-helm.git
   destinations:
     - server: https://kubernetes.default.svc

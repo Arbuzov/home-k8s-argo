@@ -1,7 +1,7 @@
 # mcpo
 
-Open WebUI's MCP aggregator. Fronts several upstream MCP servers (memory,
-Jira, Confluence, Home Assistant) behind one ingress at `/mcpo`.
+Open WebUI's MCP aggregator. Fronts several upstream MCP servers (Jira,
+Confluence, Home Assistant) behind one ingress at `/mcpo`.
 
 ## Sensitive token
 
@@ -19,6 +19,13 @@ The manifest sets `existingConfigSecret: mcpo-secrets` and pins chart
 kept as **documentation** and as the source for regenerating the Secret;
 the chart ignores it while `existingConfigSecret` is set (the committed
 `Authorization` value stays a `REPLACE_WITH_*` placeholder).
+
+## No stdio `memory` server
+
+`config.mcpServers` deliberately omits an stdio `memory` server. The
+npx-on-start launch hung ~30s every boot and never connected, losing the
+race against the liveness probe (203 restarts). Basic Memory covers the
+use case anyway — **don't add it back as a stdio server.**
 
 ## Concrete steps for this repo
 

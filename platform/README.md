@@ -60,9 +60,7 @@ Create each service's Secrets (see its `README.md`) before its first sync:
 
 ## Enabling a disabled service
 
-Remove its path from the app-of-apps `exclude` glob in [`bootstrap.yaml`](bootstrap.yaml)
-and add the matching chart repo + destination namespace to
-[`project.yaml`](project.yaml) (both are pre-listed there as commented stubs):
+Remove its path from the app-of-apps `exclude` glob in [`bootstrap.yaml`](bootstrap.yaml):
 
 ```yaml
     directory:
@@ -70,6 +68,15 @@ and add the matching chart repo + destination namespace to
       include: '{project.yaml,*/application*.yaml}'
       exclude: '{metrics-server/application.yaml}'   # e.g. enabling kubernetes-dashboard
 ```
+
+Then add the service's chart repo to `sourceRepos` and its destination namespace
+to `destinations` in [`project.yaml`](project.yaml), or the child Application is
+rejected by the `platform` project. The two disabled services need:
+
+| Service | `sourceRepos` entry | `destinations` namespace |
+| --- | --- | --- |
+| `kubernetes-dashboard` | `https://kubernetes.github.io/dashboard/` | `kubernetes-dashboard` |
+| `metrics-server` | `https://kubernetes-sigs.github.io/metrics-server/` | `kube-system` |
 
 Commit + push, then **re-apply the app-of-apps** — `bootstrap.yaml` is excluded
 from its own `include` (it never manages itself), so a git push alone does

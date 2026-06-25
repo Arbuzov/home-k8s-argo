@@ -4,9 +4,6 @@ metadata:
   name: mcp
   namespace: argo-cd
 spec:
-  # The app-of-apps itself lives in the always-present `default` project so it
-  # can create the `mcp` AppProject below; the child Applications it deploys
-  # use `project: mcp`.
   project: default
   source:
     repoURL: https://github.com/Arbuzov/local-cluster-argo.git
@@ -14,12 +11,7 @@ spec:
     path: mcp
     directory:
       recurse: true
-      # Deploy the AppProject (project.yaml) and every service's
-      # Application manifest; exclude this file (bootstrap.yaml) so the
-      # app-of-apps never manages itself.
       include: '{project.yaml,*/application*.yaml}'
-      # Disabled until their charts run as HTTP/SSE servers (currently stdio
-      # -> crashloop): mcp-helm homeassistant/kubernetes need a stdio->SSE bridge.
       exclude: '{graphiti/application.yaml,homeassistant/application.yaml,kubernetes/application.yaml}'
   destination:
     server: https://kubernetes.default.svc

@@ -3,7 +3,7 @@ kind: Application
 metadata:
   name: jellyfin
   namespace: argo-cd
-  finalizers:  # cascade-delete this app's resources when removed from the media app-of-apps; the config PV is Retain, so data survives — see media/README.md
+  finalizers:
     - resources-finalizer.argocd.argoproj.io
 spec:
   project: media
