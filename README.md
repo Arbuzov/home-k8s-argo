@@ -1,4 +1,4 @@
-# local-cluster-argo
+# home-k8s-argo
 
 Argo CD `Application` manifests for the home-lab Kubernetes cluster
 (`kube-master` + `kube-worker-*`). This is **stage 1** of a split from

@@ -20,7 +20,7 @@ the children fail validation on the first sync.
 
 Two entries, both required:
 
-- `github.com/Arbuzov/local-cluster-argo.git` — where the app-of-apps
+- `github.com/Arbuzov/home-k8s-argo.git` — where the app-of-apps
   reads the child `Application` manifests from.
 - `8gears.container-registry.com/library` — the OCI Helm registry the
   `n8n` Application pulls its chart from.

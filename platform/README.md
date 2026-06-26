@@ -20,7 +20,7 @@ own `README.md`.
 ## How it deploys (app-of-apps)
 
 - [`bootstrap.yaml`](bootstrap.yaml) is the app-of-apps. Its source is this repo on
-  GitHub over **HTTPS** (`https://github.com/Arbuzov/local-cluster-argo.git`,
+  GitHub over **HTTPS** (`https://github.com/Arbuzov/home-k8s-argo.git`,
   branch `main`), path `platform`, with `directory.recurse` + an `include`
   glob that picks up `project.yaml` and every `*/application*.yaml` — but
   **not** `bootstrap.yaml` itself, so the app-of-apps never manages itself.
