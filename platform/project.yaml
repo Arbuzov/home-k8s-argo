@@ -8,7 +8,7 @@ metadata:
 spec:
   description: Cluster plumbing — deployed via the platform app-of-apps (see platform/README.md)
   sourceRepos:
-    - https://github.com/Arbuzov/local-cluster-argo.git
+    - git@github.com:Arbuzov/home-k8s-argo.git
     - https://argoproj.github.io/argo-helm
     - https://actions-runner-controller.github.io/actions-runner-controller
   destinations:
