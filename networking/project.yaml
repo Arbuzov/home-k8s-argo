@@ -8,7 +8,7 @@ spec:
     Networking / VPN gateway apps (openconnect-gateway, wg-vless-gateway,
     wstunnel). Applied by hand — NOT wired into an app-of-apps.
   sourceRepos:
-    - https://github.com/Arbuzov/local-cluster-argo.git
+    - git@github.com:Arbuzov/home-k8s-argo.git
     - https://github.com/Arbuzov/home-cluster-helm.git
   destinations:
     - server: https://kubernetes.default.svc
