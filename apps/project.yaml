@@ -8,7 +8,7 @@ metadata:
 spec:
   description: End-user applications — deployed via the apps app-of-apps (see apps/README.md)
   sourceRepos:
-    - https://github.com/Arbuzov/local-cluster-argo.git
+    - git@github.com:Arbuzov/home-k8s-argo.git
     - https://unknowniq.github.io/helm-charts/
     - ghcr.io/go-vikunja/helm-chart
     - https://arbuzov.github.io/octoprint

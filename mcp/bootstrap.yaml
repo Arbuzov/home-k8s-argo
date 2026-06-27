@@ -6,7 +6,7 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: https://github.com/Arbuzov/local-cluster-argo.git
+    repoURL: git@github.com:Arbuzov/home-k8s-argo.git
     targetRevision: main
     path: mcp
     directory:
