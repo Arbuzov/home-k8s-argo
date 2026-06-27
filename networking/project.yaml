@@ -9,7 +9,7 @@ spec:
     wstunnel). Applied by hand — NOT wired into an app-of-apps.
   sourceRepos:
     - git@github.com:Arbuzov/home-k8s-argo.git
-    - https://github.com/Arbuzov/home-cluster-helm.git
+    - git@github.com:Arbuzov/home-k8s-helm.git
   destinations:
     - server: https://kubernetes.default.svc
       namespace: vpn

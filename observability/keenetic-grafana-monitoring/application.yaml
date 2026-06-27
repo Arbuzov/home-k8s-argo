@@ -6,7 +6,7 @@ metadata:
 spec:
   project: observability
   source:
-    repoURL: https://github.com/Arbuzov/home-cluster-helm.git
+    repoURL: git@github.com:Arbuzov/home-k8s-helm.git
     targetRevision: HEAD
     path: arbuzov/observability/keenetic-grafana-monitoring
   destination:

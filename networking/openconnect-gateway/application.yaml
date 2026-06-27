@@ -6,7 +6,7 @@ metadata:
 spec:
   project: networking
   source:
-    repoURL: https://github.com/Arbuzov/home-cluster-helm.git
+    repoURL: git@github.com:Arbuzov/home-k8s-helm.git
     targetRevision: HEAD
     path: arbuzov/networking/openconnect-gateway
   destination:
