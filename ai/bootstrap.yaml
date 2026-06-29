@@ -6,7 +6,7 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: https://github.com/Arbuzov/home-k8s-argo.git
+    repoURL: git@github.com:Arbuzov/home-k8s-argo.git
     targetRevision: main
     path: ai
     directory:

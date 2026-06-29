@@ -8,7 +8,7 @@ metadata:
 spec:
   description: AI / automation apps — deployed via the ai app-of-apps (see ai/README.md)
   sourceRepos:
-    - https://github.com/Arbuzov/home-k8s-argo.git
+    - git@github.com:Arbuzov/home-k8s-argo.git
     - 8gears.container-registry.com/library
     - ghcr.io/berriai
   destinations:

@@ -89,7 +89,8 @@ Two delivery models live side by side:
 
 `apps/`, `media/`, `mcp/`, `networking/`, `platform/` and `storage/` each ship a
 `bootstrap.yaml` app-of-apps that points Argo CD at this repo on GitHub over
-HTTPS and reconciles that group's `AppProject` (`<group>/project.yaml`, where
+**SSH** (`git@github.com:Arbuzov/home-k8s-argo.git` — SSH/port 22, since GitHub
+HTTPS is DPI-filtered on this network) and reconciles that group's `AppProject` (`<group>/project.yaml`, where
 the group has one — `media/` and `storage/` have none, so their children stay
 in `default`) plus every enabled child `Application` automatically. Bootstrap
 each once, after the repo is pushed to GitHub:

@@ -26,7 +26,7 @@ its repo here first, or the project rejects the sync.
 ## How it deploys (app-of-apps)
 
 - [`bootstrap.yaml`](bootstrap.yaml) is the app-of-apps. Its source is this repo on
-  GitHub over **HTTPS** (`https://github.com/Arbuzov/home-k8s-argo.git`,
+  GitHub over **SSH** (`git@github.com:Arbuzov/home-k8s-argo.git`,
   branch `main`), path `mcp`, with `directory.recurse` + an `include` glob
   that picks up `project.yaml` and every `*/application*.yaml` — but **not**
   `bootstrap.yaml` itself, so the app-of-apps never manages itself.
@@ -45,9 +45,9 @@ kubectl apply -f mcp/bootstrap.yaml
 ```
 
 From then on Argo CD keeps the `mcp` project and all child apps in sync from
-git — no further manual `apply` is needed for this group. (If the GitHub repo
-is private, register repo credentials in Argo CD first; a public HTTPS repo
-needs none.)
+git — no further manual `apply` is needed for this group. (Register the SSH
+deploy key as a repo credential in Argo CD first — SSH needs a key even for a
+public repo, and GitHub HTTPS is DPI-blocked on this network.)
 
 Create each service's Secrets (see its `README.md`) before its first sync.
 

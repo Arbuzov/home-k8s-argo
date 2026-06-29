@@ -6,7 +6,7 @@ metadata:
 spec:
   description: Media services (photoprism, jellyfin, pigallery2, opds-shelf) — deployed via the media app-of-apps (see media/README.md)
   sourceRepos:
-    - https://github.com/Arbuzov/home-k8s-argo.git
+    - git@github.com:Arbuzov/home-k8s-argo.git
     - https://andrenarchy.github.io/helm-charts
     - https://jellyfin.github.io/jellyfin-helm
     - https://bjw-s-labs.github.io/helm-charts

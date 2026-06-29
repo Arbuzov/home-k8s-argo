@@ -6,6 +6,12 @@
 *.secret.yaml
 *.secret.yml
 
+# Credential files for repo/registry/cluster auth — never commit (public repo).
+creds.yaml
+creds.yml
+creds*.yaml
+creds*.yml
+
 # SOPS / age / sealed-secrets work files (commit the encrypted versions
 # under a different suffix if/when you adopt one of these).
 *.dec.yaml
