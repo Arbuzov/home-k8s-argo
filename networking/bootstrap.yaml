@@ -1,0 +1,24 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: networking
+  namespace: argo-cd
+spec:
+  project: default
+  source:
+    repoURL: git@github.com:Arbuzov/home-k8s-argo.git
+    targetRevision: main
+    path: networking
+    directory:
+      recurse: true
+      include: '{project.yaml,*/application*.yaml}'
+      exclude: '{openconnect-gateway/application.yaml,wstunnel/application.yaml}'
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argo-cd
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - ServerSideApply=true

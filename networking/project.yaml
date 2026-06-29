@@ -3,10 +3,12 @@ kind: AppProject
 metadata:
   name: networking
   namespace: argo-cd
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
 spec:
   description: >-
     Networking / VPN gateway apps (openconnect-gateway, wg-vless-gateway,
-    wstunnel). Applied by hand — NOT wired into an app-of-apps.
+    wstunnel). Deployed via the networking app-of-apps.
   sourceRepos:
     - git@github.com:Arbuzov/home-k8s-argo.git
     - git@github.com:Arbuzov/home-k8s-helm.git

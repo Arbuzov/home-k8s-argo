@@ -3,6 +3,8 @@ kind: Application
 metadata:
   name: wg-vless-gateway
   namespace: argo-cd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
 spec:
   project: networking
   source:
