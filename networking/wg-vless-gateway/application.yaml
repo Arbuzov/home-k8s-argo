@@ -9,7 +9,7 @@ spec:
   project: networking
   source:
     repoURL: git@github.com:Arbuzov/home-k8s-helm.git
-    targetRevision: HEAD
+    targetRevision: main
     path: arbuzov/networking/wg-vless-gateway
     helm:
       valueFiles:
