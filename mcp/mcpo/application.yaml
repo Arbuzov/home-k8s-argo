@@ -16,6 +16,13 @@ spec:
         existingConfigSecret: mcpo-secrets
         image:
           tag: git-39b4867@sha256:f06525afac6b5d7c0712d6ec72f85203409c3285aad4a1acb977be16e409417b
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "50m"
+          limits:
+            memory: "384Mi"
+            cpu: "300m"
         ingress:
           enabled: true
           className: nginx

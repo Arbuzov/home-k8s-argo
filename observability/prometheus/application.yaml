@@ -47,6 +47,22 @@ spec:
             requests:
               cpu: 100m
               memory: 32Mi
+        kube-state-metrics:
+          resources:
+            limits:
+              cpu: 150m
+              memory: 128Mi
+            requests:
+              cpu: 50m
+              memory: 64Mi
+        prometheus-pushgateway:
+          resources:
+            limits:
+              cpu: 100m
+              memory: 64Mi
+            requests:
+              cpu: 25m
+              memory: 32Mi
   destination:
     server: https://kubernetes.default.svc
     namespace: prometheus

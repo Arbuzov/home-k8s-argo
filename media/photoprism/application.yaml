@@ -56,7 +56,8 @@ spec:
             cpu: 250m
             memory: 512Mi
           limits:
-            memory: 4Gi
+            cpu: 1500m
+            memory: 2Gi
         probes:
           startup:
             enabled: true

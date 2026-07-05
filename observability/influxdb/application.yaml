@@ -34,8 +34,8 @@ spec:
             memory: "256Mi"
             cpu: "100m"
           limits:
-            memory: "2Gi"
-            cpu: "500m"
+            memory: "768Mi"
+            cpu: "300m"
         livenessProbe:
           path: "/ping"
           initialDelaySeconds: 600
