@@ -18,15 +18,13 @@ spec:
       helm:
         values: |
           image:
-            # ROLLED BACK 2026-07-05: -database variant's fresh-container
-            # startup (Prisma query-engine staging) got stuck in D-state
-            # (disk sleep) for 15+ min on kube-worker-3, which was also
-            # showing ephemeral-storage eviction warnings and a kubelet
-            # blip around the same time -- real node I/O contention, not a
-            # CPU problem. Reverting to plain image + migrationJob:false
-            # until the node settles; retry later, possibly on a less
-            # concentrated node.
-            repository: ghcr.io/berriai/litellm
+            # Retry 2026-07-05: previous attempt hit kube-worker-3 disk
+            # contention (~500MB margin above the eviction threshold).
+            # Freed real headroom by disabling opds-shelf's calibre (1.3GB
+            # image) -- margin now ~5.2GB. -database variant activates the
+            # DB-backed code paths (admin UI, virtual keys, budgets, request
+            # logging) that db.useExisting wires up.
+            repository: ghcr.io/berriai/litellm-database
             pullPolicy: IfNotPresent
           masterkeySecretName: litellm-masterkey
           masterkeySecretKey: masterkey
@@ -40,9 +38,8 @@ spec:
               usernameKey: username
               passwordKey: password
           migrationJob:
-            # Disabled again 2026-07-05 -- see image comment above, same
-            # rollback (node I/O contention on kube-worker-3, not CPU).
-            enabled: false
+            # Re-enabled 2026-07-05 (retry) -- see image comment above.
+            enabled: true
             resources:
               requests:
                 memory: "256Mi"
