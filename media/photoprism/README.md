@@ -1,5 +1,10 @@
 # photoprism
 
+**Held back** (see `media/bootstrap.yaml` exclude glob) — replaced by
+[`pigallery2`](../pigallery2/README.md) on `photos.whitediver.keenetic.link` to
+cut resource footprint (no ML/face-recognition indexing) on the Pi cluster.
+Config below kept for reference / easy re-enable.
+
 PhotoPrism photo library, served at <https://photos.whitediver.keenetic.link/>.
 Originals are mounted **read-only** from the cluster's `pictures` SMB share
 (`//192.168.99.44/pictures`) — the same share pigallery2/jellyfin read. Pinned

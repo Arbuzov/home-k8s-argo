@@ -18,7 +18,10 @@ spec:
             replicas: 1
             pod:
               nodeSelector:
-                kubernetes.io/hostname: kube-worker-1
+                # TEMP: kube-worker-1 is a ~900Mi board already over its memory-limit
+                # budget; parked on kube-worker-3 (8Gi, spare headroom) until the
+                # node-rebalancing pass gives worker-1 room back.
+                kubernetes.io/hostname: kube-worker-3
             containers:
               app:
                 image:

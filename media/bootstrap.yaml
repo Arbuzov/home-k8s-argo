@@ -12,7 +12,7 @@ spec:
     directory:
       recurse: true
       include: '{project.yaml,*/application*.yaml}'
-      exclude: '{jellyfin/application.yaml,pigallery2/application.yaml}'
+      exclude: '{jellyfin/application.yaml,photoprism/application.yaml}'
   destination:
     server: https://kubernetes.default.svc
     namespace: argo-cd

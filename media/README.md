@@ -12,11 +12,12 @@ under `media/` automatically.
 | [`bootstrap.yaml`](bootstrap.yaml) | `Application` | The **app-of-apps** — deploys `project.yaml` + every enabled child app |
 | `<service>/application.yaml` | `Application` | One app each (`project: media`) |
 
-Services: `photoprism` (serves `photos.whitediver.keenetic.link`) and
+Services: `pigallery2` (serves `photos.whitediver.keenetic.link`) and
 `opds-shelf` (Calibre-Web at `books.whitediver.keenetic.link`, OPDS feed at
-`dev.whitediver.keenetic.link/opds`) are deployed; `jellyfin` and `pigallery2` are **kept in git but held back** via the
-`exclude` glob in `bootstrap.yaml`. The app-of-apps itself stays in the
-`default` project so it can create the `media` AppProject.
+`dev.whitediver.keenetic.link/opds`) are deployed; `jellyfin` and `photoprism` are **kept in git but held back** via the
+`exclude` glob in `bootstrap.yaml` (photoprism replaced by pigallery2 — lighter
+resource footprint, no ML/face-recognition indexing spikes). The app-of-apps
+itself stays in the `default` project so it can create the `media` AppProject.
 
 > `project.yaml` deliberately carries **no `sync-wave`**. With `sync-wave: -1`
 > Argo applies the AppProject first and then waits for it to report *healthy*
