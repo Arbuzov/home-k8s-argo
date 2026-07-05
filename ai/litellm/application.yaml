@@ -71,13 +71,19 @@ spec:
               cpu: "500m"
           affinity:
             nodeAffinity:
-              requiredDuringSchedulingIgnoredDuringExecution:
-                nodeSelectorTerms:
-                  - matchExpressions:
+              # Soft, not hard: a previous hard pin to a single node (kube-master,
+              # after kube-worker-3's runtime was briefly wedged) left litellm
+              # stuck Pending when that node had no room. worker-3 is healthy
+              # again (running pigallery2/n8n/etc. fine) and has the most spare
+              # CPU/RAM in the cluster -- prefer it, but don't hard-require it.
+              preferredDuringSchedulingIgnoredDuringExecution:
+                - weight: 100
+                  preference:
+                    matchExpressions:
                       - key: kubernetes.io/hostname
                         operator: In
                         values:
-                          - kube-master # TEMP: kube-worker-3 dropped, its container runtime is wedged (new pods stuck ContainerCreating)
+                          - kube-worker-3
           ingress:
             enabled: true
             className: nginx

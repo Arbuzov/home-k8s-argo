@@ -18,7 +18,9 @@ spec:
             type: deployment
             pod:
               nodeSelector:
-                kubernetes.io/hostname: kube-master
+                # Moved off kube-master (control-plane node, was CPU-saturated) --
+                # PVC is SMB/network storage so relocating is data-safe.
+                kubernetes.io/hostname: kube-worker-3
               securityContext:
                 fsGroup: 1000
                 fsGroupChangePolicy: OnRootMismatch
