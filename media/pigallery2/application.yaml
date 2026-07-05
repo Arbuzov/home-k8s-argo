@@ -38,7 +38,9 @@ spec:
                     memory: 128Mi
                     cpu: 100m
                   limits:
-                    memory: 512Mi
+                    # 512Mi OOMKilled every attempt during startup library scan
+                    # ("running diagnostics...") of the 200Gi photos share.
+                    memory: 1Gi
         service:
           app:
             controller: pigallery2
