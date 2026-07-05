@@ -42,8 +42,7 @@ spec:
                         - key: kubernetes.io/hostname
                           operator: In
                           values:
-                            - kube-master
-                            - kube-worker-3
+                            - kube-master # TEMP: kube-worker-3 dropped, its container runtime is wedged (new pods stuck ContainerCreating)
           image:
             registry: docker.io
             repository: bitnamilegacy/postgresql
@@ -87,8 +86,7 @@ spec:
                     - key: kubernetes.io/hostname
                       operator: In
                       values:
-                        - kube-master
-                        - kube-worker-3
+                        - kube-master # TEMP: kube-worker-3 dropped, its container runtime is wedged (new pods stuck ContainerCreating)
         ingress:
           enabled: true
           className: nginx
