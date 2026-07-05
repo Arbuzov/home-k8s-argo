@@ -18,9 +18,15 @@ spec:
       helm:
         values: |
           image:
-            # -database variant activates the DB-backed code paths (admin UI,
-            # virtual keys, budgets, request logging) that db.useExisting wires up.
-            repository: ghcr.io/berriai/litellm-database
+            # ROLLED BACK 2026-07-05: -database variant's fresh-container
+            # startup (Prisma query-engine staging) got stuck in D-state
+            # (disk sleep) for 15+ min on kube-worker-3, which was also
+            # showing ephemeral-storage eviction warnings and a kubelet
+            # blip around the same time -- real node I/O contention, not a
+            # CPU problem. Reverting to plain image + migrationJob:false
+            # until the node settles; retry later, possibly on a less
+            # concentrated node.
+            repository: ghcr.io/berriai/litellm
             pullPolicy: IfNotPresent
           masterkeySecretName: litellm-masterkey
           masterkeySecretKey: masterkey
@@ -34,11 +40,9 @@ spec:
               usernameKey: username
               passwordKey: password
           migrationJob:
-            # Re-enabled 2026-07-05: the earlier retry-loop (every attempt
-            # timed out ~60-70s) was kube-master CPU starvation (97-98%), not
-            # a real migration problem -- node is rebalanced now (~25% CPU)
-            # and litellm-postgres moved off kube-master to kube-worker-3.
-            enabled: true
+            # Disabled again 2026-07-05 -- see image comment above, same
+            # rollback (node I/O contention on kube-worker-3, not CPU).
+            enabled: false
             resources:
               requests:
                 memory: "256Mi"
