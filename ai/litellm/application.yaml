@@ -45,6 +45,9 @@ spec:
                 enabled: false # no bundled postgres to wait on anymore; don't gate sync on a hook
               helm:
                 enabled: false
+          envVars:
+            CHECKPOINT_DISABLE: "1" # prisma CLI's telemetry/update-check hangs ~60s with no reachable checkpoint.prisma.io, eating the whole hardcoded migration timeout
+            PRISMA_HIDE_UPDATE_MESSAGE: "true"
           environmentSecrets:
             - litellm-env-secret
           proxy_config:
