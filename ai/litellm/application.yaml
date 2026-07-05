@@ -19,6 +19,7 @@ spec:
       values: |
         image:
           repository: ghcr.io/berriai/litellm
+          pullPolicy: IfNotPresent
         masterkeySecretName: litellm-masterkey
         masterkeySecretKey: masterkey
         db:
@@ -39,6 +40,13 @@ spec:
             tag: "16"
         migrationJob:
           enabled: true
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
           hooks:
             argocd:
               enabled: true
