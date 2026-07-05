@@ -61,7 +61,7 @@ spec:
             repository: bitnamilegacy/postgresql
             tag: "16"
         migrationJob:
-          enabled: true
+          enabled: false # TEMP: postgres StatefulSet was just deleted/recreated (storage class fix), let it come up first
           resources:
             requests:
               memory: "256Mi"
