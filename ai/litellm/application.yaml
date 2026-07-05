@@ -65,10 +65,10 @@ spec:
           resources:
             requests:
               memory: "256Mi"
-              cpu: "100m"
+              cpu: "250m"
             limits:
               memory: "1536Mi" # 512Mi OOMKilled the prisma-migrations container every attempt
-              cpu: "500m"
+              cpu: "1000m" # was CPU-throttled at 500m (370m/500m observed, still slow)
           hooks:
             argocd:
               enabled: true
