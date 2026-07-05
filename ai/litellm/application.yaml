@@ -18,7 +18,9 @@ spec:
       helm:
         values: |
           image:
-            repository: ghcr.io/berriai/litellm
+            # -database variant activates the DB-backed code paths (admin UI,
+            # virtual keys, budgets, request logging) that db.useExisting wires up.
+            repository: ghcr.io/berriai/litellm-database
             pullPolicy: IfNotPresent
           masterkeySecretName: litellm-masterkey
           masterkeySecretKey: masterkey
@@ -32,11 +34,11 @@ spec:
               usernameKey: username
               passwordKey: password
           migrationJob:
-            # TEMP: disabled -- stuck prisma-migrate-deploy retry loop (every
-            # attempt times out after ~60-70s) was burning ~600m CPU + ~1Gi RAM
-            # in a retry storm on kube-master, which was already at 97% CPU.
-            # Re-enable once kube-master has headroom (after node rebalancing).
-            enabled: false
+            # Re-enabled 2026-07-05: the earlier retry-loop (every attempt
+            # timed out ~60-70s) was kube-master CPU starvation (97-98%), not
+            # a real migration problem -- node is rebalanced now (~25% CPU)
+            # and litellm-postgres moved off kube-master to kube-worker-3.
+            enabled: true
             resources:
               requests:
                 memory: "256Mi"
