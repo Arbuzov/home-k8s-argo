@@ -32,7 +32,11 @@ spec:
               usernameKey: username
               passwordKey: password
           migrationJob:
-            enabled: true
+            # TEMP: disabled -- stuck prisma-migrate-deploy retry loop (every
+            # attempt times out after ~60-70s) was burning ~600m CPU + ~1Gi RAM
+            # in a retry storm on kube-master, which was already at 97% CPU.
+            # Re-enable once kube-master has headroom (after node rebalancing).
+            enabled: false
             resources:
               requests:
                 memory: "256Mi"
