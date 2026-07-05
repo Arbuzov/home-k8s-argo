@@ -75,6 +75,14 @@ spec:
                         port: 8000
                       initialDelaySeconds: 10
                       periodSeconds: 10
+                  startup:
+                    enabled: true
+                    custom: true
+                    spec:
+                      tcpSocket:
+                        port: 8000
+                      periodSeconds: 10
+                      failureThreshold: 30
 
         service:
           basic-memory:
