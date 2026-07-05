@@ -29,7 +29,11 @@ spec:
         app: litellm-postgres
     spec:
       nodeSelector:
-        kubernetes.io/hostname: kube-master
+        # Off kube-master (control-plane node) -- DB is still empty (migrations
+        # never ran), so relocating now is free. Avoids anchoring another
+        # node-local-storage single point of failure to the control-plane node
+        # (the same trap influxdb/postgres-n8n are already stuck in).
+        kubernetes.io/hostname: kube-worker-3
       terminationGracePeriodSeconds: 60
       securityContext:
         fsGroup: 999
