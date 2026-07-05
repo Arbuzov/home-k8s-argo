@@ -47,6 +47,8 @@ spec:
             registry: docker.io
             repository: bitnamilegacy/postgresql
             tag: "16"
+          volumePermissions:
+            enabled: true
         migrationJob:
           enabled: false # TEMP: re-enable once litellm-postgresql exists (PreSync hook deadlocks against a DB that isn't created yet)
           resources:
