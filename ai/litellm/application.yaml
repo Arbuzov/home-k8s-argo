@@ -11,103 +11,77 @@ spec:
       selfHeal: true
     syncOptions:
       - CreateNamespace=true
-  source:
-    repoURL: ghcr.io/berriai
-    targetRevision: 1.90.0
-    chart: litellm-helm
-    helm:
-      values: |
-        image:
-          repository: ghcr.io/berriai/litellm
-          pullPolicy: IfNotPresent
-        masterkeySecretName: litellm-masterkey
-        masterkeySecretKey: masterkey
-        db:
-          deployStandalone: true
-          useExisting: false
-        postgresql:
-          auth:
-            username: litellm
+  sources:
+    - repoURL: ghcr.io/berriai
+      targetRevision: 1.90.0
+      chart: litellm-helm
+      helm:
+        values: |
+          image:
+            repository: ghcr.io/berriai/litellm
+            pullPolicy: IfNotPresent
+          masterkeySecretName: litellm-masterkey
+          masterkeySecretKey: masterkey
+          db:
+            deployStandalone: false
+            useExisting: true
+            endpoint: litellm-postgres
             database: litellm
-          primary:
-            persistence:
-              enabled: true
-              storageClass: smb-pg
-              size: 8Gi
-            podSecurityContext:
-              enabled: true
-              fsGroup: 999
-            containerSecurityContext:
-              enabled: true
-              runAsUser: 999
+            secret:
+              name: litellm-db
+              usernameKey: username
+              passwordKey: password
+          migrationJob:
+            enabled: true
             resources:
               requests:
-                memory: "128Mi"
-                cpu: "50m"
+                memory: "256Mi"
+                cpu: "250m"
               limits:
-                memory: "512Mi"
-                cpu: "500m"
-            affinity:
-              nodeAffinity:
-                requiredDuringSchedulingIgnoredDuringExecution:
-                  nodeSelectorTerms:
-                    - matchExpressions:
-                        - key: kubernetes.io/hostname
-                          operator: In
-                          values:
-                            - kube-master # TEMP: kube-worker-3 dropped, its container runtime is wedged (new pods stuck ContainerCreating)
-          image:
-            registry: docker.io
-            repository: bitnamilegacy/postgresql
-            tag: "16"
-        migrationJob:
-          enabled: true
+                memory: "1536Mi"
+                cpu: "1000m"
+            hooks:
+              argocd:
+                enabled: false # no bundled postgres to wait on anymore; don't gate sync on a hook
+              helm:
+                enabled: false
+          environmentSecrets:
+            - litellm-env-secret
+          proxy_config:
+            model_list:
+              - model_name: "nvidia_nim/*"
+                litellm_params:
+                  model: "nvidia_nim/*"
+                  api_key: os.environ/NVIDIA_NIM_API_KEY
+            general_settings:
+              master_key: os.environ/PROXY_MASTER_KEY
           resources:
             requests:
               memory: "256Mi"
-              cpu: "250m"
+              cpu: "100m"
             limits:
-              memory: "1536Mi" # 512Mi OOMKilled the prisma-migrations container every attempt
-              cpu: "1000m" # was CPU-throttled at 500m (370m/500m observed, still slow)
-          hooks:
-            argocd:
-              enabled: true
-            helm:
-              enabled: false
-        environmentSecrets:
-          - litellm-env-secret
-        proxy_config:
-          model_list:
-            - model_name: "nvidia_nim/*"
-              litellm_params:
-                model: "nvidia_nim/*"
-                api_key: os.environ/NVIDIA_NIM_API_KEY
-          general_settings:
-            master_key: os.environ/PROXY_MASTER_KEY
-        resources:
-          requests:
-            memory: "256Mi"
-            cpu: "100m"
-          limits:
-            memory: "2Gi"
-            cpu: "500m"
-        affinity:
-          nodeAffinity:
-            requiredDuringSchedulingIgnoredDuringExecution:
-              nodeSelectorTerms:
-                - matchExpressions:
-                    - key: kubernetes.io/hostname
-                      operator: In
-                      values:
-                        - kube-master # TEMP: kube-worker-3 dropped, its container runtime is wedged (new pods stuck ContainerCreating)
-        ingress:
-          enabled: true
-          className: nginx
-          hosts:
-            - host: litellm.whitediver.keenetic.link
-              paths:
-                - path: /
-                  pathType: Prefix
+              memory: "2Gi"
+              cpu: "500m"
+          affinity:
+            nodeAffinity:
+              requiredDuringSchedulingIgnoredDuringExecution:
+                nodeSelectorTerms:
+                  - matchExpressions:
+                      - key: kubernetes.io/hostname
+                        operator: In
+                        values:
+                          - kube-master # TEMP: kube-worker-3 dropped, its container runtime is wedged (new pods stuck ContainerCreating)
+          ingress:
+            enabled: true
+            className: nginx
+            hosts:
+              - host: litellm.whitediver.keenetic.link
+                paths:
+                  - path: /
+                    pathType: Prefix
+    - repoURL: https://github.com/Arbuzov/home-k8s-argo.git
+      targetRevision: main
+      path: ai/litellm/db
   destination:
     server: https://kubernetes.default.svc
     namespace: litellm
