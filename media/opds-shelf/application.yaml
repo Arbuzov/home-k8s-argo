@@ -34,7 +34,11 @@ spec:
           mountPath: /ingest
 
         calibre:
-          enabled: true
+          # Disabled: full GUI-desktop-in-container image (1.3GB, by far the
+          # heaviest image on kube-worker-3) for a service that's just a book
+          # management UI -- calibre-web covers day-to-day reading/serving.
+          # Data untouched: config PVC + shared library PV are Retain/kept.
+          enabled: false
           image:
             repository: ghcr.io/linuxserver/calibre
             tag: latest
@@ -111,7 +115,10 @@ spec:
               memory: "128Mi"
 
         importer:
-          enabled: true
+          # Disabled alongside calibre -- same 1.3GB image, would keep it
+          # cached on the node every 30min otherwise, defeating the point.
+          # Re-enable (or import manually) if new books need adding.
+          enabled: false
           schedule: "*/30 * * * *"
           image:
             repository: ghcr.io/linuxserver/calibre
