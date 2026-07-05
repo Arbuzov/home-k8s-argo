@@ -54,7 +54,7 @@ spec:
             repository: bitnamilegacy/postgresql
             tag: "16"
         migrationJob:
-          enabled: false # TEMP: re-enable once litellm-postgresql exists (PreSync hook deadlocks against a DB that isn't created yet)
+          enabled: true
           resources:
             requests:
               memory: "128Mi"
