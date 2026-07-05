@@ -34,6 +34,16 @@ spec:
               enabled: true
               storageClass: local-path
               size: 8Gi
+            affinity:
+              nodeAffinity:
+                requiredDuringSchedulingIgnoredDuringExecution:
+                  nodeSelectorTerms:
+                    - matchExpressions:
+                        - key: kubernetes.io/hostname
+                          operator: In
+                          values:
+                            - kube-master
+                            - kube-worker-3
           image:
             registry: docker.io
             repository: bitnamilegacy/postgresql
@@ -69,6 +79,16 @@ spec:
           limits:
             memory: "2Gi"
             cpu: "500m"
+        affinity:
+          nodeAffinity:
+            requiredDuringSchedulingIgnoredDuringExecution:
+              nodeSelectorTerms:
+                - matchExpressions:
+                    - key: kubernetes.io/hostname
+                      operator: In
+                      values:
+                        - kube-master
+                        - kube-worker-3
         ingress:
           enabled: true
           className: nginx
