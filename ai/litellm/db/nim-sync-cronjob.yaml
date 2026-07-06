@@ -1,0 +1,80 @@
+# Ported from the corporate instance (devops/argocd-apps, applications/litellm/db/nim-sync-cronjob.yaml).
+# Adapted secret refs: home cluster splits master key (litellm-masterkey/masterkey)
+# and provider keys (litellm-env-secret) instead of one litellm-secrets Secret.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: litellm-nim-sync
+  namespace: litellm
+spec:
+  schedule: "0 */3 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 3
+      template:
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: sync
+              image: python:3.12-alpine
+              imagePullPolicy: IfNotPresent
+              env:
+                - name: LITELLM_MASTER_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: litellm-masterkey
+                      key: masterkey
+                - name: NVIDIA_NIM_API_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: litellm-env-secret
+                      key: NVIDIA_NIM_API_KEY
+                - name: NVIDIA_NIM_API_BASE
+                  valueFrom:
+                    secretKeyRef:
+                      name: litellm-env-secret
+                      key: NVIDIA_NIM_API_BASE
+              command: ["python3", "-c"]
+              args:
+                - |
+                  import json, os, urllib.request as u
+
+                  LL = "http://litellm:4000"
+                  KEY = os.environ["LITELLM_MASTER_KEY"]
+                  NIM_KEY = os.environ["NVIDIA_NIM_API_KEY"]
+                  NIM_BASE = os.environ["NVIDIA_NIM_API_BASE"].rstrip("/")
+
+                  def get(url, tok):
+                      req = u.Request(url, headers={"Authorization": "Bearer " + tok})
+                      return json.load(u.urlopen(req, timeout=30))
+
+                  existing = {m["model_name"] for m in get(LL + "/model/info", KEY)["data"]}
+                  catalog = [m["id"] for m in get(NIM_BASE + "/models", NIM_KEY)["data"]]
+
+                  added = 0
+                  for mid in catalog:
+                      if mid in existing:
+                          continue
+                      body = json.dumps({
+                          "model_name": mid,
+                          "litellm_params": {
+                              "model": "nvidia_nim/" + mid,
+                              "api_key": NIM_KEY,
+                              "api_base": NIM_BASE,
+                          },
+                      }).encode()
+                      req = u.Request(LL + "/model/new", data=body, method="POST",
+                                      headers={"Authorization": "Bearer " + KEY,
+                                               "Content-Type": "application/json"})
+                      try:
+                          u.urlopen(req, timeout=30)
+                          added += 1
+                          print("added", mid)
+                      except Exception as e:
+                          print("FAIL", mid, e)
+
+                  print("done: %d added, %d existing, %d in catalog"
+                        % (added, len(existing), len(catalog)))

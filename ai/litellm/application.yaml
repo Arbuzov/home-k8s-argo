@@ -63,8 +63,13 @@ spec:
                 litellm_params:
                   model: "nvidia_nim/*"
                   api_key: os.environ/NVIDIA_NIM_API_KEY
+                  api_base: os.environ/NVIDIA_NIM_API_BASE
             general_settings:
               master_key: os.environ/PROXY_MASTER_KEY
+              # Required for the litellm-nim-sync CronJob's POST /model/new
+              # (db/nim-sync-cronjob.yaml) -- without this it 500s with
+              # "Set 'STORE_MODEL_IN_DB=True'".
+              store_model_in_db: true
           resources:
             requests:
               memory: "256Mi"
