@@ -55,6 +55,11 @@ spec:
           envVars:
             CHECKPOINT_DISABLE: "1" # prisma CLI's telemetry/update-check hangs ~60s with no reachable checkpoint.prisma.io, eating the whole hardcoded migration timeout
             PRISMA_HIDE_UPDATE_MESSAGE: "true"
+            # Admin UI Google SSO (GOOGLE_CLIENT_ID/SECRET live in litellm-env-secret,
+            # same shared Google OAuth client as argo-cd/grafana/vikunja/photoprism).
+            # UI_USERNAME/UI_PASSWORD still work as a fallback at /fallback/login.
+            PROXY_BASE_URL: "https://litellm.whitediver.keenetic.link"
+            ALLOWED_EMAIL_DOMAINS: "whitediver.com"
           environmentSecrets:
             - litellm-env-secret
           proxy_config:
