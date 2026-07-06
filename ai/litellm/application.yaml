@@ -60,6 +60,7 @@ spec:
             # UI_USERNAME/UI_PASSWORD still work as a fallback at /fallback/login.
             PROXY_BASE_URL: "https://litellm.whitediver.keenetic.link"
             ALLOWED_EMAIL_DOMAINS: "whitediver.com"
+            PROXY_ADMIN_ID: "113025592623482135602" # owner's Google SSO user id -- grants proxy_admin
           environmentSecrets:
             - litellm-env-secret
           proxy_config:
