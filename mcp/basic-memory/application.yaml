@@ -100,14 +100,25 @@ spec:
               nginx.ingress.kubernetes.io/auth-type: basic
               nginx.ingress.kubernetes.io/auth-secret: mcp-basic-auth
               nginx.ingress.kubernetes.io/auth-realm: "Authentication Required"
+              # Route through litellm's MCP gateway (via oathkeeper, which injects the
+              # litellm key) instead of straight to the pod -- so tool calls land in
+              # litellm's per-tool usage stats. Hyphen->underscore: the litellm alias
+              # is `basic_memory`. See platform/oathkeeper.
+              nginx.ingress.kubernetes.io/use-regex: "true"
+              nginx.ingress.kubernetes.io/rewrite-target: /mcp/basic_memory$2
+              # MCP streamable-http: don't buffer/cut long-lived responses.
+              nginx.ingress.kubernetes.io/proxy-buffering: "off"
+              nginx.ingress.kubernetes.io/proxy-request-buffering: "off"
+              nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+              nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
             hosts:
               - host: dev.whitediver.keenetic.link
                 paths:
-                  - path: /mcp/basic-memory
-                    pathType: Prefix
+                  - path: /mcp/basic-memory(/|$)(.*)
+                    pathType: ImplementationSpecific
                     service:
-                      identifier: basic-memory
-                      port: http
+                      name: oathkeeper-proxy
+                      port: 4455
 
         persistence:
           data:

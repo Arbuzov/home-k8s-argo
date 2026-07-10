@@ -61,8 +61,12 @@ spec:
               noop:
                 enabled: true
               # The whole point: inject the litellm key, drop the inbound Basic auth.
+              # A global config is schema-required when enabled; per-rule config
+              # (in the oathkeeper-rules Secret) provides the actual headers.
               header:
                 enabled: true
+                config:
+                  headers: {}
         deployment:
           # access-rules.json (which embeds the litellm virtual key) is mounted from
           # the out-of-band Secret `oathkeeper-rules` at a path separate from the
