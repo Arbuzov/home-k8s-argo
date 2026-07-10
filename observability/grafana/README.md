@@ -35,6 +35,13 @@ on the share is reused as-is.
 > kube-master) to SMB; dashboards/datasources from the old deployment were
 > **not** carried over (fresh `grafana.db`).
 
+## Startup probes
+
+`livenessProbe`/`readinessProbe` are given long `initialDelaySeconds` (90 / 30)
+and high `failureThreshold`. The chart defaults (readiness `initialDelay=0s`,
+`timeout=1s`, `failure=3`) kill the pod mid-startup on this Pi cluster — plugin
+registration alone can take 50–60s per plugin under CPU/SMB-I/O contention.
+
 ## Access / OAuth
 
 - `https://dev.whitediver.keenetic.link/grafana` (nginx ingress,

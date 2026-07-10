@@ -18,12 +18,6 @@ spec:
       helm:
         values: |
           image:
-            # Retry 2026-07-05: previous attempt hit kube-worker-3 disk
-            # contention (~500MB margin above the eviction threshold).
-            # Freed real headroom by disabling opds-shelf's calibre (1.3GB
-            # image) -- margin now ~5.2GB. -database variant activates the
-            # DB-backed code paths (admin UI, virtual keys, budgets, request
-            # logging) that db.useExisting wires up.
             repository: ghcr.io/berriai/litellm-database
             pullPolicy: IfNotPresent
           masterkeySecretName: litellm-masterkey
@@ -38,7 +32,6 @@ spec:
               usernameKey: username
               passwordKey: password
           migrationJob:
-            # Re-enabled 2026-07-05 (retry) -- see image comment above.
             enabled: true
             resources:
               requests:
@@ -49,18 +42,15 @@ spec:
                 cpu: "1000m"
             hooks:
               argocd:
-                enabled: false # no bundled postgres to wait on anymore; don't gate sync on a hook
+                enabled: false
               helm:
                 enabled: false
           envVars:
-            CHECKPOINT_DISABLE: "1" # prisma CLI's telemetry/update-check hangs ~60s with no reachable checkpoint.prisma.io, eating the whole hardcoded migration timeout
+            CHECKPOINT_DISABLE: "1"
             PRISMA_HIDE_UPDATE_MESSAGE: "true"
-            # Admin UI Google SSO (GOOGLE_CLIENT_ID/SECRET live in litellm-env-secret,
-            # same shared Google OAuth client as argo-cd/grafana/vikunja/photoprism).
-            # UI_USERNAME/UI_PASSWORD still work as a fallback at /fallback/login.
             PROXY_BASE_URL: "https://litellm.whitediver.keenetic.link"
             ALLOWED_EMAIL_DOMAINS: "whitediver.com"
-            PROXY_ADMIN_ID: "113025592623482135602" # owner's Google SSO user id -- grants proxy_admin
+            PROXY_ADMIN_ID: "113025592623482135602"
           environmentSecrets:
             - litellm-env-secret
           proxy_config:
@@ -72,50 +62,29 @@ spec:
                   api_base: os.environ/NVIDIA_NIM_API_BASE
             general_settings:
               master_key: os.environ/PROXY_MASTER_KEY
-              # Required for the litellm-nim-sync CronJob's POST /model/new
-              # (db/nim-sync-cronjob.yaml) -- without this it 500s with
-              # "Set 'STORE_MODEL_IN_DB=True'".
               store_model_in_db: true
             litellm_settings:
-              # Metadata-only logging: keep spend/usage rows (tool name, tokens,
-              # cost, key, timestamps -> the per-tool stats we want) but redact
-              # request/response content, so corp jira/confluence/gitlab tool
-              # payloads never land in the litellm Postgres.
               turn_off_message_logging: true
-            # MCP servers already running in the `mcp` namespace, reached over
-            # in-cluster DNS (<svc>.mcp.svc.cluster.local -- cross-namespace, so
-            # the FQDN is required). Hitting the ClusterIP directly bypasses the
-            # ingress basic-auth, same as mcpo does. LiteLLM re-exposes their
-            # tools through its MCP gateway at /mcp. transport: http == the
-            # streamable-http the servers are started with.
             mcp_servers:
               jira:
                 url: "http://mcp-atlassian-jira.mcp.svc.cluster.local:8000/mcp/jira"
                 transport: "http"
                 description: "Atlassian Jira"
-                allow_all_keys: true  # oathkeeper-injected virtual key; see platform/oathkeeper
+                allow_all_keys: true
               confluence:
                 url: "http://mcp-atlassian-confluence.mcp.svc.cluster.local:8000/mcp/confluence"
                 transport: "http"
                 description: "Atlassian Confluence"
-                allow_all_keys: true  # oathkeeper-injected virtual key; see platform/oathkeeper
-              # gitlab differs from the atlassian pair: port 3002 (the
-              # token-injector sidecar, which adds the Private-Token) and the
-              # app serves at /mcp, not /mcp/gitlab (its ingress rewrites to
-              # /mcp). Don't "normalise" this to match the others -- it 404s.
+                allow_all_keys: true
               gitlab:
                 url: "http://mcp-gitlab.mcp.svc.cluster.local:3002/mcp"
                 transport: "http"
                 description: "GitLab (self-hosted, corp VPN)"
-                allow_all_keys: true  # oathkeeper-injected virtual key; see platform/oathkeeper
-              # underscore, not hyphen: litellm's validate_mcp_server_name
-              # rejects '-' in the server name (the URL keeps the real svc name).
+                allow_all_keys: true
               basic_memory:
                 url: "http://basic-memory.mcp.svc.cluster.local:8000/mcp/basic-memory"
                 transport: "http"
                 description: "Basic Memory knowledge base"
-                # Reachable by any valid litellm key (not just team-scoped ones) so the
-                # oathkeeper-injected virtual key can use it. See platform/oathkeeper.
                 allow_all_keys: true
           resources:
             requests:
@@ -126,11 +95,6 @@ spec:
               cpu: "500m"
           affinity:
             nodeAffinity:
-              # Soft, not hard: a previous hard pin to a single node (kube-master,
-              # after kube-worker-3's runtime was briefly wedged) left litellm
-              # stuck Pending when that node had no room. worker-3 is healthy
-              # again (running pigallery2/n8n/etc. fine) and has the most spare
-              # CPU/RAM in the cluster -- prefer it, but don't hard-require it.
               preferredDuringSchedulingIgnoredDuringExecution:
                 - weight: 100
                   preference:

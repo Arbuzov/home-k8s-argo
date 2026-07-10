@@ -7,11 +7,6 @@ metadata:
     - resources-finalizer.argocd.argoproj.io
 spec:
   project: mcp
-  # A single Ingress that routes the MCP servers whose chart hardcodes its own
-  # backend (mcp-atlassian, mcp-gitlab) through oathkeeper -> litellm. Those charts
-  # can't be repointed via values, so their own ingress is disabled and this owns
-  # the routing. basic-memory keeps its own ingress (needs a hyphen->underscore
-  # rewrite this shared, rewrite-free Ingress can't do). See platform/oathkeeper.
   source:
     repoURL: https://github.com/Arbuzov/home-k8s-argo.git
     targetRevision: main

@@ -1,6 +1,3 @@
-# Ported from the corporate instance (devops/argocd-apps, applications/litellm/db/nim-sync-cronjob.yaml).
-# Adapted secret refs: home cluster splits master key (litellm-masterkey/masterkey)
-# and provider keys (litellm-env-secret) instead of one litellm-secrets Secret.
 apiVersion: batch/v1
 kind: CronJob
 metadata:

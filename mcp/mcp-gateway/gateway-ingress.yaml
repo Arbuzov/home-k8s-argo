@@ -4,18 +4,13 @@ metadata:
   name: mcp-gateway
   namespace: mcp
   annotations:
-    # Same basic-auth as the per-server ingresses (clients unchanged).
     nginx.ingress.kubernetes.io/auth-type: basic
     nginx.ingress.kubernetes.io/auth-secret: mcp-basic-auth
     nginx.ingress.kubernetes.io/auth-realm: "Authentication Required"
-    # MCP streamable-http: don't buffer/cut long-lived responses.
     nginx.ingress.kubernetes.io/proxy-buffering: "off"
     nginx.ingress.kubernetes.io/proxy-request-buffering: "off"
     nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
     nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
-    # No rewrite: these paths already equal their litellm alias
-    # (/mcp/jira -> litellm /mcp/jira, etc.), so pass them through unchanged
-    # to oathkeeper, which injects the litellm key and forwards to litellm.
 spec:
   ingressClassName: nginx
   rules:

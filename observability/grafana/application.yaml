@@ -25,9 +25,6 @@ spec:
             memory: 128Mi
           limits:
             memory: 512Mi
-        # Chart defaults (readiness: initialDelay=0s/timeout=1s/failure=3) kill the
-        # pod mid-startup on this Pi cluster — plugin registration alone can take
-        # 50-60s/plugin under CPU/SMB-I/O contention. Give it real headroom.
         livenessProbe:
           httpGet:
             path: /api/health

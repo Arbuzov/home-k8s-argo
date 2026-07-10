@@ -1,10 +1,14 @@
 # mcp/basic-memory
 
 Basic Memory MCP server (`ghcr.io/basicmachines-co/basic-memory:latest`),
-single replica pinned to `kube-master`, behind the `/mcp/basic-memory`
+single replica on `kube-worker-3`, behind the `/mcp/basic-memory`
 ingress on `dev.whitediver.keenetic.link` with `mcp-basic-auth` htpasswd.
 The markdown note tree is SMB-backed; the SQLite index and embedding model
 cache are rebuilt off-volume on each start.
+
+The `nodeSelector` pins `kube-worker-3` (moved off the CPU-saturated
+`kube-master` control-plane node; the PVC is SMB/network storage, so
+relocating is data-safe).
 
 This file holds the rationale that, by repo convention, must **not** live as
 comments inside `application.yaml` (see the root `CLAUDE.md`).
@@ -18,6 +22,17 @@ advertised at the server root (`/messages/`) and so bypasses the
 emits stays correctly prefixed (mirrors mcpo's `--path-prefix` approach). The
 ingress therefore needs **no rewrite** — the app already serves at this exact
 path, so the original URL is passed straight through.
+
+## Ingress routes through litellm (usage stats)
+
+The ingress `rewrite-target` sends traffic to litellm's MCP gateway via
+`oathkeeper-proxy` (which injects the litellm key) instead of straight to the
+pod, so tool calls land in litellm's per-tool usage stats. The rewrite maps the
+external `/mcp/basic-memory` onto the litellm alias `/mcp/basic_memory`
+(hyphen→underscore — litellm rejects `-` in a server name). Buffering is off and
+read/send timeouts are raised to 3600s because MCP streamable-http holds
+long-lived responses that nginx would otherwise cut. See
+[`../../platform/oathkeeper`](../../platform/oathkeeper).
 
 ## Semantic search env is pinned, not defaulted
 

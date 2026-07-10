@@ -14,9 +14,6 @@ spec:
         maester:
           enabled: false
         oathkeeper:
-          # Rules are NOT managed by the chart (that would render them from these
-          # committed values -- and the rule carries the litellm key). Instead they
-          # come from the out-of-band Secret `oathkeeper-rules`, mounted below.
           managedAccessRules: false
           accessRules: ""
           config:
@@ -26,8 +23,6 @@ spec:
             serve:
               proxy:
                 port: 4455
-                # MCP streamable-http keeps long-lived POST/SSE responses open;
-                # Oathkeeper's short default write timeout would truncate them.
                 timeout:
                   read: 3600s
                   write: 3600s
@@ -44,8 +39,6 @@ spec:
                 json:
                   enabled: true
             authenticators:
-              # nginx ingress already enforces basic-auth in front; Oathkeeper just
-              # accepts (anonymous) and rewrites headers.
               anonymous:
                 enabled: true
                 config:
@@ -60,17 +53,11 @@ spec:
             mutators:
               noop:
                 enabled: true
-              # The whole point: inject the litellm key, drop the inbound Basic auth.
-              # A global config is schema-required when enabled; per-rule config
-              # (in the oathkeeper-rules Secret) provides the actual headers.
               header:
                 enabled: true
                 config:
                   headers: {}
         deployment:
-          # access-rules.json (which embeds the litellm virtual key) is mounted from
-          # the out-of-band Secret `oathkeeper-rules` at a path separate from the
-          # chart's own /etc/rules emptyDir -- keeps the key out of git.
           extraVolumes:
             - name: litellm-rules
               secret:
@@ -88,8 +75,6 @@ spec:
               memory: 128Mi
   destination:
     server: https://kubernetes.default.svc
-    # In `mcp` (not `oathkeeper`) so the mcp-namespace Ingress can reference the
-    # oathkeeper-proxy Service directly (Ingress->Service is same-namespace only).
     namespace: mcp
   syncPolicy:
     automated:

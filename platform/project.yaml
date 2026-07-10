@@ -19,8 +19,6 @@ spec:
       namespace: arc-system
     - server: https://kubernetes.default.svc
       namespace: oathkeeper
-    # oathkeeper runs in `mcp` so the mcp-namespace MCP ingresses can point at its
-    # proxy Service (Ingress->Service is same-namespace only). See platform/oathkeeper.
     - server: https://kubernetes.default.svc
       namespace: mcp
   clusterResourceWhitelist:

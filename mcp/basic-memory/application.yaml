@@ -18,8 +18,6 @@ spec:
             type: deployment
             pod:
               nodeSelector:
-                # Moved off kube-master (control-plane node, was CPU-saturated) --
-                # PVC is SMB/network storage so relocating is data-safe.
                 kubernetes.io/hostname: kube-worker-3
               securityContext:
                 fsGroup: 1000
@@ -100,13 +98,8 @@ spec:
               nginx.ingress.kubernetes.io/auth-type: basic
               nginx.ingress.kubernetes.io/auth-secret: mcp-basic-auth
               nginx.ingress.kubernetes.io/auth-realm: "Authentication Required"
-              # Route through litellm's MCP gateway (via oathkeeper, which injects the
-              # litellm key) instead of straight to the pod -- so tool calls land in
-              # litellm's per-tool usage stats. Hyphen->underscore: the litellm alias
-              # is `basic_memory`. See platform/oathkeeper.
               nginx.ingress.kubernetes.io/use-regex: "true"
               nginx.ingress.kubernetes.io/rewrite-target: /mcp/basic_memory$2
-              # MCP streamable-http: don't buffer/cut long-lived responses.
               nginx.ingress.kubernetes.io/proxy-buffering: "off"
               nginx.ingress.kubernetes.io/proxy-request-buffering: "off"
               nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"

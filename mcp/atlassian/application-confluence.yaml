@@ -47,13 +47,7 @@ spec:
                     app.kubernetes.io/name: openconnect-gateway
                 topologyKey: kubernetes.io/hostname
         ingress:
-          # Routing moved to the shared mcp-gateway Ingress (-> oathkeeper -> litellm,
-          # for per-tool usage stats). This chart hardcodes its own backend, so its
-          # ingress is disabled rather than repointed. See mcp/mcp-gateway.
           enabled: false
-          # KEEP path even with the ingress off: the chart derives the server's
-          # --path from ingress.path (deployment.yaml), and litellm connects to
-          # /mcp/confluence -- drop this and the server serves the default /mcp -> 404.
           path: /mcp/confluence
         sidecars:
           - name: route-manager

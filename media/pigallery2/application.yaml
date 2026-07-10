@@ -18,9 +18,6 @@ spec:
             replicas: 1
             pod:
               nodeSelector:
-                # TEMP: kube-worker-1 is a ~900Mi board already over its memory-limit
-                # budget; parked on kube-worker-3 (8Gi, spare headroom) until the
-                # node-rebalancing pass gives worker-1 room back.
                 kubernetes.io/hostname: kube-worker-3
             containers:
               app:
@@ -38,8 +35,6 @@ spec:
                     memory: 128Mi
                     cpu: 100m
                   limits:
-                    # 512Mi OOMKilled every attempt during startup library scan
-                    # ("running diagnostics...") of the 200Gi photos share.
                     memory: 1Gi
         service:
           app:

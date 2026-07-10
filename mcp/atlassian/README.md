@@ -74,11 +74,20 @@ The Atlassian Cloud "API token" is generated at
 <https://id.atlassian.com/manage-profile/security/api-tokens> — it is not
 the same as your account password.
 
-## Basic-auth on the ingress
+## Routing (ingress disabled — via mcp-gateway)
 
-Both ingresses front the MCP servers with HTTP basic-auth via the
-shared `mcp-basic-auth` Secret (htpasswd format) in the `mcp` namespace.
-That Secret is also created out-of-band:
+Both charts set `ingress.enabled: false`; public routing is owned by the shared
+[`mcp-gateway`](../mcp-gateway/) Ingress, which forwards `/mcp/jira` and
+`/mcp/confluence` through `oathkeeper` → litellm so tool calls land in litellm's
+per-tool usage stats (these charts hardcode their own backend and can't be
+repointed via values). Each chart's `ingress.path` is **kept** even with the
+ingress off: the chart derives the server's `--path` from it
+(`deployment.yaml`), and litellm connects to `/mcp/jira` — drop it and the
+server falls back to the default `/mcp` and 404s.
+
+Basic-auth is unchanged for clients: the `mcp-gateway` Ingress uses the same
+shared `mcp-basic-auth` Secret (htpasswd) in the `mcp` namespace, created
+out-of-band:
 
 ```sh
 htpasswd -cb auth <user> <password>

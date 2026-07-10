@@ -5,6 +5,17 @@ Helm chart `opds-shelf` (`https://arbuzov.github.io/opds-shelf/`), one
 Application in the `media` app-of-apps. This README holds the design rationale;
 [`application.yaml`](application.yaml) itself is kept comment-free.
 
+## calibre & importer disabled
+
+`calibre.enabled: false` and `importer.enabled: false`. Both use the linuxserver
+`calibre` image — a full GUI-desktop-in-container at 1.3 GB, by far the heaviest
+image on `kube-worker-3` — and the importer would keep it cached on the node
+(re-pulled every 30 min) for a job that only runs when new books arrive.
+Calibre-Web covers day-to-day reading/serving; the `calibre` StatefulSet is only
+needed for `calibredb`/library management. Data is untouched — the config PVC and
+shared library PV are `Retain`. Re-enable either (or run `calibredb add` by hand)
+when you need to import books.
+
 ## Storage
 
 | Volume | Chart PVC | StorageClass | Backing share | Reclaim | Mounted by |
