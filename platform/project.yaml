@@ -11,11 +11,14 @@ spec:
     - https://github.com/Arbuzov/home-k8s-argo.git
     - https://argoproj.github.io/argo-helm
     - https://actions-runner-controller.github.io/actions-runner-controller
+    - https://k8s.ory.sh/helm/charts
   destinations:
     - server: https://kubernetes.default.svc
       namespace: argo-cd
     - server: https://kubernetes.default.svc
       namespace: arc-system
+    - server: https://kubernetes.default.svc
+      namespace: oathkeeper
   clusterResourceWhitelist:
     - group: '*'
       kind: '*'
