@@ -68,6 +68,25 @@ To add another provider: a new `model_list` entry whose `api_key` is
 `os.environ/<KEY>`, plus that `<KEY>` added to `litellm-env-secret`
 (`environmentSecrets` already exports the whole Secret).
 
+## MCP gateway
+
+`proxy_config.mcp_servers` in [`application.yaml`](application.yaml) registers the
+MCP servers from the [`mcp`](../../mcp/) namespace so LiteLLM re-exposes their
+tools through its own MCP gateway at `/mcp`:
+
+| Name | In-cluster URL |
+| --- | --- |
+| `jira` | `http://mcp-atlassian-jira.mcp.svc.cluster.local:8000/mcp/jira` |
+| `confluence` | `http://mcp-atlassian-confluence.mcp.svc.cluster.local:8000/mcp/confluence` |
+| `basic-memory` | `http://basic-memory.mcp.svc.cluster.local:8000/mcp/basic-memory` |
+
+Cross-namespace, so the `.mcp.svc.cluster.local` FQDN is required. Talking to the
+ClusterIP directly bypasses the ingress basic-auth (same as `mcpo` does), and
+`transport: http` matches the streamable-http those servers run with. Only the
+**enabled** `mcp` apps are listed — `mcpo` is an MCP→OpenAPI proxy (not an MCP
+server), and `gitlab`/`graphiti`/`homeassistant`/`kubernetes` are held back in
+the app-of-apps `exclude` glob. Add a server here as it comes online.
+
 ## Smoke test
 
 ```sh

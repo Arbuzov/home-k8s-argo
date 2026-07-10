@@ -76,6 +76,25 @@ spec:
               # (db/nim-sync-cronjob.yaml) -- without this it 500s with
               # "Set 'STORE_MODEL_IN_DB=True'".
               store_model_in_db: true
+            # MCP servers already running in the `mcp` namespace, reached over
+            # in-cluster DNS (<svc>.mcp.svc.cluster.local -- cross-namespace, so
+            # the FQDN is required). Hitting the ClusterIP directly bypasses the
+            # ingress basic-auth, same as mcpo does. LiteLLM re-exposes their
+            # tools through its MCP gateway at /mcp. transport: http == the
+            # streamable-http the servers are started with.
+            mcp_servers:
+              jira:
+                url: "http://mcp-atlassian-jira.mcp.svc.cluster.local:8000/mcp/jira"
+                transport: "http"
+                description: "Atlassian Jira"
+              confluence:
+                url: "http://mcp-atlassian-confluence.mcp.svc.cluster.local:8000/mcp/confluence"
+                transport: "http"
+                description: "Atlassian Confluence"
+              basic-memory:
+                url: "http://basic-memory.mcp.svc.cluster.local:8000/mcp/basic-memory"
+                transport: "http"
+                description: "Basic Memory knowledge base"
           resources:
             requests:
               memory: "256Mi"
