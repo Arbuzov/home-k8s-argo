@@ -51,6 +51,10 @@ spec:
             PROXY_BASE_URL: "https://litellm.whitediver.keenetic.link"
             ALLOWED_EMAIL_DOMAINS: "whitediver.com"
             PROXY_ADMIN_ID: "113025592623482135602"
+            # GitHub Copilot: token_dir is where litellm writes/refreshes the short-lived api-key.json;
+            # access-token file is an absolute path so it reads the read-only secret mount and ignores token_dir.
+            GITHUB_COPILOT_TOKEN_DIR: "/tmp/github_copilot"
+            GITHUB_COPILOT_ACCESS_TOKEN_FILE: "/etc/copilot/access-token"
           environmentSecrets:
             - litellm-env-secret
           proxy_config:
@@ -60,6 +64,10 @@ spec:
                   model: "nvidia_nim/*"
                   api_key: os.environ/NVIDIA_NIM_API_KEY
                   api_base: os.environ/NVIDIA_NIM_API_BASE
+              # GitHub Copilot subscription models (auth via mounted access-token; no api_key needed)
+              - model_name: "github_copilot/*"
+                litellm_params:
+                  model: "github_copilot/*"
             general_settings:
               master_key: os.environ/PROXY_MASTER_KEY
               store_model_in_db: true
@@ -86,6 +94,14 @@ spec:
                 transport: "http"
                 description: "Basic Memory knowledge base"
                 allow_all_keys: true
+          volumes:
+            - name: copilot-access
+              secret:
+                secretName: litellm-copilot-token
+          volumeMounts:
+            - name: copilot-access
+              mountPath: /etc/copilot
+              readOnly: true
           resources:
             requests:
               memory: "256Mi"
