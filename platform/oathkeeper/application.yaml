@@ -1,0 +1,95 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: oathkeeper
+  namespace: argo-cd
+spec:
+  project: platform
+  source:
+    repoURL: https://k8s.ory.sh/helm/charts
+    chart: oathkeeper
+    targetRevision: 0.62.1
+    helm:
+      values: |
+        maester:
+          enabled: false
+        oathkeeper:
+          # Rules are NOT managed by the chart (that would render them from these
+          # committed values -- and the rule carries the litellm key). Instead they
+          # come from the out-of-band Secret `oathkeeper-rules`, mounted below.
+          managedAccessRules: false
+          accessRules: ""
+          config:
+            log:
+              level: info
+              format: json
+            serve:
+              proxy:
+                port: 4455
+                # MCP streamable-http keeps long-lived POST/SSE responses open;
+                # Oathkeeper's short default write timeout would truncate them.
+                timeout:
+                  read: 3600s
+                  write: 3600s
+                  idle: 3600s
+              api:
+                port: 4456
+            access_rules:
+              repositories:
+                - file:///etc/secret-rules/access-rules.json
+            errors:
+              fallback:
+                - json
+              handlers:
+                json:
+                  enabled: true
+            authenticators:
+              # nginx ingress already enforces basic-auth in front; Oathkeeper just
+              # accepts (anonymous) and rewrites headers.
+              anonymous:
+                enabled: true
+                config:
+                  subject: guest
+              noop:
+                enabled: true
+            authorizers:
+              allow:
+                enabled: true
+              deny:
+                enabled: true
+            mutators:
+              noop:
+                enabled: true
+              # The whole point: inject the litellm key, drop the inbound Basic auth.
+              header:
+                enabled: true
+        deployment:
+          # access-rules.json (which embeds the litellm virtual key) is mounted from
+          # the out-of-band Secret `oathkeeper-rules` at a path separate from the
+          # chart's own /etc/rules emptyDir -- keeps the key out of git.
+          extraVolumes:
+            - name: litellm-rules
+              secret:
+                secretName: oathkeeper-rules
+          extraVolumeMounts:
+            - name: litellm-rules
+              mountPath: /etc/secret-rules
+              readOnly: true
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi
+  destination:
+    server: https://kubernetes.default.svc
+    # In `mcp` (not `oathkeeper`) so the mcp-namespace Ingress can reference the
+    # oathkeeper-proxy Service directly (Ingress->Service is same-namespace only).
+    namespace: mcp
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

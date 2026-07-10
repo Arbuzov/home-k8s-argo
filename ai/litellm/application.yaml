@@ -105,6 +105,9 @@ spec:
                 url: "http://basic-memory.mcp.svc.cluster.local:8000/mcp/basic-memory"
                 transport: "http"
                 description: "Basic Memory knowledge base"
+                # Reachable by any valid litellm key (not just team-scoped ones) so the
+                # oathkeeper-injected virtual key can use it. See platform/oathkeeper.
+                allow_all_keys: true
           resources:
             requests:
               memory: "256Mi"
