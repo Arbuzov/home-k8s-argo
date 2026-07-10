@@ -91,6 +91,14 @@ spec:
                 url: "http://mcp-atlassian-confluence.mcp.svc.cluster.local:8000/mcp/confluence"
                 transport: "http"
                 description: "Atlassian Confluence"
+              # gitlab differs from the atlassian pair: port 3002 (the
+              # token-injector sidecar, which adds the Private-Token) and the
+              # app serves at /mcp, not /mcp/gitlab (its ingress rewrites to
+              # /mcp). Don't "normalise" this to match the others -- it 404s.
+              gitlab:
+                url: "http://mcp-gitlab.mcp.svc.cluster.local:3002/mcp"
+                transport: "http"
+                description: "GitLab (self-hosted, corp VPN)"
               # underscore, not hyphen: litellm's validate_mcp_server_name
               # rejects '-' in the server name (the URL keeps the real svc name).
               basic_memory:

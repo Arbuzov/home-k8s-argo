@@ -78,15 +78,22 @@ tools through its own MCP gateway at `/mcp`:
 | --- | --- |
 | `jira` | `http://mcp-atlassian-jira.mcp.svc.cluster.local:8000/mcp/jira` |
 | `confluence` | `http://mcp-atlassian-confluence.mcp.svc.cluster.local:8000/mcp/confluence` |
+| `gitlab` | `http://mcp-gitlab.mcp.svc.cluster.local:3002/mcp` |
 | `basic_memory` | `http://basic-memory.mcp.svc.cluster.local:8000/mcp/basic-memory` |
+
+`gitlab` differs: port `3002` (its token-injector sidecar adds the `Private-Token`)
+and the app serves at `/mcp` (its ingress rewrites `/mcp/gitlab`→`/mcp`), not
+`/mcp/gitlab` like the atlassian pair.
 
 Cross-namespace, so the `.mcp.svc.cluster.local` FQDN is required. Talking to the
 ClusterIP directly bypasses the ingress basic-auth (same as `mcpo` does), and
-`transport: http` matches the streamable-http those servers run with. Only the
-**enabled** `mcp` apps are listed — `mcpo` is an MCP→OpenAPI proxy (not an MCP
-server), and `gitlab`/`graphiti`/`homeassistant`/`kubernetes` are held back in
-the app-of-apps `exclude` glob. Add a server here as it comes online — note the
-name key can't contain `-` (litellm rejects it; use `_`), even though the URL can.
+`transport: http` matches the streamable-http those servers run with. `gitlab` is
+excluded from the `mcp` app-of-apps but is live (applied push-based from its local
+overlay — see [`mcp/gitlab/README.md`](../../mcp/gitlab/README.md)), so it's
+listed too. Skipped: `mcpo` (an MCP→OpenAPI proxy, not an MCP server) and
+`graphiti`/`homeassistant`/`kubernetes` (still held back in the `exclude` glob).
+Add a server here as it comes online — note the name key can't contain `-`
+(litellm rejects it; use `_`), even though the URL can.
 
 ## Smoke test
 
