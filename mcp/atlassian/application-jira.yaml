@@ -39,17 +39,10 @@ spec:
         readinessProbe:
           enabled: false
         ingress:
-          enabled: true
-          className: nginx
-          annotations:
-            nginx.ingress.kubernetes.io/auth-type: basic
-            nginx.ingress.kubernetes.io/auth-secret: mcp-basic-auth
-            nginx.ingress.kubernetes.io/auth-realm: "Authentication Required"
-            nginx.ingress.kubernetes.io/rewrite-target: /mcp/jira$2
-          path: /mcp/jira
-          hosts:
-            - dev.whitediver.keenetic.link
-            - "*"
+          # Routing moved to the shared mcp-gateway Ingress (-> oathkeeper -> litellm,
+          # for per-tool usage stats). This chart hardcodes its own backend, so its
+          # ingress is disabled rather than repointed. See mcp/mcp-gateway.
+          enabled: false
   destination:
     server: https://kubernetes.default.svc
     namespace: mcp
