@@ -44,34 +44,54 @@ spec:
                   NIM_KEY = os.environ["NVIDIA_NIM_API_KEY"]
                   NIM_BASE = os.environ["NVIDIA_NIM_API_BASE"].rstrip("/")
 
+                  # GitHub Copilot: explicit models registered by name (no wildcard). Auth is via
+                  # the access-token mounted into the litellm pod, so no credentials are needed here.
+                  # Curated to ids that actually return content on the current subscription — the full
+                  # Copilot catalog also exposes gated (opus, gpt-5.5) and empty-response (gemini, kimi) ids.
+                  COPILOT = [
+                      "claude-sonnet-5",
+                      "claude-sonnet-4.6",
+                      "claude-haiku-4.5",
+                      "gpt-5.4",
+                  ]
+
                   def get(url, tok):
                       req = u.Request(url, headers={"Authorization": "Bearer " + tok})
                       return json.load(u.urlopen(req, timeout=30))
 
-                  existing = {m["model_name"] for m in get(LL + "/model/info", KEY)["data"]}
-                  catalog = [m["id"] for m in get(NIM_BASE + "/models", NIM_KEY)["data"]]
-
-                  added = 0
-                  for mid in catalog:
-                      if mid in existing:
-                          continue
-                      body = json.dumps({
-                          "model_name": mid,
-                          "litellm_params": {
-                              "model": "nvidia_nim/" + mid,
-                              "api_key": NIM_KEY,
-                              "api_base": NIM_BASE,
-                          },
-                      }).encode()
+                  def add(model_name, params):
+                      body = json.dumps({"model_name": model_name, "litellm_params": params}).encode()
                       req = u.Request(LL + "/model/new", data=body, method="POST",
                                       headers={"Authorization": "Bearer " + KEY,
                                                "Content-Type": "application/json"})
-                      try:
-                          u.urlopen(req, timeout=30)
-                          added += 1
-                          print("added", mid)
-                      except Exception as e:
-                          print("FAIL", mid, e)
+                      u.urlopen(req, timeout=30)
 
-                  print("done: %d added, %d existing, %d in catalog"
-                        % (added, len(existing), len(catalog)))
+                  existing = {m["model_name"] for m in get(LL + "/model/info", KEY)["data"]}
+                  added = 0
+
+                  # NVIDIA NIM: whole catalog, dynamically
+                  catalog = [m["id"] for m in get(NIM_BASE + "/models", NIM_KEY)["data"]]
+                  for mid in catalog:
+                      if mid in existing:
+                          continue
+                      try:
+                          add(mid, {"model": "nvidia_nim/" + mid, "api_key": NIM_KEY, "api_base": NIM_BASE})
+                          added += 1
+                          print("added nim", mid)
+                      except Exception as e:
+                          print("FAIL nim", mid, e)
+
+                  # GitHub Copilot: explicit list, model_name prefixed for provenance
+                  for mid in COPILOT:
+                      name = "github_copilot/" + mid
+                      if name in existing:
+                          continue
+                      try:
+                          add(name, {"model": "github_copilot/" + mid})
+                          added += 1
+                          print("added copilot", mid)
+                      except Exception as e:
+                          print("FAIL copilot", mid, e)
+
+                  print("done: %d added, %d existing, %d nim catalog, %d copilot"
+                        % (added, len(existing), len(catalog), len(COPILOT)))

@@ -64,10 +64,8 @@ spec:
                   model: "nvidia_nim/*"
                   api_key: os.environ/NVIDIA_NIM_API_KEY
                   api_base: os.environ/NVIDIA_NIM_API_BASE
-              # GitHub Copilot subscription models (auth via mounted access-token; no api_key needed)
-              - model_name: "github_copilot/*"
-                litellm_params:
-                  model: "github_copilot/*"
+            # GitHub Copilot models are registered explicitly (no wildcard) in the DB by
+            # litellm-model-sync (see db/nim-sync-cronjob.yaml); auth via the mounted access-token.
             general_settings:
               master_key: os.environ/PROXY_MASTER_KEY
               store_model_in_db: true
