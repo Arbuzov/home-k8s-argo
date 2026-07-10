@@ -76,6 +76,12 @@ spec:
               # (db/nim-sync-cronjob.yaml) -- without this it 500s with
               # "Set 'STORE_MODEL_IN_DB=True'".
               store_model_in_db: true
+            litellm_settings:
+              # Metadata-only logging: keep spend/usage rows (tool name, tokens,
+              # cost, key, timestamps -> the per-tool stats we want) but redact
+              # request/response content, so corp jira/confluence/gitlab tool
+              # payloads never land in the litellm Postgres.
+              turn_off_message_logging: true
             # MCP servers already running in the `mcp` namespace, reached over
             # in-cluster DNS (<svc>.mcp.svc.cluster.local -- cross-namespace, so
             # the FQDN is required). Hitting the ClusterIP directly bypasses the
