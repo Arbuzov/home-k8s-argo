@@ -87,10 +87,12 @@ spec:
                 url: "http://mcp-atlassian-jira.mcp.svc.cluster.local:8000/mcp/jira"
                 transport: "http"
                 description: "Atlassian Jira"
+                allow_all_keys: true  # oathkeeper-injected virtual key; see platform/oathkeeper
               confluence:
                 url: "http://mcp-atlassian-confluence.mcp.svc.cluster.local:8000/mcp/confluence"
                 transport: "http"
                 description: "Atlassian Confluence"
+                allow_all_keys: true  # oathkeeper-injected virtual key; see platform/oathkeeper
               # gitlab differs from the atlassian pair: port 3002 (the
               # token-injector sidecar, which adds the Private-Token) and the
               # app serves at /mcp, not /mcp/gitlab (its ingress rewrites to
@@ -99,6 +101,7 @@ spec:
                 url: "http://mcp-gitlab.mcp.svc.cluster.local:3002/mcp"
                 transport: "http"
                 description: "GitLab (self-hosted, corp VPN)"
+                allow_all_keys: true  # oathkeeper-injected virtual key; see platform/oathkeeper
               # underscore, not hyphen: litellm's validate_mcp_server_name
               # rejects '-' in the server name (the URL keeps the real svc name).
               basic_memory:
