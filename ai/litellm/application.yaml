@@ -91,7 +91,9 @@ spec:
                 url: "http://mcp-atlassian-confluence.mcp.svc.cluster.local:8000/mcp/confluence"
                 transport: "http"
                 description: "Atlassian Confluence"
-              basic-memory:
+              # underscore, not hyphen: litellm's validate_mcp_server_name
+              # rejects '-' in the server name (the URL keeps the real svc name).
+              basic_memory:
                 url: "http://basic-memory.mcp.svc.cluster.local:8000/mcp/basic-memory"
                 transport: "http"
                 description: "Basic Memory knowledge base"

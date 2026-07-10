@@ -78,14 +78,15 @@ tools through its own MCP gateway at `/mcp`:
 | --- | --- |
 | `jira` | `http://mcp-atlassian-jira.mcp.svc.cluster.local:8000/mcp/jira` |
 | `confluence` | `http://mcp-atlassian-confluence.mcp.svc.cluster.local:8000/mcp/confluence` |
-| `basic-memory` | `http://basic-memory.mcp.svc.cluster.local:8000/mcp/basic-memory` |
+| `basic_memory` | `http://basic-memory.mcp.svc.cluster.local:8000/mcp/basic-memory` |
 
 Cross-namespace, so the `.mcp.svc.cluster.local` FQDN is required. Talking to the
 ClusterIP directly bypasses the ingress basic-auth (same as `mcpo` does), and
 `transport: http` matches the streamable-http those servers run with. Only the
 **enabled** `mcp` apps are listed — `mcpo` is an MCP→OpenAPI proxy (not an MCP
 server), and `gitlab`/`graphiti`/`homeassistant`/`kubernetes` are held back in
-the app-of-apps `exclude` glob. Add a server here as it comes online.
+the app-of-apps `exclude` glob. Add a server here as it comes online — note the
+name key can't contain `-` (litellm rejects it; use `_`), even though the URL can.
 
 ## Smoke test
 
