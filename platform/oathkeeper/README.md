@@ -40,38 +40,43 @@ the out-of-band Secret **`oathkeeper-rules`** (namespace `mcp`) at
 `/etc/secret-rules`, and `access_rules.repositories` points there. **This Secret
 must exist before the app syncs** or the pod stays in `CreateContainerConfigError`.
 
-Recreate it (mint a litellm virtual key first — the MCP servers it targets must be
-`allow_all_keys: true`, which `ai/litellm` sets, or the key must be in a team):
+The injected credential is the litellm **master key**, not a virtual key: because
+`litellm-postgres` runs on an `emptyDir` (see the litellm README), any Postgres
+restart wipes all virtual keys and the injected one dies with it. The master key is
+env-sourced (Secret `litellm-masterkey`) and survives. Trade-off: whoever can read
+this Secret has litellm admin. **Once litellm-postgres has a PVC, switch to a scoped
+virtual key** (`/key/generate`; target servers must be `allow_all_keys: true`, which
+`ai/litellm` sets, or the key must be in a team).
+
+Use the `noop` authenticator (not `anonymous`): the nginx ingress already did
+basic-auth and forwards an `Authorization` header, which `anonymous` rejects.
 
 ```sh
-MASTERKEY=$(kubectl -n litellm get secret litellm-masterkey -o jsonpath='{.data.masterkey}' | base64 -d)
-KEY=$(kubectl -n litellm exec deploy/litellm -- \
-  curl -s localhost:4000/key/generate -H "Authorization: Bearer $MASTERKEY" \
-  -H 'Content-Type: application/json' -d '{"key_alias":"oathkeeper-mcp-gateway"}' \
-  | python -c 'import sys,json;print(json.load(sys.stdin)["key"])')
+MK=$(kubectl -n litellm get secret litellm-masterkey -o jsonpath='{.data.masterkey}' | base64 -d)
 
 # one rule object per routed MCP server (match /mcp/<litellm-alias>)
 cat > access-rules.json <<JSON
 [{"id":"mcp-basic-memory",
   "match":{"url":"<http|https>://<[^/]+>/mcp/basic_memory<.*>","methods":["GET","POST","PUT","DELETE","OPTIONS"]},
-  "authenticators":[{"handler":"anonymous"}],
+  "authenticators":[{"handler":"noop"}],
   "authorizer":{"handler":"allow"},
   "mutators":[{"handler":"header","config":{"headers":{
-    "x-litellm-api-key":"Bearer $KEY","Authorization":"Bearer $KEY"}}}],
+    "x-litellm-api-key":"Bearer $MK","Authorization":"Bearer $MK"}}}],
   "upstream":{"url":"http://litellm.litellm.svc.cluster.local:4000"}}]
 JSON
-kubectl -n mcp create secret generic oathkeeper-rules --from-file=access-rules.json
+kubectl -n mcp create secret generic oathkeeper-rules --from-file=access-rules.json \
+  --dry-run=client -o yaml | kubectl apply -f -
 ```
 
-Adding another server = another rule object in the same Secret, then
-`kubectl -n mcp create secret ... --dry-run=client -o yaml | kubectl apply -f -`;
-Oathkeeper hot-reloads the file.
+Add `jira` / `confluence` / `gitlab` as more rule objects (same shape, alias
+swapped) in the same Secret. Oathkeeper hot-reloads the file (kubelet syncs the
+Secret to the pod within ~60s).
 
 ## Notes
 
 - `serve.proxy.timeout` is raised to 3600s — MCP streamable-http holds long-lived
   responses that Oathkeeper's short default write timeout would truncate.
 - Auth is left to the nginx ingress (basic-auth); Oathkeeper only rewrites headers
-  (`anonymous` authenticator). Swap to `jwt` / `oauth2_introspection` here if a
+  (`noop` authenticator). Swap to `jwt` / `oauth2_introspection` here if a
   real OAuth authorization server is ever added (Google OIDC, already used by
   `argo-cd`/`apps/vikunja`, does not support the DCR that Claude connectors want).
