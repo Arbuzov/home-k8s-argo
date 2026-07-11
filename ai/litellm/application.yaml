@@ -38,7 +38,7 @@ spec:
                 memory: "256Mi"
                 cpu: "250m"
               limits:
-                memory: "1536Mi"
+                memory: "2560Mi"
                 cpu: "1000m"
             hooks:
               argocd:
