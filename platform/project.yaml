@@ -12,7 +12,7 @@ spec:
     - https://argoproj.github.io/argo-helm
     - https://actions-runner-controller.github.io/actions-runner-controller
     - https://k8s.ory.sh/helm/charts
-    - https://cloudnative-pg.io/charts
+    - https://cloudnative-pg.github.io/charts
   destinations:
     - server: https://kubernetes.default.svc
       namespace: argo-cd
