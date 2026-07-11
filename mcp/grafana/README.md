@@ -10,6 +10,12 @@ bjw-s `app-template` chart (same pattern as `basic-memory`).
   is unreachable from kube probes / the service. Hence the args
   `-t streamable-http --address 0.0.0.0:8000` — streamable-HTTP transport bound
   to all interfaces. Serves MCP at `/mcp` on port 8000.
+- **`--allowed-hosts '*'`** — mcp-grafana validates the `Host` header for
+  DNS-rebinding protection and by default only allows loopback of `--address`,
+  which rejects the ClusterIP service DNS name litellm connects with
+  (`403 forbidden: host not allowed`). `*` disables the check; safe here because
+  the server is internal-only (no ingress, cluster network, reached solely via
+  litellm). The `tcpSocket` probes are unaffected (no Host header).
 - **`GRAFANA_URL=http://grafana.grafana.svc.cluster.local/grafana`** — in-cluster
   Grafana service (port 80 → container 3000). The `/grafana` suffix is required
   because the Grafana instance runs with `serve_from_sub_path: true`

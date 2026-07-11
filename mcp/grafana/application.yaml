@@ -29,6 +29,8 @@ spec:
                   - streamable-http
                   - --address
                   - 0.0.0.0:8000
+                  - --allowed-hosts
+                  - "*"
                 env:
                   GRAFANA_URL: http://grafana.grafana.svc.cluster.local/grafana
                   GRAFANA_SERVICE_ACCOUNT_TOKEN:
