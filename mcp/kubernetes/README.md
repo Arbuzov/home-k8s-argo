@@ -60,13 +60,26 @@ safe brake.
 
 ## Access & secrets
 
-- Reached at `…/mcp/kubernetes` on the shared `dev.whitediver.keenetic.link`
-  host (and `*`); the ingress rewrites the prefix away so the backend sees
-  `/mcp` and `/sse`.
-- Protected by the shared **`mcp-basic-auth`** htpasswd Secret in namespace
-  `mcp` (same one the other `/mcp/*` ingresses use) — no service-specific
-  Secret. Cluster API access is via the pod ServiceAccount (RBAC above), not a
-  mounted credential.
+Fronted by litellm's MCP gateway, like the other `/mcp/*` servers — the server
+itself has **no direct ingress** (`ingress.enabled` stays at the chart default,
+`false`); litellm reaches it in-cluster at
+`http://mcp-kubernetes.mcp.svc.cluster.local:8080/mcp`.
+
+- **litellm** ([`ai/litellm/application.yaml`](../../ai/litellm/application.yaml)):
+  registered under `proxy_config.mcp_servers` as alias `kubernetes`
+  (`transport: http`, `allow_all_keys: true`).
+- **Public URL** `https://dev.whitediver.keenetic.link/mcp/kubernetes` is routed
+  by the shared [`mcp-gateway` ingress](../mcp-gateway/gateway-ingress.yaml) →
+  `oathkeeper-proxy:4455` → litellm `/mcp/kubernetes` → this server. nginx
+  basic-auth (`mcp-basic-auth`) guards it; Oathkeeper injects litellm's
+  `x-litellm-api-key` so tool calls land in litellm's usage stats.
+- **Owner step (out-of-band):** Oathkeeper needs a per-alias rule matching
+  `/mcp/kubernetes` in the `oathkeeper-rules` Secret (it embeds the litellm
+  master key, so it isn't in git) — see
+  [`platform/oathkeeper/README.md`](../../platform/oathkeeper/README.md). Until it
+  exists the public URL fails at Oathkeeper; in-cluster litellm access still works.
+- Cluster API access is via the pod ServiceAccount (RBAC above), not a mounted
+  credential.
 
 ## Changing the chart
 
