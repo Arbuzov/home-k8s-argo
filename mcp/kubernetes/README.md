@@ -11,7 +11,10 @@ repo. Argo consumes that chart **by git path** (not a Helm registry) — the sam
 way the `networking/*` charts do — because `home-k8s-helm` is private with no
 GitHub Pages: [`application.yaml`](application.yaml) sets
 `repoURL: git@github.com:Arbuzov/home-k8s-helm.git`, `path: arbuzov/mcp/kubernetes`,
-`targetRevision: HEAD`. (Argo already holds the SSH repo credential for that repo
+`targetRevision: <commit SHA>`. Unlike the `networking/*` charts (which track
+`HEAD`), this one **pins an immutable commit SHA** — deliberately, because it is
+a cluster-admin-capable workload, so an unrelated push to `home-k8s-helm` master
+must never auto-redeploy it. (Argo already holds the SSH repo credential for that repo
 from the networking charts; no new secret is needed. The chart is intentionally
 standalone — no `mcp-library` subchart dependency — so it renders from the git
 tree without a dependency build.) The chart starts the server with `--port=8080`,
@@ -60,11 +63,12 @@ safe brake.
 
 ## Changing the chart
 
-The chart lives in `home-k8s-helm` (`arbuzov/mcp/kubernetes`). Because this
-Application tracks `targetRevision: HEAD` by git path, "publishing" a chart
-change is just committing and pushing it to `home-k8s-helm`'s default branch
-(`master`) — Argo picks up the new commit on its next sync; no Helm-repo publish
-or `targetRevision` bump here is needed. Keep the chart standalone (don't
+The chart lives in `home-k8s-helm` (`arbuzov/mcp/kubernetes`). Because
+`targetRevision` here is a **pinned commit SHA**, shipping a chart change is two
+steps: (1) commit + push it to `home-k8s-helm`'s default branch (`master`), then
+(2) update `targetRevision` in [`application.yaml`](application.yaml) to the new
+commit SHA. Argo won't pick up a chart edit until that SHA is bumped — that's the
+point of pinning a cluster-admin workload. Keep the chart standalone (don't
 re-add the `mcp-library` dependency): a git-path chart with a `file://`
 dependency won't render, since the built subchart and `Chart.lock` are
 git-ignored.

@@ -9,7 +9,7 @@ spec:
   project: mcp
   source:
     repoURL: git@github.com:Arbuzov/home-k8s-helm.git
-    targetRevision: HEAD
+    targetRevision: 05caeb03be49a8f5df8237e032ca20133d13164d
     path: arbuzov/mcp/kubernetes
     helm:
       values: |
