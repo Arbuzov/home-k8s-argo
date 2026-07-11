@@ -17,11 +17,15 @@ Services: `atlassian` (Jira + Confluence), `basic-memory`, `gitlab`,
 `graphiti`, `homeassistant`, `kubernetes`, `mcpo`. Each has its own
 `README.md` for the out-of-band Secrets it expects.
 
-The `mcp` AppProject's `sourceRepos` whitelists the two Helm chart repos the
-child Applications pull from — `https://arbuzov.github.io/mcp-helm/` and
-`https://bjw-s-labs.github.io/helm-charts` — alongside this repo (the
-app-of-apps source). Adding a child whose chart lives elsewhere means adding
-its repo here first, or the project rejects the sync.
+The `mcp` AppProject's `sourceRepos` whitelists the chart sources the child
+Applications pull from — the `https://arbuzov.github.io/mcp-helm/` and
+`https://bjw-s-labs.github.io/helm-charts` Helm repos, plus
+`git@github.com:Arbuzov/home-k8s-helm.git` (a **git-path** chart source) —
+alongside this repo (the app-of-apps source). Adding a child whose chart lives
+elsewhere means adding its repo here first, or the project rejects the sync.
+(`kubernetes` renders its chart straight from the private `home-k8s-helm` git
+repo by path — the same pattern the `networking/*` charts use — because that
+repo is private with no Pages; see [`kubernetes/README.md`](kubernetes/README.md).)
 
 ## How it deploys (app-of-apps)
 
@@ -83,13 +87,17 @@ List several to disable more at once:
 
 ### Currently excluded
 
-`graphiti`, `homeassistant`, `kubernetes`, and `gitlab` are held back in the
-`exclude` glob. `homeassistant` and `kubernetes` use `mcp-helm` charts that
-currently run the server in **stdio** mode, which crashloops under Argo CD — they
-need a stdio→SSE (HTTP) bridge before they can be enabled. `graphiti` is a
-different chart (`bjw-s` `app-template`, a neo4j-backed server) and is held back
-separately. `gitlab` is held back on purpose: its committed manifest is a
-placeholder (`hostAliases: []`) because the corp-DNS pin is employer-specific, so
-it is applied **push-based** from a gitignored `gitlab/application.local.yaml`
-overlay — see [`gitlab/README.md`](gitlab/README.md). Remove each from `exclude`
-once it's ready to deploy.
+`graphiti`, `homeassistant`, and `gitlab` are held back in the `exclude` glob.
+`homeassistant` uses an `mcp-helm` chart that currently runs the server in
+**stdio** mode, which crashloops under Argo CD — it needs a stdio→SSE (HTTP)
+bridge before it can be enabled. `graphiti` is a different chart (`bjw-s`
+`app-template`, a neo4j-backed server) and is held back separately. `gitlab` is
+held back on purpose: its committed manifest is a placeholder (`hostAliases: []`)
+because the corp-DNS pin is employer-specific, so it is applied **push-based**
+from a gitignored `gitlab/application.local.yaml` overlay — see
+[`gitlab/README.md`](gitlab/README.md). Remove each from `exclude` once it's
+ready to deploy.
+
+`kubernetes` **is now enabled**: it was previously held back for the same
+stdio-crashloop reason, but its chart was rebuilt to run a real HTTP server
+(see [`kubernetes/README.md`](kubernetes/README.md)).
