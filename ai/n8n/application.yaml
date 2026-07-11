@@ -89,7 +89,7 @@ spec:
           resources:
             requests:
               memory: "512Mi"
-              cpu: "700m"
+              cpu: "250m"   # was 700m; actual idle ~43m, burst still allowed via 1500m limit
             limits:
               memory: "1536Mi"
               cpu: "1500m"
@@ -319,7 +319,7 @@ spec:
                       resources:
                         requests:
                           memory: "512Mi"
-                          cpu: "500m"
+                          cpu: "150m"   # was 500m; actual ~19m, burst to 500m limit
                         limits:
                           memory: "512Mi"
                           cpu: "500m"

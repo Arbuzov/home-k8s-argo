@@ -102,7 +102,7 @@ spec:
               readOnly: true
           resources:
             requests:
-              memory: "256Mi"
+              memory: "1Gi"   # was 256Mi; actual ~1073Mi, scheduler was under-accounting 4x
               cpu: "100m"
             limits:
               memory: "2Gi"

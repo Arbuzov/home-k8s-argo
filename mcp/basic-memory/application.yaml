@@ -54,10 +54,11 @@ spec:
                     containerPort: 8000
                 resources:
                   requests:
-                    memory: 256Mi
-                    cpu: 50m
+                    memory: 1Gi     # was 256Mi; actual ~943Mi — matched so it isn't the 1st evicted
+                    cpu: 500m        # was 50m; bursty (idle ~4m, indexes to ~1880m), burst via 2000m limit
                   limits:
-                    memory: 1Gi
+                    memory: 1536Mi   # was 1Gi; 943Mi actual was riding the OOM edge
+                    cpu: 2000m        # NEW cap: was unlimited, pegged worker-3 at 1880m/82%
                 probes:
                   liveness:
                     enabled: true
