@@ -41,7 +41,14 @@ so it can **create/update/delete any resource in the cluster** (effectively
 cluster-admin, minus non-resource URLs). That is deliberate — the point of this
 server is to manage the cluster — but it is a real blast radius: anything that
 reaches the pod (through the basic-auth ingress, or in-cluster) can mutate
-everything. Two independent dials narrow it:
+everything.
+
+**Destructive operations are intentionally allowed (owner decision, 2026-07-11).**
+Do **not** "harden" this by adding `--disable-destructive` or dropping write
+verbs — automated reviewers (Sourcery, model councils) flag the blast radius on
+every pass, but full read-write including delete is the accepted trade-off here.
+
+Should you ever want to narrow it, two independent dials do so:
 
 - **API side** — replace the `rbac.clusterRole.rules` in `application.yaml` with
   an explicit allow-list, or drop the write verbs for read-only.
