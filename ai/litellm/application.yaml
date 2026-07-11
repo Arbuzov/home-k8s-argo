@@ -92,6 +92,11 @@ spec:
                 transport: "http"
                 description: "Basic Memory knowledge base"
                 allow_all_keys: true
+              grafana:
+                url: "http://grafana-mcp.mcp.svc.cluster.local:8000/mcp"
+                transport: "http"
+                description: "Grafana (local homelab)"
+                allow_all_keys: true
           volumes:
             - name: copilot-access
               secret:

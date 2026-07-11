@@ -1,0 +1,90 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: grafana-mcp
+  namespace: argo-cd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: mcp
+  source:
+    repoURL: https://bjw-s-labs.github.io/helm-charts
+    chart: app-template
+    targetRevision: 3.6.0
+    helm:
+      values: |
+        controllers:
+          grafana-mcp:
+            type: deployment
+            pod:
+              nodeSelector:
+                kubernetes.io/hostname: kube-worker-3
+            containers:
+              app:
+                image:
+                  repository: grafana/mcp-grafana
+                  tag: "latest"
+                args:
+                  - -t
+                  - streamable-http
+                  - --address
+                  - 0.0.0.0:8000
+                env:
+                  GRAFANA_URL: http://grafana.grafana.svc.cluster.local/grafana
+                  GRAFANA_SERVICE_ACCOUNT_TOKEN:
+                    valueFrom:
+                      secretKeyRef:
+                        name: mcp-grafana-token
+                        key: GRAFANA_SERVICE_ACCOUNT_TOKEN
+                ports:
+                  - name: http
+                    containerPort: 8000
+                resources:
+                  requests:
+                    memory: 64Mi
+                    cpu: 25m
+                  limits:
+                    memory: 256Mi
+                    cpu: 500m
+                probes:
+                  liveness:
+                    enabled: true
+                    custom: true
+                    spec:
+                      tcpSocket:
+                        port: 8000
+                      initialDelaySeconds: 20
+                      periodSeconds: 30
+                  readiness:
+                    enabled: true
+                    custom: true
+                    spec:
+                      tcpSocket:
+                        port: 8000
+                      initialDelaySeconds: 10
+                      periodSeconds: 10
+                  startup:
+                    enabled: true
+                    custom: true
+                    spec:
+                      tcpSocket:
+                        port: 8000
+                      periodSeconds: 5
+                      failureThreshold: 30
+
+        service:
+          grafana-mcp:
+            controller: grafana-mcp
+            ports:
+              http:
+                port: 8000
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: mcp
+  syncPolicy:
+    automated:
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
