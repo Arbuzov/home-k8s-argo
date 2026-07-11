@@ -92,6 +92,11 @@ spec:
                 transport: "http"
                 description: "Basic Memory knowledge base"
                 allow_all_keys: true
+              kubernetes:
+                url: "http://mcp-kubernetes.mcp.svc.cluster.local:8080/mcp"
+                transport: "http"
+                description: "Kubernetes cluster (home) - read/write"
+                allow_all_keys: true
               grafana:
                 url: "http://grafana-mcp.mcp.svc.cluster.local:8000/mcp"
                 transport: "http"
