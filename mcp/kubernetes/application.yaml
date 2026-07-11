@@ -8,11 +8,25 @@ metadata:
 spec:
   project: mcp
   source:
-    repoURL: https://arbuzov.github.io/mcp-helm/
-    targetRevision: 0.2.7
-    chart: mcp-kubernetes
+    repoURL: git@github.com:Arbuzov/home-k8s-helm.git
+    targetRevision: HEAD
+    path: arbuzov/mcp/kubernetes
     helm:
       values: |
+        readOnly: false
+        rbac:
+          clusterRole:
+            rules:
+              - apiGroups: ["*"]
+                resources: ["*"]
+                verbs: ["*"]
+        resources:
+          requests:
+            cpu: 25m
+            memory: 64Mi
+          limits:
+            cpu: 500m
+            memory: 256Mi
         ingress:
           enabled: true
           className: nginx

@@ -10,6 +10,7 @@ spec:
   sourceRepos:
     - https://github.com/Arbuzov/home-k8s-argo.git
     - https://arbuzov.github.io/mcp-helm/
+    - git@github.com:Arbuzov/home-k8s-helm.git
     - https://bjw-s-labs.github.io/helm-charts
   destinations:
     - server: https://kubernetes.default.svc

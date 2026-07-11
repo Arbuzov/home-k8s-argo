@@ -12,7 +12,7 @@ spec:
     directory:
       recurse: true
       include: '{project.yaml,*/application*.yaml}'
-      exclude: '{graphiti/application.yaml,homeassistant/application.yaml,kubernetes/application.yaml,gitlab/application.yaml}'
+      exclude: '{graphiti/application.yaml,homeassistant/application.yaml,gitlab/application.yaml}'
   destination:
     server: https://kubernetes.default.svc
     namespace: argo-cd
