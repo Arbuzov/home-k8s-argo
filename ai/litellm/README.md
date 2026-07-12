@@ -139,7 +139,29 @@ listed too. Skipped: `mcpo` (an MCP→OpenAPI proxy, not an MCP server) and
 Add a server here as it comes online — note the name key can't contain `-`
 (litellm rejects it; use `_`), even though the URL can.
 
-## Postgres (db/)
+## Postgres — migrated to CloudNativePG (2026-07)
+
+`db.endpoint` now points at the **CloudNativePG** read-write service
+**`litellm-pg-rw`** (`Cluster` `litellm-pg`, operator in `cnpg-system`), not the
+old hand-rolled `litellm-postgres` Deployment. `db.useExisting`, the
+`litellm-db` Secret (user/password) and `db.database` are unchanged — only the
+endpoint moved — so rollback is reverting that one value; the old
+`litellm-postgres` Deployment + its `hostPath` data are kept intact until the
+CNPG DB is trusted.
+
+Same storage story as n8n (see `ai/n8n/README.md`): CNPG runs Postgres as
+**uid 26** and the cluster `local-path` class is unusable (exfat/tmpfs), so the
+DB uses a **static `local` PV on the ext4 root disk** — `/var/lib/litellm-pg` on
+**kube-worker-3** (where litellm serving + the old DB already live), pre-created
+`chown 26:26 chmod 700`, StorageClass `litellm-pg-local` + PV `litellm-pg-local-1`.
+`Cluster` `litellm-pg`: 1 instance, image `postgresql:15.18`,
+`enableSuperuserAccess: true`. Password reuse: Secret **`litellm-pg-app`**
+(`kubernetes.io/basic-auth`, `username=litellm` + the existing `litellm-db`
+password) — CNPG adopts the `<cluster>-app` secret so the role keeps the same
+password. Out-of-band prereqs (not in git): that secret + the `chown` of the
+data dir; CNPG CRDs must already be installed (`platform/cnpg-operator/`).
+
+### Old plain Postgres (retired, kept for rollback)
 
 [`db/postgres.yaml`](db/postgres.yaml) is a plain single-replica `postgres:15`
 Deployment + Service + the `litellm-db` Secret, applied by the second source in
@@ -147,7 +169,8 @@ Deployment + Service + the `litellm-db` Secret, applied by the second source in
 `kube-master` onto `kube-worker-3` — keeping node-local `hostPath` storage off
 the control-plane node (the single-point-of-failure trap `influxdb` and
 `postgres-n8n` are already stuck in); relocating was free while the DB was still
-empty (migrations hadn't run).
+empty (migrations hadn't run). Now superseded by CNPG — removed in a later
+cleanup once the new DB has soaked.
 
 [`db/nim-sync-cronjob.yaml`](db/nim-sync-cronjob.yaml) syncs the NVIDIA NIM model
 catalog into the DB every 3h via `POST /model/new` (ported from the corporate
