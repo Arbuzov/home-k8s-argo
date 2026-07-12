@@ -47,9 +47,15 @@ so do it manually here).
   `valuesObject` wins over `values`, and the chart silently renders its
   defaults (no worker/webhook/db tiers).
 
-## Postgres storage (hostPath on kube-master)
+## Postgres storage (hostPath on kube-master) — RETIRED
 
-Postgres data lives on a **hostPath** — `/var/lib/postgres-n8n-data` on
+> Superseded by CloudNativePG (see above). The `postgres-n8n` Deployment +
+> Service have been removed from the manifest; the section below is kept as
+> history. Its hostPath data (`/var/lib/postgres-n8n-data` on kube-master) is
+> **left on disk** as a rollback safety net — reclaim it once the CNPG DB is
+> trusted (`rm -rf` via a root pod, or leave it).
+
+Postgres data lived on a **hostPath** — `/var/lib/postgres-n8n-data` on
 kube-master, real local POSIX disk — **not** on `smb-pg` and **not** on the
 cluster `local-path` class. Both of those are CIFS-backed here (uid forced to
 `1000`, chown/chmod denied even as root), and Postgres **corrupts its WAL on
