@@ -74,10 +74,22 @@ StorageClass `vikunja-pg-local` + PV `vikunja-pg-local-1`. `Cluster` `vikunja-pg
 Secret `vikunja-db` (password) + `vikunja-pg-app` (`<cluster>-app`, same
 password so the role adopts it), and the data-dir `chown`.
 
-The one-time data move used **pgloader** (SQLite → Postgres) against a
-`VACUUM INTO` snapshot taken while Vikunja was scaled to 0 (clean, WAL merged),
-then flip the env + resume. Backup CronJob to `postgres-backups/vikunja/` and
-codifying the Cluster into git are follow-ups (mirror n8n).
+The one-time data move was **arm64-native** (no `pgloader` for arm64 — it's
+amd64-only and dies with `exec format error` on the Pis). Instead: run
+`vikunja migrate` in a one-shot pod pointed at the empty CNPG db so **Vikunja
+builds its own correct Postgres schema** (needs `VIKUNJA_SERVICE_PUBLICURL` or
+it fails CORS validation), then copy the data with a small Python + `pg8000`
+script off a `VACUUM INTO` snapshot taken while Vikunja was scaled to 0 (clean,
+WAL merged). The script disables FK triggers (`session_replication_role=replica`,
+superuser), converts int→bool for boolean columns, **decodes SQLite BLOB→str**
+(Vikunja stores some JSON columns like `users.frontend_settings` as bytes, which
+PG `jsonb` rejects raw), and resets sequences (`setval(pg_get_serial_sequence…)`).
+
+The `Cluster` + StorageClass + PV live in [`db/`](db/), synced by a separate
+Argo Application [`vikunja-db`](application-db.yaml) with `ServerSideApply` (like
+`n8n-db`/`litellm-db`). A nightly `pg_dump` CronJob ([`db/backup.yaml`](db/backup.yaml))
+backs up to the shared `postgres-backups/vikunja/`. Removing the old SQLite
+`database` PVC is the last follow-up, once the CNPG DB has soaked.
 
 ## Config
 

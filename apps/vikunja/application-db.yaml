@@ -1,0 +1,21 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: vikunja-db
+  namespace: argo-cd
+spec:
+  project: apps
+  source:
+    repoURL: https://github.com/Arbuzov/home-k8s-argo.git
+    targetRevision: main
+    path: apps/vikunja/db
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: vikunja
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - ServerSideApply=true
+      - ServerSideDiff=true

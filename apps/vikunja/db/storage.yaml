@@ -1,0 +1,30 @@
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: vikunja-pg-local
+provisioner: kubernetes.io/no-provisioner
+reclaimPolicy: Retain
+volumeBindingMode: WaitForFirstConsumer
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: vikunja-pg-local-1
+spec:
+  capacity:
+    storage: 5Gi
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: vikunja-pg-local
+  volumeMode: Filesystem
+  local:
+    path: /var/lib/vikunja-pg
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: kubernetes.io/hostname
+              operator: In
+              values:
+                - kube-master
