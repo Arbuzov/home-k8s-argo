@@ -97,7 +97,7 @@ spec:
             db:
               type: postgresdb
               postgresdb:
-                host: postgres-n8n
+                host: n8n-pg-rw
                 port: 5432
                 database: n8n
                 user: n8n
@@ -383,7 +383,7 @@ spec:
                             - name: DB_TYPE
                               value: postgresdb
                             - name: DB_POSTGRESDB_HOST
-                              value: postgres-n8n
+                              value: n8n-pg-rw
                             - name: DB_POSTGRESDB_PORT
                               value: "5432"
                             - name: DB_POSTGRESDB_DATABASE
@@ -461,11 +461,11 @@ spec:
                               set -e
                               ts=$(date +%F)
                               i=0
-                              until pg_isready -h postgres-n8n -U n8n -d n8n; do
+                              until pg_isready -h n8n-pg-rw -U n8n -d n8n; do
                                 i=$((i+1)); [ $i -ge 60 ] && { echo "db never ready"; exit 1; }
                                 echo "waiting for db ($i)"; sleep 5
                               done
-                              pg_dump -h postgres-n8n -U n8n -d n8n | gzip -c > /backup/db-$ts.sql.gz
+                              pg_dump -h n8n-pg-rw -U n8n -d n8n | gzip -c > /backup/db-$ts.sql.gz
                               find /backup -name 'db-*.sql.gz' -mtime +14 -delete
                               ls -la /backup
                           volumeMounts:
