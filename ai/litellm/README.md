@@ -161,16 +161,16 @@ password) — CNPG adopts the `<cluster>-app` secret so the role keeps the same
 password. Out-of-band prereqs (not in git): that secret + the `chown` of the
 data dir; CNPG CRDs must already be installed (`platform/cnpg-operator/`).
 
-### Old plain Postgres (retired, kept for rollback)
+### Old plain Postgres — RETIRED
 
-[`db/postgres.yaml`](db/postgres.yaml) is a plain single-replica `postgres:15`
-Deployment + Service + the `litellm-db` Secret, applied by the second source in
-[`application.yaml`](application.yaml) (`path: ai/litellm/db`). It is pinned off
-`kube-master` onto `kube-worker-3` — keeping node-local `hostPath` storage off
-the control-plane node (the single-point-of-failure trap `influxdb` and
-`postgres-n8n` are already stuck in); relocating was free while the DB was still
-empty (migrations hadn't run). Now superseded by CNPG — removed in a later
-cleanup once the new DB has soaked.
+The old single-replica `postgres:15` Deployment + Service have been **removed**
+from [`db/postgres.yaml`](db/postgres.yaml), which now holds only the still-used
+`litellm-db` Secret (litellm reads user/password from it). The old DB ran on a
+`hostPath` — `/var/lib/litellm-postgres-data` on **kube-worker-3** — which is
+**left on disk** as a rollback safety net (revert the endpoint + re-add the
+Deployment to bring it back); reclaim it once the CNPG DB is trusted.
+[`db/nim-sync-cronjob.yaml`](db/nim-sync-cronjob.yaml) stays — it talks to
+litellm's API, not Postgres.
 
 [`db/nim-sync-cronjob.yaml`](db/nim-sync-cronjob.yaml) syncs the NVIDIA NIM model
 catalog into the DB every 3h via `POST /model/new` (ported from the corporate
