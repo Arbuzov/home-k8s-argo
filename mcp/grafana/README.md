@@ -29,11 +29,19 @@ bjw-s `app-template` chart (same pattern as `basic-memory`).
   Bash pipes corrupt the value to UTF-16LE otherwise.
 - **`nodeSelector: kube-worker-3`** — co-located with the Grafana pod (also on
   worker-3), which has the free CPU/mem headroom (the 1 GB workers do not).
-- **No ingress.** Access is via **litellm**: the server is registered in
+- **Public path via the shared gateway.** The server is registered in
   `ai/litellm` `mcp_servers` (`http://grafana-mcp.mcp.svc.cluster.local:8000/mcp`)
-  and surfaced through the litellm MCP gateway, alongside jira/confluence/gitlab/
-  basic_memory. No dedicated `mcp-basic-auth` ingress.
+  and surfaced at `dev.whitediver.keenetic.link/mcp/grafana` the same way as
+  jira/confluence/kubernetes: the shared [`mcp-gateway`](../mcp-gateway/gateway-ingress.yaml)
+  ingress (basic-auth `mcp-basic-auth`) points `/mcp/grafana` at
+  `oathkeeper-proxy:4455`, which injects the litellm key and upstreams to
+  litellm `:4000` `/mcp/grafana`. Requires a matching `mcp-grafana` rule in the
+  out-of-band `oathkeeper-rules` Secret (see
+  [`../../platform/oathkeeper/README.md`](../../platform/oathkeeper/README.md)).
+  Public name == litellm alias == `grafana`, so no path rewrite is needed.
 
 ## Consumers
 
-- **litellm** — in-cluster, aggregated MCP gateway (primary access path).
+- **litellm** — in-cluster, aggregated MCP gateway (also the public path via
+  oathkeeper).
+- **Claude connector** — `dev.whitediver.keenetic.link/mcp/grafana` (basic-auth).

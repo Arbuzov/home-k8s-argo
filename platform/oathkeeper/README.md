@@ -68,12 +68,13 @@ kubectl -n mcp create secret generic oathkeeper-rules --from-file=access-rules.j
   --dry-run=client -o yaml | kubectl apply -f -
 ```
 
-Add `jira` / `confluence` / `gitlab` / `kubernetes` as more rule objects (same
-shape, alias swapped) in the same Secret. Oathkeeper hot-reloads the file
-(kubelet syncs the Secret to the pod within ~60s). The `kubernetes` rule matches
-`/mcp/kubernetes<.*>` and upstreams to the same litellm `:4000`; its public path
-is served by the shared [`mcp-gateway`](../../mcp/mcp-gateway/gateway-ingress.yaml)
-ingress (like `jira`/`confluence`), not a per-service ingress.
+Add `jira` / `confluence` / `gitlab` / `kubernetes` / `grafana` as more rule
+objects (same shape, alias swapped) in the same Secret. Oathkeeper hot-reloads
+the file (kubelet syncs the Secret to the pod within ~60s). The `kubernetes` and
+`grafana` rules match `/mcp/<alias><.*>` and upstream to the same litellm
+`:4000`; their public paths are served by the shared
+[`mcp-gateway`](../../mcp/mcp-gateway/gateway-ingress.yaml) ingress (like
+`jira`/`confluence`), not a per-service ingress.
 
 ## Notes
 

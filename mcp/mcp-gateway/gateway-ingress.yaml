@@ -38,3 +38,10 @@ spec:
                 name: oathkeeper-proxy
                 port:
                   number: 4455
+          - path: /mcp/grafana
+            pathType: Prefix
+            backend:
+              service:
+                name: oathkeeper-proxy
+                port:
+                  number: 4455
