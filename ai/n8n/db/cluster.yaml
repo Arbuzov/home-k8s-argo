@@ -1,0 +1,26 @@
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: n8n-pg
+  namespace: n8n
+spec:
+  instances: 1
+  imageName: ghcr.io/cloudnative-pg/postgresql:15.18
+  primaryUpdateStrategy: unsupervised
+  enableSuperuserAccess: true
+  storage:
+    size: 10Gi
+    storageClass: n8n-pg-local
+  bootstrap:
+    initdb:
+      database: n8n
+      owner: n8n
+  affinity:
+    nodeSelector:
+      kubernetes.io/hostname: kube-master
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      memory: 512Mi

@@ -127,9 +127,19 @@ kubectl -n n8n create secret generic n8n-pg-app --type=kubernetes.io/basic-auth 
 
 Data move (quiesced, no lost writes): scale the three writers to 0 →
 `pg_dump -Fc` the old DB → `pg_restore` into `n8n-pg` → flip the host → scale
-back up. The `Cluster`/StorageClass/PV manifests are applied out-of-band for
-now; codifying them into the chart `extraManifests` (and removing the old
-`postgres-n8n`) is a follow-up once the CNPG DB has soaked.
+back up.
+
+The `Cluster` + StorageClass + PV live in [`db/`](db/), synced by a **separate
+Argo Application** [`n8n-db`](application-db.yaml) (`path: ai/n8n/db`), kept out
+of the n8n Helm app so a rendering change can't disturb the DB. That app uses
+`ServerSideApply=true` + `ServerSideDiff=true` so Argo owns only the fields in
+`db/cluster.yaml`; the ~40 spec fields the CNPG mutating webhook defaults
+(`postgresql.parameters`, `probes`, `replicationSlots`, …) stay operator-owned
+and don't show as drift. The two out-of-band prerequisites above (the
+`n8n-pg-app` secret and the `chown 26:26` data dir) are **not** in git — apply
+them before this Application first syncs on a fresh cluster. Removing the old
+`postgres-n8n` Deployment/Service is a later follow-up, once the CNPG DB has
+soaked.
 
 ## Migrating / registering (one-time)
 
