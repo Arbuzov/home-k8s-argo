@@ -55,6 +55,30 @@ Two things are required to make this work — both learned the hard way:
 > Postgres-on-SMB pattern). Keep it to a **single replica** — `nobrl`
 > makes locking local, so concurrent writers would corrupt the DB.
 
+## Database — CloudNativePG (migrated from SQLite-on-SMB, 2026-07)
+
+The DB moved off the fragile SQLite-on-CIFS setup above onto a **CloudNativePG**
+`Cluster` (`vikunja-pg`, operator in `cnpg-system`) — resolving the corruption
+risk the warning above called out. `vikunja.env` now sets
+`VIKUNJA_DATABASE_TYPE: postgres` + host `vikunja-pg-rw`, user/db `vikunja`,
+`sslmode: disable`, password from Secret `vikunja-db`. The old `database` PVC
+(SQLite `/db/vikunja.db`) is **kept mounted but unused** as a rollback net;
+rollback = revert the env to `sqlite`/`/db/vikunja.db`. The `data` PVC
+(attachments) stays on `smb` — it's plain files, no SQLite fragility.
+
+Storage mirrors n8n/litellm: CNPG runs Postgres as **uid 26**, cluster
+`local-path` is unusable (exfat/tmpfs), so a **static `local` PV on the ext4
+root disk** — `/var/lib/vikunja-pg` on **kube-master**, pre-`chown 26:26`,
+StorageClass `vikunja-pg-local` + PV `vikunja-pg-local-1`. `Cluster` `vikunja-pg`:
+1 instance, `postgresql:15.18`, `enableSuperuserAccess`. Out-of-band (not git):
+Secret `vikunja-db` (password) + `vikunja-pg-app` (`<cluster>-app`, same
+password so the role adopts it), and the data-dir `chown`.
+
+The one-time data move used **pgloader** (SQLite → Postgres) against a
+`VACUUM INTO` snapshot taken while Vikunja was scaled to 0 (clean, WAL merged),
+then flip the env + resume. Backup CronJob to `postgres-backups/vikunja/` and
+codifying the Cluster into git are follow-ups (mirror n8n).
+
 ## Config
 
 `service.publicurl` is mandatory when CORS is on — without it you get an

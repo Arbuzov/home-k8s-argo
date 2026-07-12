@@ -43,8 +43,16 @@ spec:
               storageClass: smb
 
           env:
-            VIKUNJA_DATABASE_TYPE: "sqlite"
-            VIKUNJA_DATABASE_PATH: "/db/vikunja.db"
+            VIKUNJA_DATABASE_TYPE: "postgres"
+            VIKUNJA_DATABASE_HOST: "vikunja-pg-rw"
+            VIKUNJA_DATABASE_DATABASE: "vikunja"
+            VIKUNJA_DATABASE_USER: "vikunja"
+            VIKUNJA_DATABASE_SSLMODE: "disable"
+            VIKUNJA_DATABASE_PASSWORD:
+              valueFrom:
+                secretKeyRef:
+                  name: vikunja-db
+                  key: password
             VIKUNJA_AUTH_OPENID_PROVIDERS_GOOGLE_CLIENTID:
               valueFrom:
                 secretKeyRef:
