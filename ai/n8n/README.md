@@ -86,6 +86,51 @@ Operational tuning on the Postgres Deployment:
   so it's not OOMKilled at 512Mi and is evicted last under node memory
   pressure.
 
+## CloudNativePG migration (2026-07)
+
+The DB is being moved off the hand-rolled `postgres-n8n` Deployment (above)
+onto a **CloudNativePG** `Cluster` (`n8n-pg`; operator in `cnpg-system`). n8n
+now connects to the CNPG read-write service **`n8n-pg-rw`** — the
+`db.postgresdb.host` value and both backup CronJobs point there. User,
+password (Secret `postgres-n8n`) and database name are unchanged, so **only
+the host moved**; rollback is reverting that one value to `postgres-n8n`,
+whose Deployment + hostPath data are kept intact until the new DB is trusted.
+
+Same storage lesson as the hostPath section above, for the same reason: CNPG
+runs Postgres as **uid 26**, and the cluster `local-path` class is unusable —
+kube-master's backing disk is **exfat** and kube-worker-3's is **tmpfs**,
+neither of which honours POSIX ownership/permissions (initdb dies with
+`chmod ... Operation not permitted`). So CNPG gets a **static `local` PV on
+the ext4 root disk**, the operator-native equivalent of the hostPath trick:
+
+- `/var/lib/n8n-pg` on **kube-master**, pre-created `chown 26:26`, `chmod 700`.
+- StorageClass `n8n-pg-local` (`no-provisioner`, `WaitForFirstConsumer`,
+  `Retain`) + a matching `local` PV `n8n-pg-local-1` pinned to kube-master.
+- `Cluster` `n8n-pg`: 1 instance, image `postgresql:15.18` (matches the
+  source major), `storageClass: n8n-pg-local`, `enableSuperuserAccess: true`.
+- Password reuse: Secret **`n8n-pg-app`** (`kubernetes.io/basic-auth`,
+  `username=n8n` + the existing `postgres-n8n` password). CNPG adopts the
+  `<cluster>-app`-named secret, so the `n8n` role keeps the same password and
+  the host flip needs no credential change.
+
+Out-of-band prerequisites (not chart-rendered — apply before the CNPG DB
+comes up; CNPG CRDs must already be installed, see `platform/cnpg-operator/`):
+
+```sh
+# 1. app-user secret — reuse the existing password so only the host changes
+PW=$(kubectl -n n8n get secret postgres-n8n -o jsonpath='{.data.POSTGRES_PASSWORD}' | base64 -d)
+kubectl -n n8n create secret generic n8n-pg-app --type=kubernetes.io/basic-auth \
+  --from-literal=username=n8n --from-literal=password="$PW"
+# 2. ext4 data dir on kube-master owned by the CNPG uid (one-shot root pod):
+#    mkdir -p /var/lib/n8n-pg && chown 26:26 /var/lib/n8n-pg && chmod 700 /var/lib/n8n-pg
+```
+
+Data move (quiesced, no lost writes): scale the three writers to 0 →
+`pg_dump -Fc` the old DB → `pg_restore` into `n8n-pg` → flip the host → scale
+back up. The `Cluster`/StorageClass/PV manifests are applied out-of-band for
+now; codifying them into the chart `extraManifests` (and removing the old
+`postgres-n8n`) is a follow-up once the CNPG DB has soaked.
+
 ## Migrating / registering (one-time)
 
 The live `n8n` Argo Application predated this repo: its Helm values were
