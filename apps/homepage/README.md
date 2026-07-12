@@ -11,9 +11,9 @@ must match `settings.layout` so the column layout applies. Keep tiles plain;
 widgets that need an API key/token are provisioned out-of-band via the
 `homepage-secrets` Secret (below) — add them per service as the secrets land.
 
-`Multimedia` currently lists only PhotoPrism (`photos.whitediver…`) and
-Calibre-Web; jellyfin + pigallery2 are held back via `media/bootstrap.yaml`
-and not deployed.
+`Multimedia` currently lists PiGallery2 (`photos.whitediver…`, the app
+actually deployed on that host) and Calibre-Web; jellyfin + photoprism are
+held back via `media/bootstrap.yaml` and not deployed.
 
 ## Sensitive tokens
 
