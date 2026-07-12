@@ -235,6 +235,31 @@ spec:
             allowVolumeExpansion: true
             reclaimPolicy: Retain
             volumeBindingMode: Immediate
+          - apiVersion: storage.k8s.io/v1
+            kind: StorageClass
+            metadata:
+              name: smb-pgbackup
+            provisioner: smb.csi.k8s.io
+            parameters:
+              csi.storage.k8s.io/node-stage-secret-name: smbcreds
+              csi.storage.k8s.io/node-stage-secret-namespace: smb
+              csi.storage.k8s.io/provisioner-secret-name: smbcreds
+              csi.storage.k8s.io/provisioner-secret-namespace: smb
+              source: //192.168.99.44/smb-csi
+              subDir: "postgres-backups/${pvc.metadata.namespace}"
+            mountOptions:
+              - vers=3.1.1
+              - serverino
+              - cache=none
+              - actimeo=1
+              - nobrl
+              - uid=999
+              - gid=999
+              - dir_mode=0700
+              - file_mode=0600
+            allowVolumeExpansion: true
+            reclaimPolicy: Retain
+            volumeBindingMode: Immediate
           - apiVersion: apps/v1
             kind: Deployment
             metadata:
@@ -352,6 +377,18 @@ spec:
                 requests:
                   storage: 1Gi
               storageClassName: smb
+          - apiVersion: v1
+            kind: PersistentVolumeClaim
+            metadata:
+              name: n8n-pg-backup
+              namespace: n8n
+            spec:
+              accessModes:
+                - ReadWriteOnce
+              resources:
+                requests:
+                  storage: 1Gi
+              storageClassName: smb-pgbackup
           - apiVersion: batch/v1
             kind: CronJob
             metadata:
@@ -421,7 +458,7 @@ spec:
                       volumes:
                         - name: backup
                           persistentVolumeClaim:
-                            claimName: n8n-backup
+                            claimName: n8n-pg-backup
           - apiVersion: batch/v1
             kind: CronJob
             metadata:
@@ -474,7 +511,7 @@ spec:
                       volumes:
                         - name: backup
                           persistentVolumeClaim:
-                            claimName: n8n-backup
+                            claimName: n8n-pg-backup
         ingress:
           enabled: true
           className: "nginx"

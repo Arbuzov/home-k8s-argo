@@ -168,9 +168,14 @@ kubectl -n n8n rollout status deploy/postgres-n8n
 
 ## Backups
 
-Two nightly CronJobs write to the `n8n-backup` PVC (`smb` class, subdir
-`pvc-n8n-n8n-backup`), 14-day retention. Both retry/wait because Postgres on
-CIFS can be mid-restart. The `n8n-backup` (export) job sets
+Two nightly CronJobs write to the **shared Postgres-backup share**, 14-day
+retention. That share is one place for *every* DB's backups: the
+`smb-pgbackup` StorageClass (defined in this manifest) points at the `smb-csi`
+share with `subDir: postgres-backups/${namespace}`, so n8n's PVC `n8n-pg-backup`
+lands in `smb-csi/postgres-backups/n8n/` and any future DB (e.g. litellm) that
+uses the same class lands beside it under its own namespace. Both jobs
+retry/wait because Postgres on CIFS can be mid-restart. The `n8n-backup`
+(export) job sets
 `enableServiceLinks: false` — its own `N8N_PORT` config clashes with the
 legacy service-link env k8s would otherwise inject for the `n8n` Service. The
 `n8n-db-backup` job is pinned to kube-master (Postgres + the `postgres:15`
@@ -210,5 +215,5 @@ n8n import:workflow --separate --input=/backup/workflows-YYYY-MM-DD.json
 n8n import:credentials --input=/backup/credentials-YYYY-MM-DD.json
 
 # Full restore (users + everything) — into an EMPTY database:
-gunzip -c /backup/db-YYYY-MM-DD.sql.gz | psql -h postgres-n8n -U n8n -d n8n
+gunzip -c /backup/db-YYYY-MM-DD.sql.gz | psql -h n8n-pg-rw -U n8n -d n8n
 ```
