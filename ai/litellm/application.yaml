@@ -25,7 +25,7 @@ spec:
           db:
             deployStandalone: false
             useExisting: true
-            endpoint: litellm-postgres
+            endpoint: litellm-pg-rw
             database: litellm
             secret:
               name: litellm-db
