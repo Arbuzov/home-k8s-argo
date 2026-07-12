@@ -179,6 +179,17 @@ It relies on `general_settings.store_model_in_db: true` (set in
 [`application.yaml`](application.yaml)) — without it the endpoint 500s with
 "Set 'STORE_MODEL_IN_DB=True'".
 
+## Backups
+
+[`db/backup.yaml`](db/backup.yaml) — a nightly (03:45) `pg_dump | gzip` CronJob
+(`litellm-db-backup`) of the CNPG DB → PVC `litellm-pg-backup` on the shared
+`smb-pgbackup` StorageClass, landing in the unified
+`smb-csi/postgres-backups/litellm/` (14-day retention, restore with `gunzip … |
+psql -h litellm-pg-rw -U litellm -d litellm`). The `smb-pgbackup` class itself
+is defined in `ai/n8n/` (first mover) — a cross-app dependency, so this needs
+n8n deployed too. Trigger now: `kubectl -n litellm create job
+--from=cronjob/litellm-db-backup litellm-db-backup-now`.
+
 ## Smoke test
 
 ```sh

@@ -1,0 +1,66 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: litellm-pg-backup
+  namespace: litellm
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+  storageClassName: smb-pgbackup
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: litellm-db-backup
+  namespace: litellm
+spec:
+  schedule: "45 3 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      template:
+        spec:
+          restartPolicy: Never
+          nodeSelector:
+            kubernetes.io/hostname: kube-worker-3
+          securityContext:
+            runAsUser: 999
+            runAsGroup: 999
+            fsGroup: 999
+          containers:
+            - name: pgdump
+              image: postgres:15
+              imagePullPolicy: IfNotPresent
+              env:
+                - name: PGPASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: litellm-db
+                      key: password
+              command:
+                - sh
+                - -c
+                - |
+                  set -e
+                  ts=$(date +%F)
+                  i=0
+                  until pg_isready -h litellm-pg-rw -U litellm -d litellm; do
+                    i=$((i+1)); [ $i -ge 60 ] && { echo "db never ready"; exit 1; }
+                    echo "waiting for db ($i)"; sleep 5
+                  done
+                  pg_dump -h litellm-pg-rw -U litellm -d litellm | gzip -c > /backup/db-$ts.sql.gz
+                  find /backup -name 'db-*.sql.gz' -mtime +14 -delete
+                  ls -la /backup
+              volumeMounts:
+                - name: backup
+                  mountPath: /backup
+          volumes:
+            - name: backup
+              persistentVolumeClaim:
+                claimName: litellm-pg-backup
