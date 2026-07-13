@@ -108,7 +108,6 @@ spec:
             auth_url: https://accounts.google.com/o/oauth2/auth
             token_url: https://accounts.google.com/o/oauth2/token
             allowed_domains: "whitediver.com dev.whitediver.keenetic.link grafana.whitediver.keenetic.link"
-            hosted_domain: grafana.whitediver.keenetic.link
             use_pkce: true
             skip_org_role_sync: true
   destination:
