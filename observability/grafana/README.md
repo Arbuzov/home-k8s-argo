@@ -13,6 +13,32 @@ Pinned to `10.5.14` (Grafana 12.3.1). Only the very latest `10.5.15` carries
 newest *non-deprecated* release is pinned — one below the deprecated tip. Bump
 `targetRevision` to move it.
 
+## Dashboards
+
+Provisioned via the chart's `dashboardProviders` + `dashboards` values (file
+provider at `/var/lib/grafana/dashboards/default`, mounted from a ConfigMap — not
+the PVC). The chart's `download-dashboards` init container fetches each `gnetId`
+from grafana.com at pod start, so adding one is a three-line entry, not a JSON
+blob in git.
+
+Currently provisioned:
+
+- **`argo-cd`** — `gnetId: 14584` rev 1, the official Argo CD dashboard
+  (`argocd_*` metrics). `datasource: Prometheus` matches the manually-added
+  Prometheus datasource by **name** (the init container substitutes the
+  `DS_PROMETHEUS` input with that string), so no datasource is provisioned in
+  git — the existing one is reused.
+
+Requires the metrics to exist: the sibling `prometheus` app has an `argo-cd`
+scrape job — see [`../prometheus/README.md`](../prometheus/README.md). Without
+it the panels render but read **No data**.
+
+Add more by appending another `gnetId`/`revision`/`datasource` entry under
+`dashboards.default`. Trade-off: `gnetId` is a **runtime dependency on
+grafana.com reachability at pod start** — if it's unreachable the init container
+fails and blocks the pod. Acceptable here (the cluster already pulls charts over
+the internet); pin the JSON inline instead if that ever becomes a problem.
+
 ## Storage
 
 Dynamic PVC on the base `smb` StorageClass (`smb.csi.k8s.io`, CIFS). The mount
