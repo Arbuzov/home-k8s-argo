@@ -74,6 +74,15 @@ registration alone can take 50–60s per plugin under CPU/SMB-I/O contention.
   `serve_from_sub_path`, `ssl-redirect: false`).
 - Google OAuth with `auto_login`. `allowed_domains` restricts sign-in to
   `whitediver.com`.
+- **No `hosted_domain`.** It was briefly set to the Grafana hostname
+  (`grafana.whitediver.keenetic.link`), which Grafana passes to Google as the
+  `hd=` param — Google then pre-filled that bogus hostname as the `@…` email
+  suffix, so the login box demanded an address (`…@grafana.whitediver.keenetic.link`)
+  that can't exist. Removed rather than corrected: `allowed_domains` already
+  enforces `whitediver.com` server-side, so `hd` adds nothing here, and pointing
+  it at `whitediver.com` only works if that's a Google **Workspace** domain
+  (it would break login for a personal Google account on the custom domain).
+  Don't re-add it.
 - `users.auto_assign_org_role: Admin` sets the org role for **new** users at
   creation only — it does **not** re-apply to existing users on later logins.
 - `auth.google.skip_org_role_sync: true`: OAuth login must **not** overwrite org
