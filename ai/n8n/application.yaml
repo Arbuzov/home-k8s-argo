@@ -180,12 +180,12 @@ spec:
             type: dynamic
           livenessProbe:
             httpGet:
-              path: /healthz
+              path: /healthz/readiness
               port: http
-            initialDelaySeconds: 30
-            periodSeconds: 15
+            initialDelaySeconds: 90
+            periodSeconds: 30
             timeoutSeconds: 5
-            failureThreshold: 6
+            failureThreshold: 10
           readinessProbe:
             httpGet:
               path: /healthz/readiness
