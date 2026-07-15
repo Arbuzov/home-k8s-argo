@@ -1,0 +1,55 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: stackdriver-exporter
+  namespace: argo-cd
+spec:
+  project: observability
+  source:
+    repoURL: https://prometheus-community.github.io/helm-charts
+    chart: prometheus-stackdriver-exporter
+    targetRevision: 4.13.0
+    helm:
+      values: |
+        annotations:
+          prometheus.io/scrape-slow: "true"
+          prometheus.io/port: "9255"
+          prometheus.io/path: /metrics
+        stackdriver:
+          projectId: ""
+          projectIds:
+            - CHANGEME-gcp-project-id
+          serviceAccountSecret: stackdriver-exporter-credentials
+          serviceAccountSecretKey: credentials.json
+          metrics:
+            typePrefixes: ""
+            prefixes:
+              - compute.googleapis.com/instance/network
+              - compute.googleapis.com/instance/cpu
+              - compute.googleapis.com/instance/uptime_total
+            interval: 5m
+            ingestDelay: true
+        containerSecurityContext:
+          runAsNonRoot: true
+          runAsUser: 65534
+          readOnlyRootFilesystem: true
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+              - ALL
+        resources:
+          requests:
+            cpu: 25m
+            memory: 64Mi
+          limits:
+            memory: 128Mi
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: cloud-billing
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
