@@ -18,7 +18,7 @@ spec:
         stackdriver:
           projectId: ""
           projectIds:
-            - CHANGEME-gcp-project-id
+            - whitediver-vpn
           serviceAccountSecret: stackdriver-exporter-credentials
           serviceAccountSecretKey: credentials.json
           metrics:

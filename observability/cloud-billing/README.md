@@ -89,12 +89,15 @@ Per the repo's secrets model, credentials are **not** in git.
 
 The chart expects the keys `access_key` and `secret_key` (not the AWS-SDK
 spelling). The cluster is not in AWS, so there is no IRSA / instance role to
-assume — a static IAM user is the only option. Give it read-only access:
+assume — a static IAM user is the only option. Give it read-only access.
+
+Fill in `yace-aws-credentials.secret.yaml` in the repo root (gitignored through
+the `*.secret.yaml` glob) and apply it. That file also carries the
+`cloud-billing` Namespace, so it works before Argo CD has ever synced this group
+— which is the point, since the Secret has to exist *first*:
 
 ```sh
-kubectl --context kubernetes-local -n cloud-billing create secret generic yace-aws-credentials \
-  --from-literal=access_key=AKIA... \
-  --from-literal=secret_key=...
+kubectl --context kubernetes-local apply -f yace-aws-credentials.secret.yaml
 ```
 
 IAM policy for that user (nothing beyond read):
@@ -128,9 +131,18 @@ tag onto the metrics).
 ### `stackdriver-exporter-credentials` (ns `cloud-billing`)
 
 A GCP service account JSON key with role `roles/monitoring.viewer`, stored under
-the key `credentials.json` (the chart mounts it at
+the key `credentials.json`. The chart maps that key onto the fixed in-pod path
 `/etc/secrets/service-account/credentials.json` and points
-`GOOGLE_APPLICATION_CREDENTIALS` at it):
+`GOOGLE_APPLICATION_CREDENTIALS` at it, so the key name here only has to match
+`stackdriver.serviceAccountSecretKey` in the Application.
+
+Same pattern — `stackdriver-exporter-credentials.secret.yaml` in the repo root:
+
+```sh
+kubectl --context kubernetes-local apply -f stackdriver-exporter-credentials.secret.yaml
+```
+
+Or, to skip pasting JSON into a block scalar, straight from the downloaded key:
 
 ```sh
 kubectl --context kubernetes-local -n cloud-billing create secret generic stackdriver-exporter-credentials \
