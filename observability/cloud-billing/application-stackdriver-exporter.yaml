@@ -29,6 +29,8 @@ spec:
               - compute.googleapis.com/instance/uptime_total
             interval: 5m
             ingestDelay: true
+            aggregateDeltas: true
+            aggregateDeltasTTL: 30m
         containerSecurityContext:
           runAsNonRoot: true
           runAsUser: 65534
