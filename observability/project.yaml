@@ -10,11 +10,14 @@ spec:
   sourceRepos:
     - https://github.com/Arbuzov/home-k8s-argo.git
     - git@github.com:Arbuzov/home-k8s-helm.git
+    - https://prometheus-community.github.io/helm-charts
   destinations:
     - server: https://kubernetes.default.svc
       namespace: influxdb
     - server: https://kubernetes.default.svc
       namespace: argo-cd
+    - server: https://kubernetes.default.svc
+      namespace: cloud-billing
   clusterResourceWhitelist:
     - group: '*'
       kind: '*'

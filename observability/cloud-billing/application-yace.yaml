@@ -1,0 +1,102 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: yace
+  namespace: argo-cd
+spec:
+  project: observability
+  source:
+    repoURL: https://prometheus-community.github.io/helm-charts
+    chart: prometheus-yet-another-cloudwatch-exporter
+    targetRevision: 0.47.0
+    helm:
+      values: |
+        nameOverride: yace
+        podAnnotations:
+          prometheus.io/scrape-slow: "true"
+          prometheus.io/port: "5000"
+          prometheus.io/path: /metrics
+        extraArgs:
+          listen-address: 0.0.0.0:5000
+          scraping-interval: 300
+        aws:
+          secret:
+            name: yace-aws-credentials
+        testConnection: false
+        podSecurityContext:
+          runAsNonRoot: true
+          runAsUser: 65534
+          runAsGroup: 65534
+        securityContext:
+          readOnlyRootFilesystem: true
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+              - ALL
+        resources:
+          requests:
+            cpu: 25m
+            memory: 64Mi
+          limits:
+            memory: 128Mi
+        config: |-
+          apiVersion: v1alpha1
+          sts-region: us-east-2
+          customNamespace:
+            - name: billing
+              namespace: AWS/Billing
+              regions:
+                - us-east-1
+              metrics:
+                - name: EstimatedCharges
+                  statistics:
+                    - Maximum
+                  period: 21600
+                  length: 86400
+          discovery:
+            exportedTagsOnMetrics:
+              AWS/EC2:
+                - Name
+            jobs:
+              - type: AWS/EC2
+                regions:
+                  - us-east-2
+                metrics:
+                  - name: NetworkOut
+                    statistics:
+                      - Sum
+                    period: 300
+                    length: 3600
+                    nilToZero: true
+                  - name: NetworkIn
+                    statistics:
+                      - Sum
+                    period: 300
+                    length: 3600
+                    nilToZero: true
+                  - name: CPUUtilization
+                    statistics:
+                      - Average
+                    period: 300
+                    length: 3600
+                  - name: CPUCreditBalance
+                    statistics:
+                      - Average
+                    period: 300
+                    length: 3600
+                  - name: StatusCheckFailed
+                    statistics:
+                      - Maximum
+                    period: 300
+                    length: 3600
+                    nilToZero: true
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: cloud-billing
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
