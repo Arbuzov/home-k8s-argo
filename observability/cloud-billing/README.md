@@ -73,6 +73,37 @@ The upside of annotations over `extraScrapeConfigs` is that
 `kubectl apply` to take effect. Annotations are picked up by the running
 Prometheus with no change to that app at all.
 
+## GCP DELTA metrics need `aggregateDeltas`
+
+`compute.googleapis.com/instance/network/{sent,received}_bytes_count` are DELTA
+metrics in Cloud Monitoring: each point is "bytes during the last alignment
+window", not a running total. At the exporter's default (`aggregateDeltas:
+false`) they are published as a Prometheus **gauge** — a mode upstream's own
+README describes as wildly inaccurate and not very useful. `rate()` and
+`increase()` are meaningless on a gauge, and `sum_over_time()` only adds up
+whatever the 5m scrape happened to catch, silently double-counting or dropping
+windows depending on how scrapes align with GCP's.
+
+Since egress is the entire point of this app (200 GiB/mo free, then
+~$0.085/GiB), `aggregateDeltas: true` is not optional — it makes the exporter
+keep an in-memory counter, so `increase(...[30d])` is a real number.
+`aggregateDeltasTTL: 30m` matches the chart default and is kept explicit: it
+buys slow-moving series a 30-minute window before Prometheus staleness (5m)
+would otherwise restart the counter from zero.
+
+Two costs, both accepted:
+
+- **Memory** grows with the number of series retained. Trivial here — one VM.
+- **`honor_timestamps`.** The exporter emits GCP's own timestamps and
+  `kubernetes-pods-slow` honours them (Prometheus default). When GCP stops
+  reporting a series but the TTL keeps re-exporting it, Prometheus can reject
+  samples as duplicate-timestamp. Unlikely on a VPN box with continuous
+  traffic; if the egress panel ever plateaus, check
+  `prometheus_target_scrapes_sample_duplicate_timestamp_total` before blaming
+  the query.
+
+`cpu/utilization` is a true GAUGE upstream and is unaffected either way.
+
 ## Why `listen-address` is set explicitly
 
 `extraArgs.listen-address: 0.0.0.0:5000` is **load-bearing**. YACE defaults to
@@ -160,11 +191,17 @@ kubectl apply -f observability/cloud-billing/application-stackdriver-exporter.ya
 
 Two things must be filled in first:
 
-- `stackdriver.projectIds` is the literal placeholder `CHANGEME-gcp-project-id`.
-  A project ID is not a secret and belongs in git — it is a placeholder only
-  because the project doesn't exist yet.
+- `stackdriver.projectIds` — now `whitediver-vpn`. A project ID is not a secret
+  and belongs in git; it was a `CHANGEME` placeholder only until the project
+  existed.
 - The `stackdriver-exporter-credentials` Secret must exist, or the pod sits in
   `CreateContainerConfigError`.
+
+Both are done and the exporter is verified running (`up{job="kubernetes-pods-slow"}
+= 1`, `platform=linux/arm64`, series arriving for `instance_name="vpn-gw"` in
+`us-central1-a`), so the reason for the exclude glob has expired — dropping it
+and letting the app-of-apps own this Application is the obvious follow-up, left
+out of this change to keep it reviewable.
 
 `stackdriver.metrics.typePrefixes` is explicitly `""` and `projectId` is `""`:
 both are the chart's deprecated single-value options, and leaving them at their
