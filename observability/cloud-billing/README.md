@@ -8,6 +8,14 @@ graphed in `grafana`.
 This file holds the rationale that, by repo convention, must **not** live as
 comments inside the manifests (see the root `CLAUDE.md`).
 
+## yace is disabled (2026-07-16)
+
+`application-yace.yaml` is renamed `.disabled` (out of the app-of-apps include
+glob): the `yace-aws-credentials` Secret was gone and the pod sat in
+`CreateContainerConfigError`. yace is stateless (no PVC), so nothing is lost.
+Re-enable with `/enable observability/cloud-billing` after re-applying the
+Secret (see [Secrets](#secrets-out-of-band)).
+
 ## Two layers, deliberately separated
 
 | Layer         | AWS                                | GCP                                                |
