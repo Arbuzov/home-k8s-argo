@@ -16,11 +16,17 @@ glob): the `yace-aws-credentials` Secret was gone and the pod sat in
 Re-enable with `/enable observability/cloud-billing` after re-applying the
 Secret (see [Secrets](#secrets-out-of-band)).
 
+Both Applications here now carry `resources-finalizer.argocd.argoproj.io` —
+the first disable attempt pruned the Application CR without it, which is
+non-cascading and left the yace Deployment/Service orphaned (fixed by a
+re-enable-with-finalizer → disable cycle). Child Applications in this repo
+must keep that finalizer or `/disable` won't remove the workload.
+
 ## Two layers, deliberately separated
 
-| Layer         | AWS                                | GCP                                                |
-| ------------- | ---------------------------------- | -------------------------------------------------- |
-| **Resources** | `yace` — CloudWatch `AWS/EC2`      | `stackdriver-exporter` — Cloud Monitoring          |
+| Layer         | AWS                                | GCP                                                 |
+| ------------- | ---------------------------------- | --------------------------------------------------- |
+| **Resources** | `yace` — CloudWatch `AWS/EC2`      | `stackdriver-exporter` — Cloud Monitoring           |
 | **Money**     | `yace` — CloudWatch `AWS/Billing`  | not yet — see [GCP spend](#gcp-spend--not-here-yet) |
 
 Resource metrics refresh on a 5-minute cadence; spend refreshes every ~6 hours
