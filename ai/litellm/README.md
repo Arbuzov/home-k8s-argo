@@ -52,7 +52,7 @@ creates the schema on first sync.
 >   `useExisting: false` + `migrationJob.enabled: false`) to sidestep the
 >   Bitnami-Postgres-on-CIFS corruption trap (see
 >   [`../n8n/README.md`](../n8n/README.md)). It now runs its own plain Postgres
->   on `hostPath` instead (see [Postgres](#postgres-db) below), which avoids
+>   on `hostPath` instead (see [Postgres](#postgres--migrated-to-cloudnativepg-2026-07) below), which avoids
 >   that trap while restoring the DB-backed features.
 > - Enabling the `-database` image needs real node disk headroom: an earlier
 >   retry hit `kube-worker-3` disk contention (~500 MB above the eviction
@@ -178,6 +178,14 @@ instance, secret refs adapted to the home split of master key vs provider keys).
 It relies on `general_settings.store_model_in_db: true` (set in
 [`application.yaml`](application.yaml)) — without it the endpoint 500s with
 "Set 'STORE_MODEL_IN_DB=True'".
+
+`ttlSecondsAfterFinished: 86400` on the job template: failed sync jobs linger
+(`failedJobsHistoryLimit: 3`) and Argo CD aggregates child-Job health, so a
+transient failure (e.g. the 2026-07-16 power-loss/read-only-fs window on
+worker-3) kept the `litellm` app **Degraded** long after recovery. The TTL
+self-cleans finished jobs after 24h; it only applies to jobs created after the
+change — stale failed jobs need one manual
+`kubectl -n litellm delete job <litellm-nim-sync-...>`.
 
 ## Backups
 
