@@ -55,6 +55,9 @@ spec:
             cache-snapshot-write-cold-duration: "10m"
             max-concurrent-compactions: 1
             compact-full-write-cold-duration: "8760h"
+          http:
+            write-timeout: "30s"
+            shared-writer-timeout: "30s"
   destination:
     server: https://kubernetes.default.svc
     namespace: influxdb
