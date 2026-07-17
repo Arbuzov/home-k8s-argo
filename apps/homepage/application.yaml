@@ -20,11 +20,6 @@ spec:
               secretKeyRef:
                 name: homepage-secrets
                 key: HOMEPAGE_VAR_ARGOCD_TOKEN
-          - name: HOMEPAGE_VAR_HA_TOKEN
-            valueFrom:
-              secretKeyRef:
-                name: homepage-secrets
-                key: HOMEPAGE_VAR_HA_TOKEN
           - name: HOMEPAGE_VAR_WORK_GITLAB_URL
             valueFrom:
               secretKeyRef:
@@ -116,15 +111,16 @@ spec:
             - Home:
                 - Home assistant:
                     icon: home-assistant.png
+                    description: Smart home
                     href: https://home.whitediver.keenetic.link/
-                    key: "{{HOMEPAGE_VAR_HA_TOKEN}}"
-                    widget:
-                      type: homeassistant
-                      url: https://homeassistant.whitediver.keenetic.link/
                 - n8n:
                     icon: n8n.png
                     description: Workflow automation
                     href: https://n8n.whitediver.keenetic.link/
+                - LiteLLM:
+                    icon: litellm.png
+                    description: LLM proxy
+                    href: https://litellm.whitediver.keenetic.link/
                 - Vikunja:
                     icon: vikunja.png
                     description: Tasks
