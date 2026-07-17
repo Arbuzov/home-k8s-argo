@@ -54,9 +54,6 @@ spec:
               - Home:
                   style: column
                   columns: 1
-              - Monitor:
-                  style: column
-                  columns: 1
               - System:
                   style: column
                   columns: 1
@@ -118,7 +115,7 @@ spec:
                     description: Workflow automation
                     href: https://n8n.whitediver.keenetic.link/
                 - LiteLLM:
-                    icon: litellm.png
+                    icon: https://avatars.githubusercontent.com/u/121462774?s=200&v=4
                     description: LLM proxy
                     href: https://litellm.whitediver.keenetic.link/
                 - Vikunja:
@@ -129,7 +126,7 @@ spec:
                     icon: octoprint.png
                     description: 3D printer control
                     href: https://dev.whitediver.keenetic.link/octoprint/
-            - Monitor:
+            - System:
                 - Grafana:
                     icon: grafana.png
                     description: Dashboards
@@ -138,7 +135,6 @@ spec:
                     icon: prometheus.png
                     description: Metrics
                     href: https://dev.whitediver.keenetic.link/prometheus
-            - System:
                 - Argo CD:
                     icon: https://argo-cd.readthedocs.io/en/stable/assets/logo.png
                     description: Declarative GitOps for Kubernetes
