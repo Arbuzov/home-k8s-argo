@@ -14,8 +14,18 @@ spec:
         server:
           statefulSet:
             enabled: false
+          # Было false. Без PV вся история теряется при каждом рестарте пода.
+          # Для метрик кластера терпимо, для лимитов Claude — нет:
+          # deriv(...{window="seven_day"}[6h]) требует 6ч истории, а проверка
+          # гипотезы про 72-часовой сброс — ~11 дней подряд.
+          # local-path привязывает под к ноде — он и так на одной.
           persistentVolume:
-            enabled: false
+            enabled: true
+            size: 8Gi
+            storageClass: local-path
+            accessModes:
+              - ReadWriteOnce
+          retention: 90d
           persistent:
             enabled: false
           ingress:
@@ -29,17 +39,44 @@ spec:
           baseURL: /prometheus
           prefixURL: /prometheus
           resources:
+            # CPU 150m душил Prometheus во время WAL-replay/компакции на Pi → /-/ready
+            # не проходил → endpoints пусты → Grafana не достаёт датасорс. Даём burst
+            # по CPU и запас памяти на реплей (cadvisor уже сужен до vpn, так что OOM нет).
             limits:
-              cpu: 150m
-              memory: 768Mi
+              cpu: "1"
+              memory: 1Gi
             requests:
-              cpu: 150m
+              cpu: 200m
               memory: 768Mi
+          # Секретные probe-таргеты каскада (реальные IP) — вне публичного репо,
+          # в gitignored секрете blackbox-targets (ns prometheus). Сырой volume/mount
+          # (не extraSecretMounts — тот кривит Deployment под ArgoCD SSA).
+          extraVolumes:
+            - name: blackbox-targets
+              secret:
+                secretName: blackbox-targets
+                optional: true
+          extraVolumeMounts:
+            - name: blackbox-targets
+              mountPath: /etc/prometheus/blackbox-targets
+              readOnly: true
         alertmanager:
           enabled: false
           ingressClassName: "nginx"
         forceNamespace: "prometheus"
         extraScrapeConfigs: |
+          - job_name: claude-usage
+            # Воркстейшн: лимиты подписки Claude. Токен живёт в профиле
+            # пользователя, поэтому экспортер там, а не в кластере.
+            # up=0 когда десктоп спит — это норма, лимиты тогда не тратятся.
+            # Проверить, что workstation.lan резолвится из подов (Keenetic DHCP);
+            # если нет — прибить IP.
+            scrape_interval: 60s
+            scrape_timeout: 30s
+            static_configs:
+              - targets: ['workstation.lan:9101']
+                labels:
+                  host: workstation
           - job_name: cloudnative-pg
             kubernetes_sd_configs:
               - role: pod
@@ -73,6 +110,122 @@ spec:
                 target_label: pod
               - source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_component]
                 target_label: component
+          - job_name: blackbox-cascade
+            # L4-проба хопов VPN-каскада (home→RU relay→GCP REALITY). Реальные IP —
+            # НЕ здесь (репо публичный), а в gitignored секрете blackbox-targets
+            # (ns prometheus), примонтированном ниже как file_sd. Лейбл hop/leg
+            # приезжает из секрета; file_sd watched → правка IP без рестарта Prometheus.
+            metrics_path: /probe
+            params:
+              module: [tcp_connect]
+            file_sd_configs:
+              - files:
+                  - /etc/prometheus/blackbox-targets/*.yml
+            relabel_configs:
+              - source_labels: [__address__]
+                target_label: __param_target
+              - source_labels: [__param_target]
+                target_label: instance
+              - target_label: __address__
+                replacement: blackbox-exporter.prometheus.svc:9115
+          - job_name: cadvisor
+            # Контейнерные метрики (CPU/throttle/mem) для per-pod нагрузки. Дефолтные
+            # kubernetes-nodes(-cadvisor) джобы up=0: kubelet serving-cert не подписан
+            # кластерным CA, а они верифицируют его через ca_file. Здесь — тот же
+            # прямой :10250, но insecure_skip_verify. Оставляем только нужные семейства
+            # И только namespace=vpn: кластер-wide cadvisor раздувал head и OOM-ил
+            # Prometheus (768Mi). Для мониторинга нагрузки VPN-пода этого достаточно.
+            scheme: https
+            metrics_path: /metrics/cadvisor
+            tls_config:
+              insecure_skip_verify: true
+            bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+            kubernetes_sd_configs:
+              - role: node
+            relabel_configs:
+              - source_labels: [__meta_kubernetes_node_name]
+                target_label: node
+            metric_relabel_configs:
+              - source_labels: [__name__]
+                regex: container_(cpu_usage_seconds_total|cpu_cfs_throttled_periods_total|cpu_cfs_periods_total|memory_working_set_bytes|spec_cpu_quota|spec_cpu_period|network_receive_bytes_total|network_transmit_bytes_total)
+                action: keep
+              - source_labels: [namespace]
+                regex: vpn
+                action: keep
+        # Источник: claude-observability/deploy/rules/claude.rules.yaml.
+        # Дубль вынужденный: без prometheus-operator нет PrometheusRule CRD,
+        # чарт берёт правила только из serverFiles.
+        serverFiles:
+          recording_rules.yml:
+            groups:
+              - name: claude-forecast
+                interval: 1m
+                rules:
+                  # predict_linear() требует СКАЛЯР вторым аргументом — подставить
+                  # туда (reset_timestamp - time()) нельзя, не скомпилируется.
+                  # Поэтому вручную: текущее + наклон * время_до_сброса.
+                  - record: claude:limit_utilization:projected_at_reset
+                    expr: |
+                      claude_limit_utilization_percent{window="five_hour"}
+                      + deriv(claude_limit_utilization_percent{window="five_hour"}[30m])
+                        * (claude_limit_reset_timestamp_seconds{window="five_hour"} - time())
+                  - record: claude:limit_utilization:projected_at_reset
+                    expr: |
+                      claude_limit_utilization_percent{window="seven_day"}
+                      + deriv(claude_limit_utilization_percent{window="seven_day"}[6h])
+                        * (claude_limit_reset_timestamp_seconds{window="seven_day"} - time())
+                  - record: claude:limit_utilization:burn_rate_per_hour
+                    expr: deriv(claude_limit_utilization_percent[30m]) * 3600 > 0
+          alerting_rules.yml:
+            groups:
+              - name: claude-limits
+                interval: 1m
+                rules:
+                  # Главный сигнал. Мгновенное «73%» бесполезно; полезно
+                  # «при этом темпе не дотянешь до сброса».
+                  - alert: ClaudeWeeklyBurnTooFast
+                    expr: claude:limit_utilization:projected_at_reset{window="seven_day"} > 100
+                    for: 30m
+                    labels:
+                      severity: warning
+                    annotations:
+                      summary: "Недельный лимит Claude кончится до сброса ({{ $value | printf \"%.0f\" }}% к моменту сброса)"
+                  - alert: ClaudeSessionLimitNear
+                    expr: claude_limit_utilization_percent{window="five_hour"} > 90
+                    for: 5m
+                    labels:
+                      severity: warning
+                    annotations:
+                      summary: "5-часовое окно Claude почти исчерпано ({{ $value | printf \"%.0f\" }}%)"
+                  # Экспортер живой (up=1), но данные залипли: 401/429 или
+                  # Anthropic сломала недокументированный /api/oauth/usage.
+                  # Без этого график молча показывает вчерашние цифры.
+                  - alert: ClaudeUsageDataStale
+                    expr: claude_usage_cache_age_seconds > 1800
+                    for: 10m
+                    labels:
+                      severity: warning
+                    annotations:
+                      summary: "Данные о лимитах Claude протухли ({{ $value | humanizeDuration }})"
+                      description: "Токен протух, эндпоинт зарейтлимитил, или Anthropic сломала эндпоинт. Проверить релизы github.com/wakamex/ccusage"
+              - name: claude-service
+                interval: 1m
+                rules:
+                  - alert: ClaudeCodeDegraded
+                    expr: claude_status_component_health{component="Claude Code"} < 1
+                    for: 5m
+                    labels:
+                      severity: info
+                    annotations:
+                      summary: "Anthropic сообщает о проблемах с Claude Code"
+                      description: "https://status.anthropic.com"
+                  - alert: ClaudeStatusExporterDown
+                    expr: up{job="claude-status"} == 0
+                    for: 10m
+                    labels:
+                      severity: warning
+                    annotations:
+                      summary: "claude_status_exporter не скрейпится"
         prometheus-node-exporter:
           resources:
             limits:
