@@ -128,13 +128,14 @@ spec:
                 target_label: instance
               - target_label: __address__
                 replacement: blackbox-exporter.prometheus.svc:9115
-          - job_name: cadvisor
-            # Контейнерные метрики (CPU/throttle/mem) для per-pod нагрузки. Дефолтные
+          - job_name: kubelet
+            # Контейнерные метрики (CPU/throttle/mem) через cadvisor kubelet'а. Дефолтные
             # kubernetes-nodes(-cadvisor) джобы up=0: kubelet serving-cert не подписан
-            # кластерным CA, а они верифицируют его через ca_file. Здесь — тот же
-            # прямой :10250, но insecure_skip_verify. Оставляем только нужные семейства
-            # И только namespace=vpn: кластер-wide cadvisor раздувал head и OOM-ил
-            # Prometheus (768Mi). Для мониторинга нагрузки VPN-пода этого достаточно.
+            # кластерным CA, а они верят ему через ca_file. Здесь — прямой :10250 c
+            # insecure_skip_verify. job=kubelet + metrics_path=/metrics/cadvisor —
+            # так метрики совпадают с запросами дашбордов kube-prometheus-стиля (CNPG).
+            # Кардинальность: keep только нужные семейства И только vpn+CNPG namespaces
+            # (не кластер-wide — иначе OOM 768Mi, как уже было).
             scheme: https
             metrics_path: /metrics/cadvisor
             tls_config:
@@ -145,12 +146,32 @@ spec:
             relabel_configs:
               - source_labels: [__meta_kubernetes_node_name]
                 target_label: node
+              - target_label: metrics_path
+                replacement: /metrics/cadvisor
             metric_relabel_configs:
               - source_labels: [__name__]
                 regex: container_(cpu_usage_seconds_total|cpu_cfs_throttled_periods_total|cpu_cfs_periods_total|memory_working_set_bytes|spec_cpu_quota|spec_cpu_period|network_receive_bytes_total|network_transmit_bytes_total)
                 action: keep
               - source_labels: [namespace]
-                regex: vpn
+                regex: vpn|n8n|litellm|vikunja
+                action: keep
+          - job_name: kubelet-stats
+            # Собственные метрики kubelet (/metrics) — нужны только kubelet_volume_stats_*
+            # для панелей Volume Space. Прямой :10250 insecure, keep только volume-stats
+            # (низкая кардинальность — по одному PVC на под).
+            scheme: https
+            metrics_path: /metrics
+            tls_config:
+              insecure_skip_verify: true
+            bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+            kubernetes_sd_configs:
+              - role: node
+            relabel_configs:
+              - source_labels: [__meta_kubernetes_node_name]
+                target_label: node
+            metric_relabel_configs:
+              - source_labels: [__name__]
+                regex: kubelet_volume_stats_.*
                 action: keep
         # Источник: claude-observability/deploy/rules/claude.rules.yaml.
         # Дубль вынужденный: без prometheus-operator нет PrometheusRule CRD,
@@ -176,6 +197,16 @@ spec:
                         * (claude_limit_reset_timestamp_seconds{window="seven_day"} - time())
                   - record: claude:limit_utilization:burn_rate_per_hour
                     expr: deriv(claude_limit_utilization_percent[30m]) * 3600 > 0
+              - name: kube-cadvisor
+                interval: 1m
+                rules:
+                  # Питает панель "CPU Utilisation" дашбордов kube-prometheus-стиля (CNPG):
+                  # recording-rule из cadvisor (job=kubelet), которой в этом Prometheus нет.
+                  - record: node_namespace_pod_container:container_cpu_usage_seconds_total:sum_irate
+                    expr: |
+                      sum by (namespace, pod, container) (
+                        irate(container_cpu_usage_seconds_total{job="kubelet", metrics_path="/metrics/cadvisor", image!=""}[5m])
+                      )
           alerting_rules.yml:
             groups:
               - name: claude-limits
