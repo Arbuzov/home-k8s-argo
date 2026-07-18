@@ -46,6 +46,11 @@ spec:
           failureThreshold: 30
         testFramework:
           enabled: false
+        env:
+          # Не преинсталлить bundled drilldown-аппы (exploretraces/lokiexplore/
+          # pyroscope/metricsdrilldown): каждый тянется с grafana.com ~100с на
+          # RU-линии → старт не укладывался в liveness. Дашбордам они не нужны.
+          GF_PLUGINS_PREINSTALL_DISABLED: "true"
         envValueFrom:
           GF_AUTH_GOOGLE_CLIENT_SECRET:
             secretKeyRef:
