@@ -41,6 +41,16 @@ spec:
           timeoutSeconds: 15
           periodSeconds: 10
           failureThreshold: 12
+        # SQLite-БД на SMB PVC: холодный старт (лок БД по CIFS) может занять минуты.
+        # startupProbe даёт запас (~10 мин), не трогая liveness/readiness в стационаре,
+        # чтобы медленный рестарт не уходил в краш-луп. Настоящий фикс — увести БД с SMB.
+        startupProbe:
+          httpGet:
+            path: /api/health
+            port: 3000
+          periodSeconds: 15
+          failureThreshold: 40
+          timeoutSeconds: 15
         testFramework:
           enabled: false
         envValueFrom:
@@ -69,12 +79,9 @@ spec:
                 editable: true
                 options:
                   path: /var/lib/grafana/dashboards/default
-        dashboards:
-          default:
-            argo-cd:
-              gnetId: 14584
-              revision: 1
-              datasource: Prometheus
+        # Дашборды НЕ качаем с grafana.com на старте: gnetId создавал init-контейнер
+        # download-dashboards, который вис на curl к grafana.com и блокировал старт.
+        # Дашборды живут в БД Grafana (UI/MCP) — "сохранил раз и всё".
         ingress:
           enabled: true
           ingressClassName: nginx
@@ -99,6 +106,12 @@ spec:
             cookie_samesite: lax
           users:
             auto_assign_org_role: Admin
+          # Встроенный алертинг Grafana (ngalert) заглушён: на SQLite-БД поверх SMB его
+          # частые записи (scheduler/state-historian/router) устраивали шторм
+          # "database is locked" → 503 на /api/health → мерцание проб. Правила остаются
+          # в БД, отключается только evaluation — обратимо. Вернуть после миграции на CNPG.
+          unified_alerting:
+            enabled: false
           auth.google:
             enabled: true
             allow_sign_up: true
