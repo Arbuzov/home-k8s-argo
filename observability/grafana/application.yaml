@@ -58,6 +58,10 @@ spec:
             secretKeyRef:
               name: grafana-oauth
               key: client_secret
+          GF_DATABASE_PASSWORD:
+            secretKeyRef:
+              name: grafana-pg-app
+              key: password
         persistence:
           # БД уведена с SMB на local-path (быстрый локальный диск) — CIFS-локи, из-за
           # которых Grafana падала/мерцала (database is locked, 503 на /login), исчезают.
@@ -86,13 +90,14 @@ spec:
                 - dev.whitediver.keenetic.link
         grafana.ini:
           database:
-            # WAL: Grafana 12 держит несколько SQLite-соединений (main store,
-            # kvstore, unified-storage resource-server). На rollback-журнале они
-            # дерутся за единственного писателя → "database is locked" → краш модуля.
-            # WAL (безопасен на local-path, НЕ на SMB) даёт конкурентных читателей+
-            # писателя без блокировок; query_retries добивает редкие гонки.
-            wal: true
-            query_retries: 5
+            # БД на CNPG Postgres (grafana-pg) — единообразно с litellm/n8n/vikunja
+            # и реальный конкурентный доступ (SQLite упирался в "database is locked").
+            # Пароль — из секрета grafana-pg-app через GF_DATABASE_PASSWORD (env).
+            type: postgres
+            host: grafana-pg-rw:5432
+            name: grafana
+            user: grafana
+            ssl_mode: require
           server:
             domain: dev.whitediver.keenetic.link
             root_url: https://dev.whitediver.keenetic.link/grafana
