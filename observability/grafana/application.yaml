@@ -111,13 +111,8 @@ spec:
             cookie_samesite: lax
           users:
             auto_assign_org_role: Admin
-          # Алертинг Grafana оставлен ВЫКЛ: даже на local-path SQLite его старт
-          # (ngalert.state.manager warm cache) конкурирует с unified-storage
-          # resource-server за одно SQLite-соединение → "database is locked" →
-          # краш старта. Правила целы в БД. Включим после переезда на Postgres/CNPG,
-          # где конкурентные писатели не проблема.
-          unified_alerting:
-            enabled: false
+          # Алертинг включён (chart default): на Postgres конкурентные писатели
+          # (ngalert + unified-storage) больше не упираются в один SQLite-лок.
           auth.google:
             enabled: true
             allow_sign_up: true
