@@ -59,29 +59,18 @@ spec:
               name: grafana-oauth
               key: client_secret
         persistence:
+          # БД уведена с SMB на local-path (быстрый локальный диск) — CIFS-локи, из-за
+          # которых Grafana падала/мерцала (database is locked, 503 на /login), исчезают.
+          # PVC grafana-local предзаполнен бэкапом старой БД (13 дашбордов/3 DS/6 алертов),
+          # local-path PV привязан к kube-master → под пиннится туда по volume affinity.
           enabled: true
           type: pvc
-          storageClassName: smb
-          accessModes:
-            - ReadWriteOnce
-          size: 10Gi
+          existingClaim: grafana-local
         initChownData:
           enabled: false
-        dashboardProviders:
-          dashboardproviders.yaml:
-            apiVersion: 1
-            providers:
-              - name: default
-                orgId: 1
-                folder: ""
-                type: file
-                disableDeletion: false
-                editable: true
-                options:
-                  path: /var/lib/grafana/dashboards/default
-        # Дашборды НЕ качаем с grafana.com на старте: gnetId создавал init-контейнер
-        # download-dashboards, который вис на curl к grafana.com и блокировал старт.
-        # Дашборды живут в БД Grafana (UI/MCP) — "сохранил раз и всё".
+        # Ни file-провижн дашбордов, ни gnetId-загрузки: дашборды живут в БД Grafana
+        # (UI/MCP). Провайдер убран, чтобы провижн не удалял восстановленные дашборды;
+        # download-dashboards init (висел на curl к grafana.com) тоже больше не создаётся.
         ingress:
           enabled: true
           ingressClassName: nginx
@@ -106,12 +95,8 @@ spec:
             cookie_samesite: lax
           users:
             auto_assign_org_role: Admin
-          # Встроенный алертинг Grafana (ngalert) заглушён: на SQLite-БД поверх SMB его
-          # частые записи (scheduler/state-historian/router) устраивали шторм
-          # "database is locked" → 503 на /api/health → мерцание проб. Правила остаются
-          # в БД, отключается только evaluation — обратимо. Вернуть после миграции на CNPG.
-          unified_alerting:
-            enabled: false
+          # Алертинг снова включён (chart default): на local-path БД шторма
+          # "database is locked" больше нет, 6 правил из БД снова работают.
           auth.google:
             enabled: true
             allow_sign_up: true
