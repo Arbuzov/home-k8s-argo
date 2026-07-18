@@ -29,10 +29,13 @@ spec:
           httpGet:
             path: /api/health
             port: 3000
-          initialDelaySeconds: 90
+          # Чарт 10.5.14 не рендерит startupProbe, поэтому запас на медленный старт
+          # (Grafana 12 на ARM: плагины + unified-storage) даём прямо в liveness:
+          # 180 + 20*15 = ~480с, иначе liveness убивал на 240с в краш-луп.
+          initialDelaySeconds: 180
           timeoutSeconds: 30
           periodSeconds: 15
-          failureThreshold: 10
+          failureThreshold: 20
         readinessProbe:
           httpGet:
             path: /api/health
@@ -40,17 +43,7 @@ spec:
           initialDelaySeconds: 30
           timeoutSeconds: 15
           periodSeconds: 10
-          failureThreshold: 12
-        # SQLite-БД на SMB PVC: холодный старт (лок БД по CIFS) может занять минуты.
-        # startupProbe даёт запас (~10 мин), не трогая liveness/readiness в стационаре,
-        # чтобы медленный рестарт не уходил в краш-луп. Настоящий фикс — увести БД с SMB.
-        startupProbe:
-          httpGet:
-            path: /api/health
-            port: 3000
-          periodSeconds: 15
-          failureThreshold: 40
-          timeoutSeconds: 15
+          failureThreshold: 30
         testFramework:
           enabled: false
         envValueFrom:
@@ -98,6 +91,11 @@ spec:
             name: grafana
             user: grafana
             ssl_mode: require
+          analytics:
+            # Не дёргать grafana.com на старте (проверка обновлений плагинов): на
+            # RU-линии это ~30с/плагин, и старт не укладывался в liveness → краш-луп.
+            check_for_plugin_updates: false
+            reporting_enabled: false
           server:
             domain: dev.whitediver.keenetic.link
             root_url: https://dev.whitediver.keenetic.link/grafana
