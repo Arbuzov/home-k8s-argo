@@ -95,8 +95,13 @@ spec:
             cookie_samesite: lax
           users:
             auto_assign_org_role: Admin
-          # Алертинг снова включён (chart default): на local-path БД шторма
-          # "database is locked" больше нет, 6 правил из БД снова работают.
+          # Алертинг Grafana оставлен ВЫКЛ: даже на local-path SQLite его старт
+          # (ngalert.state.manager warm cache) конкурирует с unified-storage
+          # resource-server за одно SQLite-соединение → "database is locked" →
+          # краш старта. Правила целы в БД. Включим после переезда на Postgres/CNPG,
+          # где конкурентные писатели не проблема.
+          unified_alerting:
+            enabled: false
           auth.google:
             enabled: true
             allow_sign_up: true
