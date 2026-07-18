@@ -1,0 +1,26 @@
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: grafana-pg
+  namespace: grafana
+spec:
+  instances: 1
+  imageName: ghcr.io/cloudnative-pg/postgresql:15.18
+  primaryUpdateStrategy: unsupervised
+  enableSuperuserAccess: true
+  storage:
+    size: 5Gi
+    storageClass: grafana-pg-local
+  bootstrap:
+    initdb:
+      database: grafana
+      owner: grafana
+  affinity:
+    nodeSelector:
+      kubernetes.io/hostname: kube-master
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      memory: 512Mi

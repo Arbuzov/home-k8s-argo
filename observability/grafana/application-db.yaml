@@ -1,0 +1,23 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: grafana-db
+  namespace: argo-cd
+spec:
+  # project: default (как у grafana-app: ns grafana не входит в destinations
+  # проекта observability). Синкает CNPG-кластер + local PV + бэкап-CronJob.
+  project: default
+  source:
+    repoURL: https://github.com/Arbuzov/home-k8s-argo.git
+    targetRevision: main
+    path: observability/grafana/db
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: grafana
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - ServerSideApply=true
+      - ServerSideDiff=true
