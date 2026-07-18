@@ -85,6 +85,14 @@ spec:
               hosts:
                 - dev.whitediver.keenetic.link
         grafana.ini:
+          database:
+            # WAL: Grafana 12 держит несколько SQLite-соединений (main store,
+            # kvstore, unified-storage resource-server). На rollback-журнале они
+            # дерутся за единственного писателя → "database is locked" → краш модуля.
+            # WAL (безопасен на local-path, НЕ на SMB) даёт конкурентных читателей+
+            # писателя без блокировок; query_retries добивает редкие гонки.
+            wal: true
+            query_retries: 5
           server:
             domain: dev.whitediver.keenetic.link
             root_url: https://dev.whitediver.keenetic.link/grafana
