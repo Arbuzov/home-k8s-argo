@@ -127,7 +127,7 @@ spec:
 
         ingress:
           enabled: true
-          className: nginx
+          ingressClassName: nginx
           annotations:
             nginx.ingress.kubernetes.io/auth-type: basic
             nginx.ingress.kubernetes.io/auth-secret: mcp-basic-auth
