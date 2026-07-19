@@ -1,0 +1,115 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: claude-status
+  namespace: argo-cd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  # project: default, как grafana и prometheus в этой же папке.
+  # AppProject observability не подходит: в его sourceRepos нет bjw-s-labs,
+  # а в destinations нет этого namespace.
+  project: default
+  source:
+    repoURL: https://bjw-s-labs.github.io/helm-charts
+    chart: app-template
+    targetRevision: 3.6.0
+    helm:
+      values: |
+        controllers:
+          claude-status:
+            type: deployment
+            replicas: 1
+            pod:
+              nodeSelector:
+                kubernetes.io/hostname: kube-master
+              annotations:
+                prometheus.io/scrape: "true"
+                prometheus.io/port: "9102"
+                prometheus.io/path: /metrics
+              securityContext:
+                runAsNonRoot: true
+                runAsUser: 65534
+                runAsGroup: 65534
+            containers:
+              app:
+                image:
+                  repository: python
+                  tag: "3.13-slim"
+                command:
+                  - /bin/sh
+                  - -c
+                args:
+                  - |
+                    pip install --no-cache-dir --quiet prometheus-client && \
+                    exec python /app/claude_status_exporter.py --port 9102
+                env:
+                  PYTHONUNBUFFERED: "1"
+                  PYTHONDONTWRITEBYTECODE: "1"
+                  PIP_ROOT_USER_ACTION: ignore
+                  HOME: /tmp
+                  PYTHONUSERBASE: /tmp/.local
+                  PATH: /tmp/.local/bin:/usr/local/bin:/usr/bin:/bin
+                ports:
+                  - name: metrics
+                    containerPort: 9102
+                resources:
+                  requests:
+                    memory: 64Mi
+                    cpu: 10m
+                  limits:
+                    memory: 192Mi
+                    cpu: 200m
+                probes:
+                  liveness:
+                    enabled: true
+                    custom: true
+                    spec:
+                      httpGet:
+                        path: /metrics
+                        port: 9102
+                      initialDelaySeconds: 40
+                      periodSeconds: 60
+                  readiness:
+                    enabled: true
+                    custom: true
+                    spec:
+                      httpGet:
+                        path: /metrics
+                        port: 9102
+                      initialDelaySeconds: 20
+                      periodSeconds: 30
+                  startup:
+                    enabled: false
+
+        service:
+          claude-status:
+            controller: claude-status
+            ports:
+              metrics:
+                port: 9102
+
+        persistence:
+          # runAsUser 65534 + read-only $HOME: pip некуда писать без этого
+          tmp:
+            enabled: true
+            type: emptyDir
+            globalMounts:
+              - path: /tmp
+          script:
+            enabled: true
+            type: configMap
+            name: claude-status-script
+            globalMounts:
+              - path: /app
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: claude-status
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true

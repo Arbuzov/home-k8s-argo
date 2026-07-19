@@ -239,6 +239,16 @@ spec:
                     annotations:
                       summary: "Данные о лимитах Claude протухли ({{ $value | humanizeDuration }})"
                       description: "Токен протух, эндпоинт зарейтлимитил, или Anthropic сломала эндпоинт. Проверить релизы github.com/wakamex/ccusage"
+                  # Экспортер жив, но лимиты не получить (401/429/cold start). Ловит
+                  # то, что ClaudeUsageDataStale не может: на cold start cache_age
+                  # ещё не публикуется, а scrape_success=0 уже есть.
+                  - alert: ClaudeUsageScrapeFailing
+                    expr: claude_usage_scrape_success == 0
+                    for: 15m
+                    labels:
+                      severity: warning
+                    annotations:
+                      summary: "claude_usage_exporter не может получить лимиты"
               - name: claude-service
                 interval: 1m
                 rules:
@@ -250,6 +260,13 @@ spec:
                     annotations:
                       summary: "Anthropic сообщает о проблемах с Claude Code"
                       description: "https://status.anthropic.com"
+                  - alert: ClaudeApiMajorOutage
+                    expr: claude_status_component_health{component="Claude API (api.anthropic.com)"} == 0
+                    for: 5m
+                    labels:
+                      severity: warning
+                    annotations:
+                      summary: "Major outage Claude API по данным status.anthropic.com"
                   - alert: ClaudeStatusExporterDown
                     expr: up{job="claude-status"} == 0
                     for: 10m

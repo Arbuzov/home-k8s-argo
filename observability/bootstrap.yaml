@@ -11,7 +11,9 @@ spec:
     path: observability
     directory:
       recurse: true
-      include: '{project.yaml,*/application*.yaml}'
+      # configmap*.yaml — для приложений, которым нужен монтируемый скрипт
+      # (claude-status). Генерируется, не пишется руками — см. его README.
+      include: '{project.yaml,*/application*.yaml,*/configmap*.yaml}'
       exclude: '{influxdb/application.yaml,prometheus/application.yaml,cloud-billing/application-stackdriver-exporter.yaml}'
   destination:
     server: https://kubernetes.default.svc
