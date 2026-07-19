@@ -4,7 +4,7 @@
 Claude Code и pull-моделью Prometheus.
 
 ```
-Claude Code (Windows) --OTLP/http--> otel.whitediver.keenetic.link
+Claude Code (Windows) --OTLP/http--> dev.whitediver.keenetic.link/otel
                                         |
                                      collector
                                         |
@@ -41,7 +41,7 @@ claude_code_code_edit_tool_decision_total{tool_name,decision,source,language}
 
 ```powershell
 cd C:\Users\info\Documents\git\claude-observability
-.\windows\install.ps1 -OtelEndpoint https://otel.whitediver.keenetic.link
+.\windows\install.ps1 -OtelEndpoint https://dev.whitediver.keenetic.link/otel
 ```
 
 ## Три грабли, каждая ломает всё молча
