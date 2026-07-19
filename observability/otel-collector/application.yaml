@@ -125,23 +125,31 @@ spec:
               metrics:
                 level: basic
 
+        # Path на общем dev.*, а НЕ свой хост otel.*. Так живёт весь homelab, и
+        # у dev.* уже есть и рабочий внешний роутинг, и TLS-сертификат: отдельный
+        # хост требовал бы своего сертификата (его нигде не было — nginx отдавал
+        # дефолтный) и записи на внешнем прокси (её нет — оттуда прилетал 404).
+        # TLS-блок не нужен: nginx мержит ingress'ы одного хоста в один server,
+        # сертификат dev.* приезжает от соседей (prometheus/grafana/...).
+        # rewrite: /otel/v1/metrics -> /v1/metrics (OTLP сам дописывает /v1/metrics
+        # к OTEL_EXPORTER_OTLP_ENDPOINT).
         ingress:
           enabled: true
           ingressClassName: nginx
           annotations:
             nginx.ingress.kubernetes.io/auth-type: basic
+            # Секрет обязан лежать в ЭТОМ namespace — nginx не ходит в чужие.
+            # Без него локация отдаёт 503, а не 401.
             nginx.ingress.kubernetes.io/auth-secret: mcp-basic-auth
             nginx.ingress.kubernetes.io/auth-realm: "Authentication Required"
+            nginx.ingress.kubernetes.io/use-regex: "true"
+            nginx.ingress.kubernetes.io/rewrite-target: /$2
           hosts:
-            - host: otel.whitediver.keenetic.link
+            - host: dev.whitediver.keenetic.link
               paths:
-                - path: /
-                  pathType: Prefix
+                - path: /otel(/|$)(.*)
+                  pathType: ImplementationSpecific
                   port: 4318
-          tls:
-            - secretName: otel.whitediver.keenetic.link-tls
-              hosts:
-                - otel.whitediver.keenetic.link
 
   destination:
     server: https://kubernetes.default.svc
