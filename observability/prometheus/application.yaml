@@ -65,18 +65,11 @@ spec:
           ingressClassName: "nginx"
         forceNamespace: "prometheus"
         extraScrapeConfigs: |
-          - job_name: claude-usage
-            # Воркстейшн: лимиты подписки Claude. Токен живёт в профиле
-            # пользователя, поэтому экспортер там, а не в кластере.
-            # up=0 когда десктоп спит — это норма, лимиты тогда не тратятся.
-            # Проверить, что workstation.lan резолвится из подов (Keenetic DHCP);
-            # если нет — прибить IP.
-            scrape_interval: 60s
-            scrape_timeout: 30s
-            static_configs:
-              - targets: ['workstation.lan:9101']
-                labels:
-                  host: workstation
+          # job claude-usage удалён 2026-07-19 вместе со слоем лимитов:
+          # /api/oauth/usage требует скоуп user:profile, а токена с ним взять
+          # неоткуда (setup-token его не даёт, .credentials.json больше не
+          # обновляется). Экспортер и правила сохранены в репозитории
+          # claude-observability — вернуть, если способ появится.
           - job_name: cloudnative-pg
             kubernetes_sd_configs:
               - role: pod
@@ -179,24 +172,9 @@ spec:
         serverFiles:
           recording_rules.yml:
             groups:
-              - name: claude-forecast
-                interval: 1m
-                rules:
-                  # predict_linear() требует СКАЛЯР вторым аргументом — подставить
-                  # туда (reset_timestamp - time()) нельзя, не скомпилируется.
-                  # Поэтому вручную: текущее + наклон * время_до_сброса.
-                  - record: claude:limit_utilization:projected_at_reset
-                    expr: |
-                      claude_limit_utilization_percent{window="five_hour"}
-                      + deriv(claude_limit_utilization_percent{window="five_hour"}[30m])
-                        * (claude_limit_reset_timestamp_seconds{window="five_hour"} - time())
-                  - record: claude:limit_utilization:projected_at_reset
-                    expr: |
-                      claude_limit_utilization_percent{window="seven_day"}
-                      + deriv(claude_limit_utilization_percent{window="seven_day"}[6h])
-                        * (claude_limit_reset_timestamp_seconds{window="seven_day"} - time())
-                  - record: claude:limit_utilization:burn_rate_per_hour
-                    expr: deriv(claude_limit_utilization_percent[30m]) * 3600 > 0
+              # Группа claude-forecast удалена 2026-07-19 вместе со слоем лимитов:
+              # без claude_limit_* она всё равно пустая. Сами правила сохранены в
+              # claude-observability/deploy/rules/claude.rules.yaml.
               - name: kube-cadvisor
                 interval: 1m
                 rules:
@@ -209,46 +187,9 @@ spec:
                       )
           alerting_rules.yml:
             groups:
-              - name: claude-limits
-                interval: 1m
-                rules:
-                  # Главный сигнал. Мгновенное «73%» бесполезно; полезно
-                  # «при этом темпе не дотянешь до сброса».
-                  - alert: ClaudeWeeklyBurnTooFast
-                    expr: claude:limit_utilization:projected_at_reset{window="seven_day"} > 100
-                    for: 30m
-                    labels:
-                      severity: warning
-                    annotations:
-                      summary: "Недельный лимит Claude кончится до сброса ({{ $value | printf \"%.0f\" }}% к моменту сброса)"
-                  - alert: ClaudeSessionLimitNear
-                    expr: claude_limit_utilization_percent{window="five_hour"} > 90
-                    for: 5m
-                    labels:
-                      severity: warning
-                    annotations:
-                      summary: "5-часовое окно Claude почти исчерпано ({{ $value | printf \"%.0f\" }}%)"
-                  # Экспортер живой (up=1), но данные залипли: 401/429 или
-                  # Anthropic сломала недокументированный /api/oauth/usage.
-                  # Без этого график молча показывает вчерашние цифры.
-                  - alert: ClaudeUsageDataStale
-                    expr: claude_usage_cache_age_seconds > 1800
-                    for: 10m
-                    labels:
-                      severity: warning
-                    annotations:
-                      summary: "Данные о лимитах Claude протухли ({{ $value | humanizeDuration }})"
-                      description: "Токен протух, эндпоинт зарейтлимитил, или Anthropic сломала эндпоинт. Проверить релизы github.com/wakamex/ccusage"
-                  # Экспортер жив, но лимиты не получить (401/429/cold start). Ловит
-                  # то, что ClaudeUsageDataStale не может: на cold start cache_age
-                  # ещё не публикуется, а scrape_success=0 уже есть.
-                  - alert: ClaudeUsageScrapeFailing
-                    expr: claude_usage_scrape_success == 0
-                    for: 15m
-                    labels:
-                      severity: warning
-                    annotations:
-                      summary: "claude_usage_exporter не может получить лимиты"
+              # Группа claude-limits удалена 2026-07-19: слой лимитов заблокирован
+              # (нужен скоуп user:profile, см. комментарий у extraScrapeConfigs).
+              # ClaudeUsageScrapeFailing иначе горел бы вечно и неразрешимо.
               - name: claude-service
                 interval: 1m
                 rules:
