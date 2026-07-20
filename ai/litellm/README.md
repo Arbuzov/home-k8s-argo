@@ -198,6 +198,25 @@ is defined in `ai/n8n/` (first mover) — a cross-app dependency, so this needs
 n8n deployed too. Trigger now: `kubectl -n litellm create job
 --from=cronjob/litellm-db-backup litellm-db-backup-now`.
 
+## Ingress timeouts — slow reasoning models
+
+The ingress carries two annotations:
+
+```yaml
+nginx.ingress.kubernetes.io/proxy-read-timeout: "600"
+nginx.ingress.kubernetes.io/proxy-send-timeout: "600"
+```
+
+Without them nginx-ingress uses its 60s default `proxy-read-timeout`. The
+council (`litellm-council` plugin) sends **non-streaming** requests, so nginx
+must hold the connection open until the model finishes the *whole* completion.
+Slow reasoning backends (`z-ai/glm-5.2`, `qwen3-next-80b`) on a large diff
+routinely run past 60s, and nginx would return **504 Gateway Timeout** — the
+"other models periodically 504" symptom. 600s (10 min) is the LLM-gateway norm
+and covers the worst case. A per-ingress annotation overrides the controller
+default regardless of any global value. (Streaming clients don't hit this — each
+chunk resets the read timer — but the council isn't one.)
+
 ## Smoke test
 
 ```sh
