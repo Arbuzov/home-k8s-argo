@@ -1,7 +1,7 @@
 # observability
 
-Metrics / logs apps for the cluster: `cloud-billing`, `grafana`, `influxdb`,
-`keenetic-grafana-monitoring`, `prometheus`. Group AppProject is
+Metrics / logs apps for the cluster: `blackbox-exporter`, `cloud-billing`,
+`grafana`, `influxdb`, `keenetic-grafana-monitoring`, `prometheus`. Group AppProject is
 `observability`; the app-of-apps (`bootstrap.yaml`) stays in `default` so it can
 create that project (see the root `README.md` for the general app-of-apps
 model).
@@ -9,6 +9,22 @@ model).
 `cloud-billing/` is the one directory here holding more than one Application: it
 ships the AWS and GCP exporters that feed cloud resource + spend metrics into
 `prometheus`. See [`cloud-billing/README.md`](cloud-billing/README.md).
+
+`blackbox-exporter/` is a de-facto Prometheus sidecar: it runs in the
+`prometheus` namespace (so `project: default`, like `prometheus` itself — that
+namespace isn't in the `observability` AppProject whitelist) and gives Prometheus
+a `tcp_connect` prober for L4-probing the VPN cascade hops. The chart's default
+`config` ships only `http_2xx`, so `tcp_connect` is set explicitly in the
+Application values. The Application is reconciled by the app-of-apps, but its
+probe targets carry real cascade IPs and so live in a **gitignored**
+`blackbox-targets.secret.yaml` (a Secret in ns `prometheus`) applied by hand:
+
+```sh
+kubectl apply -f observability/blackbox-exporter/blackbox-targets.secret.yaml
+```
+
+Prometheus mounts that Secret as a `file_sd`, so editing an IP is a re-apply of
+the Secret with no Prometheus restart.
 
 ## What's GitOps-managed vs push-based
 

@@ -1,0 +1,41 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: blackbox-exporter
+  namespace: argo-cd
+spec:
+  # project: default (не observability) — как у prometheus-app: цель ns=prometheus,
+  # которого нет в destinations проекта observability. Blackbox — де-факто сайдкар
+  # Prometheus, живёт с ним в одном ns → короткое DNS-имя сервиса.
+  project: default
+  source:
+    repoURL: https://prometheus-community.github.io/helm-charts
+    chart: prometheus-blackbox-exporter
+    targetRevision: 11.15.1
+    helm:
+      values: |
+        # Короткое имя сервиса: blackbox-exporter.prometheus.svc:9115
+        fullnameOverride: blackbox-exporter
+        resources:
+          requests:
+            cpu: 10m
+            memory: 24Mi
+          limits:
+            memory: 48Mi
+        # ВАЖНО: дефолтные values чарта содержат только http_2xx — модуль tcp_connect
+        # (то, чем щупаем L4-хопы каскада) надо задать явно. Merge с http_2xx, он не мешает.
+        config:
+          modules:
+            tcp_connect:
+              prober: tcp
+              timeout: 5s
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: prometheus
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
