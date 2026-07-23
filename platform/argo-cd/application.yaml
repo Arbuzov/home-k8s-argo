@@ -177,6 +177,14 @@ spec:
                   type: oidc
                   id: google
                   name: Google
+                staticClients:
+                - id: argo-cd-cli
+                  name: Android Argo App
+                  public: true
+                  redirectURIs:
+                   - http://localhost
+                   - http://localhost:8085/auth/callback
+                   - argocd://auth/callback
         server:
           autoscaling:
             enabled: false
