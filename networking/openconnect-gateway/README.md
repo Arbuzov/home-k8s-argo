@@ -39,6 +39,28 @@ run an OpenConnect sidecar; each runs a small **route-manager** sidecar that
 keeps `ip route replace <corp-subnet> via <gateway-pod-ip>` pointed at this
 gateway's headless Service. See those manifests for detail.
 
+## Liveness / tunnel health
+
+The pod's liveness probe checks that the tunnel actually **carries traffic**, not
+just that the `tun127` interface exists. When the corporate concentrator drops
+the session (ASA idle-timeout), openconnect loops on in-place reconnect
+(`vpnc-script returned error 1`) while `tun127` keeps its inet address — so an
+interface-only probe stays green and the pod is never restarted, and all corp
+traffic (gitlab, confluence, jira) blackholes until a manual bounce. This showed
+up as dozens of gateway restarts and the gitlab MCP `tools/call` hanging to
+timeout while `initialize` still returned instantly.
+
+The probe therefore also runs `nc -w3 <host> <port>` **through** the tunnel; a
+failed connect restarts the pod, and a fresh openconnect session reconnects
+cleanly (~90s worst case: `periodSeconds` 30 × `failureThreshold` 3).
+
+Configured in the private chart's `values.yaml`:
+
+- `healthcheck.host` — a stable corp canary (use the DNS/DC, **not** a single
+  app, so app downtime doesn't thrash the VPN). Empty ⇒ interface-only check
+  (previous behavior), keeping the chart topology-free by default.
+- `healthcheck.port` — TCP port to connect to (e.g. `53` for the DC/DNS).
+
 ## Rollback
 
 `kubectl delete -f networking/openconnect-gateway/application.yaml` removes the
