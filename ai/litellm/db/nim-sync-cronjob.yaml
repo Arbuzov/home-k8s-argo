@@ -67,7 +67,15 @@ spec:
                                                "Content-Type": "application/json"})
                       u.urlopen(req, timeout=30)
 
-                  existing = {m["model_name"] for m in get(LL + "/model/info", KEY)["data"]}
+                  def delete(model_id):
+                      body = json.dumps({"id": model_id}).encode()
+                      req = u.Request(LL + "/model/delete", data=body, method="POST",
+                                      headers={"Authorization": "Bearer " + KEY,
+                                               "Content-Type": "application/json"})
+                      u.urlopen(req, timeout=30)
+
+                  info = get(LL + "/model/info", KEY)["data"]
+                  existing = {m["model_name"] for m in info}
                   added = 0
 
                   # NVIDIA NIM: whole catalog, dynamically
@@ -94,5 +102,37 @@ spec:
                       except Exception as e:
                           print("FAIL copilot", mid, e)
 
-                  print("done: %d added, %d existing, %d nim catalog, %d copilot"
-                        % (added, len(existing), len(catalog), len(COPILOT)))
+                  # Prune: delete NIM models the catalog no longer lists (end-of-life / pulled).
+                  # NVIDIA drops an EOL model from /models but litellm keeps the DB registration, so
+                  # the council keeps calling a dead id that 410s ("times out / glitches"). Scope: only
+                  # models we manage (litellm_params.model == "nvidia_nim/<id>") - never the wildcard
+                  # or github_copilot/*. Safety cap: if more than PRUNE_CAP look stale the catalog
+                  # probably came back short, so skip rather than mass-delete good models. The catalog
+                  # fetch above raises on failure, so we never prune against an empty/failed catalog.
+                  PRUNE_CAP = 15
+                  catalog_set = set(catalog)
+                  stale = []
+                  for m in info:
+                      pm = (m.get("litellm_params") or {}).get("model") or ""
+                      if not pm.startswith("nvidia_nim/") or pm == "nvidia_nim/*":
+                          continue
+                      if pm[len("nvidia_nim/"):] not in catalog_set:
+                          stale.append(m)
+                  removed = 0
+                  if len(stale) > PRUNE_CAP:
+                      print("SKIP prune: %d models look stale (> cap %d) - catalog likely short this run"
+                            % (len(stale), PRUNE_CAP))
+                  else:
+                      for m in stale:
+                          mid = (m.get("model_info") or {}).get("id")
+                          if not mid:
+                              print("SKIP prune (no id)", m["model_name"]); continue
+                          try:
+                              delete(mid)
+                              removed += 1
+                              print("pruned", m["model_name"])
+                          except Exception as e:
+                              print("FAIL prune", m["model_name"], e)
+
+                  print("done: %d added, %d pruned, %d existing, %d nim catalog, %d copilot"
+                        % (added, removed, len(existing), len(catalog), len(COPILOT)))

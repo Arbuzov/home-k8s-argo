@@ -179,6 +179,19 @@ It relies on `general_settings.store_model_in_db: true` (set in
 [`application.yaml`](application.yaml)) — without it the endpoint 500s with
 "Set 'STORE_MODEL_IN_DB=True'".
 
+It also **prunes**: after adding, it `POST /model/delete`s any `nvidia_nim/<id>`
+whose id is no longer in the freshly-fetched catalog. NVIDIA drops an end-of-life
+model from `/models` (verified: a `410 Gone` model is absent from the catalog) but
+litellm keeps the DB registration, so without pruning the council keeps calling a
+dead id that 410s — the "models time out / glitch" symptom (a `mistral-large-3`
+EOL on 2026-07-23 was the first case). Scope guards: only models with
+`litellm_params.model == "nvidia_nim/<id>"` (never the `nvidia_nim/*` wildcard or
+`github_copilot/*`), and a `PRUNE_CAP` (15) — if more than that look stale the
+catalog probably came back short, so it skips rather than mass-delete good models
+(the catalog fetch raises on failure, so a failed fetch aborts before any delete).
+The `litellm-council` plugin's `/litellm-council:doctor` command is the client-side
+backstop for the same rot.
+
 `ttlSecondsAfterFinished: 86400` on the job template: failed sync jobs linger
 (`failedJobsHistoryLimit: 3`) and Argo CD aggregates child-Job health, so a
 transient failure (e.g. the 2026-07-16 power-loss/read-only-fs window on
