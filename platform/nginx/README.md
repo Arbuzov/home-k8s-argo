@@ -145,6 +145,42 @@ If a future Ingress genuinely needs a snippet, flip `allowSnippetAnnotations`
 back to `true` **and** set a real `annotation-value-word-blocklist` at the
 same time — do not restore the empty one.
 
+### Removing a key from the values was not enough
+
+Deleting the two keys here left `allow-snippet-annotations: "true"` **still
+live** on the ConfigMap, so the hardening silently did nothing until it was
+removed by hand. Server-side apply prunes only the fields the *applying*
+manager owns, and that key belonged to a different one:
+
+```text
+manager=argocd-controller  op=Apply   keys=[client-body-buffer-size, ... 17 keys]
+manager=node-fetch         op=Update  keys=[allow-snippet-annotations]
+manager=kubectl-patch      op=Update  keys=[... the 17 tuning keys]
+```
+
+`node-fetch` is a web UI (Argo CD's own UI / Lens-style client) doing an
+`Update`, not an `Apply`. Argo's apply simply never mentions that key, so
+nothing removes it, and Argo still reports **Synced** — a removed key is
+invisible to the diff because Argo only compares what it manages.
+
+One-time fix, after which desired and live agree and nothing re-adds it:
+
+```sh
+kubectl --context kubernetes-local -n nginx patch cm nginx-ingress-nginx-controller \
+  --type=json -p '[{"op":"remove","path":"/data/allow-snippet-annotations"}]'
+```
+
+The GitOps-native way to avoid the manual step is two commits: first declare
+the key here with its current value and sync, so `argocd-controller` takes
+ownership of it, then delete it in a second commit — now the prune is Argo's
+and needs no `kubectl`.
+
+**Whenever you delete a key from `controller.config`, verify it actually left
+the live ConfigMap.** Adding a key works fine; removing one does not, until
+whichever manager owns it is gone. The Deployment did not have this problem —
+`nodeSelector` is a field Argo owns outright, so dropping the `kube-worker-2`
+pin took effect on the first sync.
+
 ## `admissionWebhooks.enabled: false`
 
 Inherited from the original release and kept. The validating webhook adds a
