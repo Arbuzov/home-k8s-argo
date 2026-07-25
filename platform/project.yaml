@@ -13,6 +13,7 @@ spec:
     - https://actions-runner-controller.github.io/actions-runner-controller
     - https://k8s.ory.sh/helm/charts
     - https://cloudnative-pg.github.io/charts
+    - https://kubernetes.github.io/ingress-nginx
   destinations:
     - server: https://kubernetes.default.svc
       namespace: argo-cd
@@ -24,6 +25,8 @@ spec:
       namespace: mcp
     - server: https://kubernetes.default.svc
       namespace: cnpg-system
+    - server: https://kubernetes.default.svc
+      namespace: nginx
   clusterResourceWhitelist:
     - group: '*'
       kind: '*'

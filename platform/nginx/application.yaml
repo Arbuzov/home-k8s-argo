@@ -1,0 +1,120 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: nginx
+  namespace: argo-cd
+spec:
+  project: platform
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: nginx
+  source:
+    repoURL: https://kubernetes.github.io/ingress-nginx
+    chart: ingress-nginx
+    targetRevision: 4.14.0
+    helm:
+      # keeps the resource names the pre-existing Helm release created
+      # (nginx-ingress-nginx-controller), so this adopts instead of duplicating
+      releaseName: nginx
+      values: |
+        controller:
+          # Pinned to v1.12.0 — what has actually been running; chart 4.14.0 defaults to v1.14.0
+          image:
+            tag: v1.12.0
+            digest: sha256:e6b8de175acda6ca913891f0f727bca4527e797d52688cbe9fec9040d6f6b6fa
+            digestChroot: sha256:87c88e1c38a6c8d4483c8f70b69e2cca49853bb3ec3124b9b1be648edf139af3
+
+          # was replicas=1 hard-pinned to kube-worker-2 by a manual kubectl patch: when that
+          # one Raspberry Pi lost Wi-Fi, every *.whitediver.keenetic.link returned 502 and the
+          # replacement pod could not schedule (0/4 nodes are available)
+          replicaCount: 2
+
+          allowSnippetAnnotations: true
+          enableAnnotationValidations: false
+          admissionWebhooks:
+            enabled: false
+
+          service:
+            externalIPs:
+              - 192.168.99.44
+
+          # taken from the LIVE Deployment, not from the Helm release — the release said
+          # 100m/128Mi and someone patched it up by hand; 128Mi would OOM this controller
+          resources:
+            requests:
+              cpu: 150m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 320Mi
+
+          # also hand-patched: chart defaults (10s period, 1s timeout) restart the pod
+          # spuriously on a Raspberry Pi under load
+          livenessProbe:
+            failureThreshold: 6
+            periodSeconds: 15
+            timeoutSeconds: 5
+          readinessProbe:
+            failureThreshold: 6
+            periodSeconds: 15
+            timeoutSeconds: 5
+
+          nodeSelector:
+            kubernetes.io/os: linux
+
+          affinity:
+            # spread the two replicas across nodes, otherwise replicaCount: 2 buys nothing
+            podAntiAffinity:
+              requiredDuringSchedulingIgnoredDuringExecution:
+                - topologyKey: kubernetes.io/hostname
+                  labelSelector:
+                    matchLabels:
+                      app.kubernetes.io/instance: nginx
+                      app.kubernetes.io/component: controller
+            # kube-worker-1 excluded: Pi 3 with ~350 MB RAM free
+            nodeAffinity:
+              requiredDuringSchedulingIgnoredDuringExecution:
+                nodeSelectorTerms:
+                  - matchExpressions:
+                      - key: kubernetes.io/hostname
+                        operator: In
+                        values:
+                          - kube-master
+                          - kube-worker-2
+                          - kube-worker-3
+
+          # 15 of these 19 keys existed ONLY as a manual edit of the live ConfigMap — the
+          # chart itself renders just allow-snippet-annotations and
+          # annotation-value-word-blocklist. Without them here selfHeal would wipe them:
+          # uploads would cap at 1m, OAuth redirect_uri would come out http://, and anything
+          # slower than 60s would time out.
+          config:
+            allow-snippet-annotations: "true"
+            annotation-value-word-blocklist: ""
+            client-body-buffer-size: 16k
+            gzip-level: "6"
+            gzip-types: application/javascript application/json text/css text/plain text/xml
+            keepalive-requests: "1000"
+            keepalive-timeout: "300"
+            large-client-header-buffers: 4 32k
+            proxy-body-size: 100m
+            proxy-buffer-size: 16k
+            proxy-buffering: "on"
+            proxy-buffers: 8 16k
+            proxy-connect-timeout: "300"
+            proxy-read-timeout: "300"
+            proxy-send-timeout: "300"
+            upstream-keepalive-connections: "100"
+            upstream-keepalive-timeout: "300"
+            # the router terminates TLS and proxies plain HTTP; without this, backends
+            # build absolute URLs with http://
+            use-forwarded-headers: "true"
+            use-gzip: "true"
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+      - ServerSideDiff=true
