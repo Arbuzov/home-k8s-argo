@@ -15,7 +15,7 @@ the release's own values with `selfHeal` on would have broken the gateway.
 
 | what | the Helm release said | the live cluster had | this Application |
 | --- | --- | --- | --- |
-| ConfigMap keys | 2 | **19** | all 19 |
+| ConfigMap keys | 2 | **19** | 17 (the 2 snippet keys dropped, see below) |
 | `resources` | `100m`/`128Mi` req+lim | `150m`/`128Mi` req, `500m`/`320Mi` lim | live values |
 | liveness/readiness | 5–6 failures, 10s, 1s | 6 failures, 15s, 5s | live values |
 | `nodeSelector` | OS only | **pinned to `kube-worker-2`** | removed |
@@ -31,19 +31,23 @@ live Deployment: zero unintended differences. The only deltas were the
 intended ones — `replicas`, the node pin, the affinity block, and the new
 PodDisruptionBudget the chart emits once `replicaCount > 1`.
 
-## The 19 ConfigMap keys are load-bearing — do not trim them
+## The 17 ConfigMap keys are load-bearing — do not trim them
 
-The chart itself renders only `allow-snippet-annotations` and
-`annotation-value-word-blocklist`. The other 17 existed **only** as a manual
-edit of the live ConfigMap. With `selfHeal: true` they must be declared here
-or the next sync silently deletes them, and then:
+The chart itself renders only the two snippet-related keys (and now not even
+those, see below). All 17 remaining ones existed **only** as a manual edit of
+the live ConfigMap. With `selfHeal: true` they must be declared here or the
+next sync silently deletes them, and then:
 
 - `proxy-body-size: 100m` — without it uploads cap at nginx's 1 MB default.
 - `use-forwarded-headers: "true"` — the router terminates TLS and proxies
   plain HTTP, so without this backends derive `http://` from the request
   scheme and OAuth `redirect_uri` breaks. A per-ingress
   `configuration-snippet` does **not** work here; ingress-nginx sets
-  `$pass_access_scheme` internally and overrides the snippet.
+  `$pass_access_scheme` internally and overrides the snippet. This makes the
+  controller **trust client-supplied `X-Forwarded-*` headers**, which is only
+  safe because nothing but the router can reach it. Keep
+  `use-proxy-protocol` disabled — enabling both without a trusted L4 path in
+  front turns this into header spoofing.
 - the `300` second `proxy-*-timeout` / `keepalive-*` values — anything slower
   than nginx's 60s default (LLM reasoning calls, large restores) 504s without
   them. Note the per-ingress annotations on `ai/litellm` raise its own
@@ -69,7 +73,7 @@ On 2026-07-25 `kube-worker-2` lost Wi-Fi (its brcmfmac firmware wedged after
 an AP channel change — `brcmf_proto_bcdc_query_dcmd ... status -110`) and went
 `NotReady`. The pod could not reschedule anywhere:
 
-```
+```text
 0/4 nodes are available: 1 node(s) had untolerated taint(s),
 3 node(s) didn't match Pod's node affinity/selector.
 ```
@@ -91,15 +95,55 @@ The image-cache argument for the pin no longer holds: all four nodes reach
 `registry.k8s.io` (checked 2026-07-25 — the "worker-3 can't reach
 registry.k8s.io" note in `../metrics-server/application.yaml` is stale).
 
-Traffic entry does not depend on placement: the Service is a `LoadBalancer`
-with `externalIPs: [192.168.99.44]`, so packets always arrive at
-`kube-master` and kube-proxy forwards them to whichever endpoints exist.
+Pod *placement* no longer matters for traffic: the Service is a
+`LoadBalancer` with `externalIPs: [192.168.99.44]`, so packets arrive at
+`kube-master` and kube-proxy forwards them to whichever endpoints exist,
+wherever those pods run.
+
+**`kube-master` itself is still a hard single point of failure**, though, and
+two replicas do not fix that. `192.168.99.44` is `kube-master`'s own `wlan0`
+address, not a floating VIP — there is no failover for it. If that node goes
+down, every ingress hostname is unreachable no matter how many controller pods
+are healthy elsewhere. What `replicaCount: 2` buys is survival of a *pod* or
+*non-master node* failure, which is exactly the class of outage that happened.
+Removing the remaining entry-point SPOF needs a real bare-metal
+LoadBalancer (MetalLB in L2 mode, or keepalived holding a VIP) and is a
+separate change.
+
+### Placement after a rolling update
+
+The `nodeAffinity` preference only applies when a pod is *scheduled*; nothing
+rebalances afterwards. During a rolling update the required `podAntiAffinity`
+pushes each new pod onto a node the outgoing pods do not occupy — so a roll
+can legitimately end with both replicas on the 1 GB nodes while the preferred
+8 GB nodes sit empty. It is not broken, just suboptimal. To rebalance, delete
+one pod at a time and let the scheduler re-place it:
+
+```sh
+kubectl --context kubernetes-local -n nginx delete pod <one-controller-pod>
+```
 
 ## Image pinned to v1.12.0
 
 Chart `4.14.0` would default to controller `v1.14.0`. The pin (plus both
 digests) keeps the exact image that has been running; bumping it is a
 separate, deliberate change.
+
+## Snippet annotations are off
+
+The adopted release ran `allowSnippetAnnotations: true` with an empty
+`annotation-value-word-blocklist`, and the validating webhook disabled. That
+combination lets anyone able to create an `Ingress` run arbitrary Lua or
+`load_module` inside the controller pod — there is nothing left to stop it.
+
+Nothing was using it: 0 of the cluster's 16 Ingresses carry a
+`*-snippet` annotation. So both keys are gone and `allowSnippetAnnotations`
+is back to the chart default of `false`. This is less config, not more, and
+it is the one deliberate behaviour change beyond a faithful adoption.
+
+If a future Ingress genuinely needs a snippet, flip `allowSnippetAnnotations`
+back to `true` **and** set a real `annotation-value-word-blocklist` at the
+same time — do not restore the empty one.
 
 ## `admissionWebhooks.enabled: false`
 
@@ -124,23 +168,30 @@ ClusterRoleBinding and IngressClass the chart ships.
 `../cnpg-operator` and `../arc-operator`; needed to take over fields from the
 old Helm field manager without conflicts.
 
-## Leftover: the orphaned Helm release secret
+## The Helm release history is gone — on purpose
 
-Argo renders the chart with `helm template` and applies it directly; it does
-not use Helm's release machinery. The old `sh.helm.release.v1.nginx.*` secrets
-in namespace `nginx` are therefore stale, and `helm list -n nginx` still shows
-a `deployed` release that nothing updates. That is a footgun — a later
-`helm upgrade nginx` would fight Argo for the same objects. Clean up with:
+Argo renders the chart with `helm template` and applies it directly; it never
+uses Helm's release machinery. That left ten stale `sh.helm.release.v1.nginx.*`
+secrets in namespace `nginx`, and `helm list -n nginx` still reported a
+`deployed` release that nothing updated — a footgun, because a later
+`helm upgrade`/`helm uninstall nginx` would have fought Argo for the same
+objects, or deleted them outright.
+
+They were removed as part of this adoption:
 
 ```sh
 kubectl --context kubernetes-local -n nginx delete secret -l owner=helm,name=nginx
 ```
+
+`helm list -n nginx` is now empty. There is no `helm rollback` for this
+release any more — git is the rollback mechanism. **Never `helm install`
+into this namespace again**; change values in `application.yaml`.
 
 ## Smoke test
 
 ```sh
 kubectl --context kubernetes-local -n nginx get pod -o wide     # 2 pods, different nodes
 kubectl --context kubernetes-local -n nginx get cm nginx-ingress-nginx-controller \
-  -o jsonpath='{.data}' | jq 'length'                           # must stay 19
-curl -sI https://dev.whitediver.keenetic.link/                  # 404 from the default backend + valid TLS = path works
+  -o jsonpath='{.data}' | jq 'length'                           # must stay 17
+curl -sI https://dev.whitediver.keenetic.link/                  # 404 + valid TLS = the router -> controller path works
 ```

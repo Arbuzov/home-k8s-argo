@@ -23,7 +23,7 @@ spec:
 
           replicaCount: 2
 
-          allowSnippetAnnotations: true
+          allowSnippetAnnotations: false
           enableAnnotationValidations: false
           admissionWebhooks:
             enabled: false
@@ -72,8 +72,6 @@ spec:
                           - kube-worker-3
 
           config:
-            allow-snippet-annotations: "true"
-            annotation-value-word-blocklist: ""
             client-body-buffer-size: 16k
             gzip-level: "6"
             gzip-types: application/javascript application/json text/css text/plain text/xml
