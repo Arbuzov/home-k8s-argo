@@ -103,6 +103,34 @@ spec:
                 target_label: pod
               - source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_component]
                 target_label: component
+          - job_name: ingress-nginx
+            # HTTP-телеметрия всего, что ходит через ingress: коды ответов, размер
+            # ответа, латентность, срок жизни TLS. Питает дашборд MCP Fleet Health.
+            # Сервис метрик НЕ аннотирован prometheus.io/scrape намеренно (см.
+            # ../../platform/nginx/application.yaml): дефолтный job
+            # kubernetes-service-endpoints не даёт metric_relabel_configs, а на Pi
+            # нужен keep-лист. Отсюда — свой job.
+            #
+            # ВАЖНО: namespace/pod из SD сюда НЕ навешиваем. У самих метрик уже есть
+            # namespace и ingress, и это ns ingress-РЕСУРСА (mcp, litellm, ...), а не
+            # контроллера. Target-лейбл с тем же именем увёл бы их в
+            # exported_namespace и сломал бы фильтр {namespace="mcp"} во всех панелях.
+            kubernetes_sd_configs:
+              - role: endpoints
+                namespaces:
+                  names: [nginx]
+            relabel_configs:
+              - source_labels: [__meta_kubernetes_service_name]
+                regex: nginx-ingress-nginx-controller-metrics
+                action: keep
+            metric_relabel_configs:
+              # Только те семейства, на которых реально построены панели. Самое
+              # дорогое здесь — request_duration_seconds_bucket (12 бакетов на
+              # комбинацию host/path/method/status); при 16 ingress'ах это терпимо,
+              # но именно его надо убрать первым, если TSDB начнёт пухнуть.
+              - source_labels: [__name__]
+                regex: nginx_ingress_controller_(requests|response_size_sum|response_size_count|request_duration_seconds_bucket|request_duration_seconds_count|ssl_expire_time_seconds)
+                action: keep
           - job_name: blackbox-cascade
             # L4-проба хопов VPN-каскада (home→RU relay→GCP REALITY). Реальные IP —
             # НЕ здесь (репо публичный), а в gitignored секрете blackbox-targets
@@ -114,6 +142,50 @@ spec:
             file_sd_configs:
               - files:
                   - /etc/prometheus/blackbox-targets/*.yml
+            relabel_configs:
+              - source_labels: [__address__]
+                target_label: __param_target
+              - source_labels: [__param_target]
+                target_label: instance
+              - target_label: __address__
+                replacement: blackbox-exporter.prometheus.svc:9115
+          - job_name: blackbox-mcp
+            # Активная проба живости MCP-серверов. Закрывает слепую зону, из-за
+            # которой сэндбоксная борда не умеет отличать «сервер здоров» от
+            # «сервером просто никто не пользовался»: там всё построено на трафике,
+            # который клиенты и так шлют, и молчащий сервер неотличим от рабочего.
+            #
+            # Бьём в ClusterIP сервисов НАПРЯМУЮ, а не через ingress по публичному
+            # имени: hairpin-NAT на Keenetic из кластера ненадёжен, и проба ловила бы
+            # маршрутизацию роутера вместо состояния сервера. Побочная выгода — так
+            # видно и codex, у которого ingress'а нет вовсе.
+            # Обратная сторона, которую надо помнить: путь router → ingress →
+            # oathkeeper эта проба НЕ проверяет. Его закрывает job ingress-nginx.
+            #
+            # openconnect-gateway сюда не входит: headless-сервис и VPN-шлюз, а не
+            # HTTP-эндпоинт — HTTP-проба по нему давала бы вечный красный.
+            metrics_path: /probe
+            params:
+              module: [mcp_http]
+            static_configs:
+              - targets: ['http://basic-memory.mcp.svc:8000']
+                labels: {server: basic-memory}
+              - targets: ['http://codex.mcp.svc:4141']
+                labels: {server: codex}
+              - targets: ['http://grafana-mcp.mcp.svc:8000']
+                labels: {server: grafana}
+              - targets: ['http://mcp-atlassian-confluence.mcp.svc:8000']
+                labels: {server: confluence}
+              - targets: ['http://mcp-atlassian-jira.mcp.svc:8000']
+                labels: {server: jira}
+              - targets: ['http://mcp-gitlab.mcp.svc:3002']
+                labels: {server: gitlab}
+              - targets: ['http://mcp-kubernetes.mcp.svc:8080']
+                labels: {server: kubernetes}
+              - targets: ['http://mcpo.mcp.svc:8000']
+                labels: {server: mcpo}
+              - targets: ['http://oathkeeper-proxy.mcp.svc:4455']
+                labels: {server: oathkeeper}
             relabel_configs:
               - source_labels: [__address__]
                 target_label: __param_target

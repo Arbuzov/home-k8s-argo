@@ -181,6 +181,20 @@ whichever manager owns it is gone. The Deployment did not have this problem —
 `nodeSelector` is a field Argo owns outright, so dropping the `kube-worker-2`
 pin took effect on the first sync.
 
+## `metrics.enabled: true`, but the Service stays unannotated
+
+The controller exposes Prometheus metrics on `:10254`, which is what the MCP
+fleet dashboard is built on — per-Ingress status codes, response sizes, request
+latency and TLS expiry.
+
+The chart's `controller.metrics.service.annotations` is left empty **on
+purpose**. Adding `prometheus.io/scrape: "true"` would hand the target to the
+chart's default `kubernetes-service-endpoints` job, which carries no
+`metric_relabel_configs` — every nginx metric family would land in a TSDB
+running on a Raspberry Pi. A dedicated `ingress-nginx` scrape job with a
+keep-list does the scraping instead; see
+[`../../observability/prometheus/README.md`](../../observability/prometheus/README.md).
+
 ## `admissionWebhooks.enabled: false`
 
 Inherited from the original release and kept. The validating webhook adds a

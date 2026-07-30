@@ -29,6 +29,21 @@ spec:
             tcp_connect:
               prober: tcp
               timeout: 5s
+            # Проба живости MCP-серверов (job blackbox-mcp в prometheus-app).
+            # Отдельный модуль, а не http_2xx: MCP — это JSON-RPC поверх POST/SSE,
+            # на GET / сервер штатно отвечает 404/405/406/426, а из-за oathkeeper
+            # приходит 401/403. С дефолтным http_2xx все девять таргетов горели бы
+            # красным при полностью здоровом парке.
+            # Вопрос, на который отвечает проба: «HTTP-цикл жив и endpoint отвечает»,
+            # а НЕ «ответ содержательно верный» — второе по внешнему признаку не
+            # проверяется вообще, см. панель Blind spots на дашборде.
+            mcp_http:
+              prober: http
+              timeout: 5s
+              http:
+                method: GET
+                preferred_ip_protocol: ip4
+                valid_status_codes: [200, 201, 202, 204, 301, 302, 307, 308, 400, 401, 403, 404, 405, 406, 426]
   destination:
     server: https://kubernetes.default.svc
     namespace: prometheus
