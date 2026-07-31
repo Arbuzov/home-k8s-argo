@@ -46,6 +46,15 @@ nginx_ingress_controller_{requests,response_size_sum,response_size_count,
 `host`/`path`/`method`/`status` combination). At 16 Ingresses that is fine; it
 is the first thing to drop if the TSDB starts growing.
 
+`ssl_expire_time_seconds` is in the keep-list but **produces no series on this
+cluster**, verified after deployment. TLS terminates on the Keenetic router and
+the controller only ever sees plain HTTP, so it holds no certificate to report.
+The entry is kept because it costs nothing when empty and starts working by
+itself if TLS ever moves onto the ingress — but **certificate expiry for
+`dev.whitediver.keenetic.link` is currently monitored by nothing**, and the MCP
+dashboard's certificate panel was deleted rather than left permanently empty,
+because an empty panel reads as "fine" when it means "not covered".
+
 **Do not add `namespace` or `pod` target labels to this job.** The nginx
 metrics already carry `namespace` and `ingress`, and those describe the
 *Ingress resource* (`mcp`, `litellm`, …), not the controller. A target label of
