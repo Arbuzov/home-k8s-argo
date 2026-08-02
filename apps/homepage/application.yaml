@@ -202,6 +202,42 @@ spec:
                   timeZone: Australia/Sydney
                   timeZoneName: shortOffset
 
+        customJs: |
+          (function () {
+            var ENDPOINT = "https://n8n.whitediver.keenetic.link/webhook/homepage-click";
+
+            function findLabel(a) {
+              var el = a.querySelector("[class*='font-medium'], [class*='font-semibold']");
+              if (el && el.textContent.trim()) return el.textContent.trim();
+              var t = (a.getAttribute("title") || a.textContent || "").trim();
+              return t.split("\n")[0].slice(0, 120) || "unknown";
+            }
+
+            function findGroup(a) {
+              var node = a.parentElement;
+              while (node && node !== document.body) {
+                var h = node.querySelector(":scope > h2, :scope > h3");
+                if (h && h.textContent.trim()) return h.textContent.trim();
+                node = node.parentElement;
+              }
+              return "ungrouped";
+            }
+
+            document.addEventListener("click", function (e) {
+              var a = e.target.closest("a[href]");
+              if (!a) return;
+              var href = a.getAttribute("href") || "";
+              if (!href || href.charAt(0) === "#" || href.indexOf("javascript:") === 0) return;
+
+              var qs = new URLSearchParams({
+                label: findLabel(a),
+                group: findGroup(a),
+                href: href
+              });
+              try { navigator.sendBeacon(ENDPOINT + "?" + qs.toString()); } catch (err) {}
+            }, true);
+          })();
+
         ingress:
           main:
             enabled: true

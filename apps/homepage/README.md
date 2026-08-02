@@ -15,6 +15,33 @@ widgets that need an API key/token are provisioned out-of-band via the
 actually deployed on that host) and Calibre-Web; jellyfin + photoprism are
 held back via `media/bootstrap.yaml` and not deployed.
 
+## Link-usage tracking
+
+`customJs` attaches a capture-phase click listener that fires a
+`navigator.sendBeacon` at the n8n webhook `homepage-click`, which writes a
+point into InfluxDB (`db=homepage`, measurement `homepage_click`, tags
+`label` / `group` / `host`). The chart mounts it as ConfigMap
+`homepage-custom` at `/app/config/custom.js` and rolls the pod via
+`checksum/config`.
+
+Design notes:
+
+- Capture phase + `sendBeacon` are both required: `settings.target: _self`
+  navigates away in the same tab, and a plain `fetch` would be cancelled.
+- Payload travels as **query params**, not a body — this keeps the request
+  CORS-safelisted (no preflight) and lands in n8n's `$json.query`.
+- `findLabel` keys off Tailwind utility classes (`font-medium` /
+  `font-semibold`), which are **not** a stable API and can shift on a
+  Homepage image bump. Grafana alert `Homepage: сломались селекторы плиток`
+  (folder `homepage`) fires when `label=unknown` or `group=ungrouped`
+  exceeds 3 hits over 6h — that is the signal to re-inspect the DOM and fix
+  the selectors here.
+
+Related objects, provisioned imperatively and **not** in this repo:
+InfluxDB database `homepage` (RP `one_year`, 365d), n8n workflow
+`Homepage Click Tracker` (`24HSyffBxzdQ9C8S`), Grafana datasource
+`influxdb-homepage`, dashboard `homepage-clicks`.
+
 ## Sensitive tokens
 
 Two long-lived tokens drive the Argo CD and Home Assistant widgets:
