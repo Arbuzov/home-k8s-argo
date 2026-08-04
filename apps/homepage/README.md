@@ -30,12 +30,21 @@ Design notes:
   navigates away in the same tab, and a plain `fetch` would be cancelled.
 - Payload travels as **query params**, not a body — this keeps the request
   CORS-safelisted (no preflight) and lands in n8n's `$json.query`.
-- `findLabel` keys off Tailwind utility classes (`font-medium` /
-  `font-semibold`), which are **not** a stable API and can shift on a
-  Homepage image bump. Grafana alert `Homepage: сломались селекторы плиток`
-  (folder `homepage`) fires when `label=unknown` or `group=ungrouped`
-  exceeds 3 hits over 6h — that is the signal to re-inspect the DOM and fix
-  the selectors here.
+- `findLabel` reads the tile's `data-name` attribute, and `findGroup` keys off
+  the `.services-group` / `.bookmark-group` container plus its
+  `.service-group-name` / `.bookmark-group-name` heading. These semantic
+  hooks are part of Homepage's markup contract (they exist so `card-mod`-style
+  CSS can target them) and are far more stable than Tailwind utility classes.
+  Clicks outside `li.service` / `li.bookmark` — widget links, search results —
+  are deliberately not tracked.
+- The group heading lives **inside** the `Disclosure.Button`, not as a direct
+  child of the group container, so walking ancestors looking for `:scope > h2`
+  finds nothing. Use `closest(...)` on the container, then `querySelector` for
+  the heading. For nested subgroups this resolves to the innermost subgroup
+  name, which is the useful granularity.
+- Grafana alert `Homepage: сломались селекторы плиток` (folder `homepage`)
+  fires when `label=unknown` or `group=ungrouped` exceeds 3 hits over 6h —
+  the signal that a Homepage bump changed the markup contract.
 
 Related objects, provisioned imperatively and **not** in this repo:
 InfluxDB database `homepage` (RP `one_year`, 365d), n8n workflow
