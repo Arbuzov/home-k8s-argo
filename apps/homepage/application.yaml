@@ -202,6 +202,33 @@ spec:
                   timeZone: Australia/Sydney
                   timeZoneName: shortOffset
 
+        # ponytail: tile size/spacing knobs live here — tune the rem values, not the markup
+        customCss: |
+          /* equal-size, compact tiles for both services and bookmarks */
+          li.service > div,
+          li.bookmark > a {
+            height: 2.75rem;
+            margin-bottom: 0.35rem;
+          }
+          li.service .service-name,
+          li.bookmark .bookmark-name {
+            font-size: 0.8rem;
+            line-height: 1rem;
+          }
+          li.service .service-description,
+          li.bookmark .bookmark-text {
+            font-size: 0.65rem;
+            line-height: 0.9rem;
+          }
+          li.service img,
+          li.bookmark img {
+            max-height: 1.6rem;
+          }
+          .services-group,
+          .bookmark-group {
+            margin-bottom: 0.5rem;
+          }
+
         customJs: |
           (function () {
             var ENDPOINT = "https://n8n.whitediver.keenetic.link/webhook/homepage-click";
