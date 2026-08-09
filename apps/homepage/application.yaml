@@ -202,9 +202,7 @@ spec:
                   timeZone: Australia/Sydney
                   timeZoneName: shortOffset
 
-        # ponytail: tile size/spacing knobs live here — tune the rem values, not the markup
         customCss: |
-          /* equal-size, compact tiles for both services and bookmarks */
           li.service > div,
           li.bookmark > a {
             height: 2.75rem;
