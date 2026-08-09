@@ -15,6 +15,21 @@ widgets that need an API key/token are provisioned out-of-band via the
 actually deployed on that host) and Calibre-Web; jellyfin + photoprism are
 held back via `media/bootstrap.yaml` and not deployed.
 
+## Tile sizing
+
+`customCss` (mounted by the chart as ConfigMap `homepage-custom` at
+`/app/config/custom.css`, same rollout path as `custom.js`) makes every
+service and bookmark tile one uniform, compact size. Homepage's own tile
+height varies with the description text, so groups end up ragged; the
+override pins `li.service > div` / `li.bookmark > a` to `2.75rem`, shrinks
+the name/description type and the icon, and tightens the group margins.
+
+The rem values are the only knobs — tune them there, never the markup: the
+selectors deliberately reuse the same semantic hooks (`li.service`,
+`li.bookmark`, `.services-group`, `.bookmark-group`) that the click tracker
+below depends on, so a Homepage bump breaks (and alerts on) both at once
+rather than silently skewing only the layout.
+
 ## Link-usage tracking
 
 `customJs` attaches a capture-phase click listener that fires a
