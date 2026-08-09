@@ -18,17 +18,30 @@ held back via `media/bootstrap.yaml` and not deployed.
 ## Tile sizing
 
 `customCss` (mounted by the chart as ConfigMap `homepage-custom` at
-`/app/config/custom.css`, same rollout path as `custom.js`) makes every
-service and bookmark tile one uniform, compact size. Homepage's own tile
-height varies with the description text, so groups end up ragged; the
-override pins `li.service > div` / `li.bookmark > a` to `2.75rem`, shrinks
-the name/description type and the icon, and tightens the group margins.
+`/app/config/custom.css`, served to the browser at `/api/config/custom.css`,
+same rollout path as `custom.js`) makes every service and bookmark tile one
+uniform, compact size. Homepage's own tile height varies with the description
+text, so groups end up ragged; the override pins `.service-card` /
+`li.bookmark > a` to `3.25rem`, shrinks the name/description type and the
+icon, and tightens the group margins.
+
+`3.25rem` is a measured floor, not a taste call: the natural content of a
+service card is 50 px and of a bookmark 48 px, and the card carries Homepage's
+own `overflow-clip`, so anything lower silently cuts the description off.
+
+Tiles carrying a widget are exempt via
+`li.service:has(.service-container) { height: auto }` — the widget renders as
+a second row (`.service-container` > `.service-block`) roughly twice the tile
+height, and a fixed height clips it away entirely. That is what hid the Argo CD
+app counters. Such a tile is meant to be taller than its neighbours; only the
+plain tiles are equalised.
 
 The rem values are the only knobs — tune them there, never the markup: the
 selectors deliberately reuse the same semantic hooks (`li.service`,
-`li.bookmark`, `.services-group`, `.bookmark-group`) that the click tracker
-below depends on, so a Homepage bump breaks (and alerts on) both at once
-rather than silently skewing only the layout.
+`li.bookmark`, `.service-card`, `.service-container`, `.services-group`,
+`.bookmark-group`) that the click tracker below depends on, so a Homepage bump
+breaks (and alerts on) both at once rather than silently skewing only the
+layout.
 
 ## Link-usage tracking
 

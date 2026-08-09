@@ -203,10 +203,13 @@ spec:
                   timeZoneName: shortOffset
 
         customCss: |
-          li.service > div,
+          li.service .service-card,
           li.bookmark > a {
-            height: 2.75rem;
+            height: 3.25rem;
             margin-bottom: 0.35rem;
+          }
+          li.service:has(.service-container) .service-card {
+            height: auto;
           }
           li.service .service-name,
           li.bookmark .bookmark-name {
