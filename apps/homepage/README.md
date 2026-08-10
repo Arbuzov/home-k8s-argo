@@ -23,8 +23,13 @@ same rollout path as `custom.js`) makes every service and bookmark tile one
 uniform, compact size. Homepage's own tile height varies with the description
 text, so groups end up ragged; the override pins `.service-card` /
 `li.bookmark > a` to `3.25rem`, shrinks the name/description type, and
-tightens the group margins. Icon size is deliberately left to Homepage (32 px):
-capping it looked undersized against the tile.
+tightens the group margins. Service icons keep Homepage's own 32 px — capping
+them looked undersized against the tile. Bookmark icons are the one exception:
+Homepage sizes them `w-5 h-5` (20 px), which reads as a different design next
+to the 32 px service icons, so both the wrapper and the image go to `1.75rem`.
+The wrapper has to be resized too — it is `shrink-0`, so growing the image
+alone would push it out of its box; `div:has(> img)` targets it without
+depending on the Tailwind utility names.
 
 `3.25rem` is a measured floor, not a taste call: the natural content of a
 service card is 50 px and of a bookmark 48 px, and the card carries Homepage's
