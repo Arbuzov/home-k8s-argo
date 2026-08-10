@@ -221,6 +221,11 @@ spec:
             font-size: 0.65rem;
             line-height: 0.9rem;
           }
+          li.bookmark div:has(> img),
+          li.bookmark img {
+            width: 1.75rem;
+            height: 1.75rem;
+          }
           .services-group,
           .bookmark-group {
             margin-bottom: 0.5rem;
