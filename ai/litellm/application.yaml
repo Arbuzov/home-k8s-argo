@@ -126,6 +126,10 @@ spec:
                         operator: NotIn
                         values:
                           - kube-worker-3
+          strategy:
+            type: Recreate
+          startupProbe:
+            failureThreshold: 90
           ingress:
             enabled: true
             className: nginx

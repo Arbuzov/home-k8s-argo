@@ -125,8 +125,33 @@ inside the chart's `startupProbe` budget (`failureThreshold: 30` ×
 failed startup probe, will be restarted"*, exit 137, empty logs. That reads like
 a crash but is a throttled boot; check `kubectl top pod` against the limit
 before blaming the image. Requests stay low on purpose — this is burst headroom,
-not a reservation. If a boot ever needs more than 5 minutes even unthrottled,
-raise `startupProbe.failureThreshold` rather than the request.
+not a reservation.
+
+### The boot is slow because there is only one node it can use
+
+`startupProbe.failureThreshold: 90` (× `periodSeconds: 10` = 15 min) and
+`strategy.type: Recreate`.
+
+Lifting the CPU cap was not enough on its own: the pod went from a throttled
+445m to 572m and still missed the 5-minute window. Node reality, 2026-08-10 —
+
+| node | CPU | allocatable RAM | usable for litellm |
+|---|---|---|---|
+| kube-master | 96% | 8 GB | yes — the only one |
+| kube-worker-1 | 68% | 829 MiB | no, needs ~1.1 GB |
+| kube-worker-2 | — | 829 MiB | no, needs ~1.1 GB |
+| kube-worker-3 | 64% | 8 GB free | no, 16K pages (above) |
+
+So litellm has exactly one home, `kube-master`, and that node runs the control
+plane plus ~46 pods. Startup is a single thread (`Threads: 1`, RSS ~1 GB, few
+syscalls — it is the import phase), so extra cores cannot parallelise it; it
+simply needs wall-clock. Idle draw afterwards is tens of millicores.
+
+`Recreate` because a rolling update on a starved single-replica proxy made
+things worse: the old crash-looping pod and the new one both burned CPU on the
+same node (~240m + ~572m, alongside the 436m migration Job) while neither
+became ready. There is no availability to preserve with one replica — take the
+brief downtime and let the new pod boot alone.
 
 ## Backends
 
