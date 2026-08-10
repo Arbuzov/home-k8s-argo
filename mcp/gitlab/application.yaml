@@ -57,6 +57,13 @@ spec:
             nginx.ingress.kubernetes.io/auth-secret: mcp-basic-auth
             nginx.ingress.kubernetes.io/auth-realm: "Authentication Required"
             nginx.ingress.kubernetes.io/rewrite-target: /mcp$2
+            # The upstream GitLab is reached over the openconnect tunnel, so broad
+            # queries (list_merge_requests with no project_id, get_merge_request on
+            # a large MR) can run well past nginx's 60s default and get cut
+            # mid-flight — the client just sees "operation timed out". Same 600s
+            # window the litellm ingress already uses.
+            nginx.ingress.kubernetes.io/proxy-read-timeout: "600"
+            nginx.ingress.kubernetes.io/proxy-send-timeout: "600"
           path: /mcp/gitlab
           hosts:
             - dev.whitediver.keenetic.link
