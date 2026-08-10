@@ -34,6 +34,14 @@ spec:
           OAUTH_STATELESS_SECRET:
             secretName: mcp-gitlab-stateless
             secretKey: OAUTH_STATELESS_SECRET
+        # Scrubbed placeholder. The live Application carries a real entry mapping
+        # the upstream GitLab host to its VPN-side address — without it the pod
+        # cannot resolve that host at all (cluster DNS has no record for it) and
+        # every call fails with ENOTFOUND. That value is deployment-specific and
+        # stays out of this public repo, which is why mcp/bootstrap.yaml excludes
+        # this file from the app-of-apps: letting Argo sync it overwrites the real
+        # entry with this empty list. Apply changes here out-of-band, merged with
+        # the live hostAliases — never by removing the exclude.
         hostAliases: []
         resources:
           requests:
