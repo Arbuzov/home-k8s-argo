@@ -221,10 +221,6 @@ spec:
             font-size: 0.65rem;
             line-height: 0.9rem;
           }
-          li.service img,
-          li.bookmark img {
-            max-height: 1.6rem;
-          }
           .services-group,
           .bookmark-group {
             margin-bottom: 0.5rem;

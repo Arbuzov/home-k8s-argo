@@ -22,8 +22,9 @@ held back via `media/bootstrap.yaml` and not deployed.
 same rollout path as `custom.js`) makes every service and bookmark tile one
 uniform, compact size. Homepage's own tile height varies with the description
 text, so groups end up ragged; the override pins `.service-card` /
-`li.bookmark > a` to `3.25rem`, shrinks the name/description type and the
-icon, and tightens the group margins.
+`li.bookmark > a` to `3.25rem`, shrinks the name/description type, and
+tightens the group margins. Icon size is deliberately left to Homepage (32 px):
+capping it looked undersized against the tile.
 
 `3.25rem` is a measured floor, not a taste call: the natural content of a
 service card is 50 px and of a bookmark 48 px, and the card carries Homepage's
