@@ -119,12 +119,11 @@ spec:
               cpu: "500m"
           affinity:
             nodeAffinity:
-              preferredDuringSchedulingIgnoredDuringExecution:
-                - weight: 100
-                  preference:
-                    matchExpressions:
+              requiredDuringSchedulingIgnoredDuringExecution:
+                nodeSelectorTerms:
+                  - matchExpressions:
                       - key: kubernetes.io/hostname
-                        operator: In
+                        operator: NotIn
                         values:
                           - kube-worker-3
           ingress:

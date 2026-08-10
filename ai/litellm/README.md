@@ -83,9 +83,32 @@ land in the litellm Postgres.
 
 ## Scheduling
 
-`affinity.nodeAffinity` is a **soft** preference for `kube-worker-3`, not a hard
-pin: a previous hard pin to one node left litellm stuck `Pending` when that node
-had no room. worker-3 has the most spare CPU/RAM — prefer it, don't require it.
+`affinity.nodeAffinity` **requires** litellm off `kube-worker-3` (`NotIn`),
+leaving master / worker-1 / worker-2 to choose from.
+
+Why: worker-3 is the Pi 5 running the `rpt-rpi-2712` kernel with a 16K page
+size, and this image's CPython 3.13 extensions abort there — `import _socket`
+fails with `ValueError: module functions cannot set METH_CLASS or METH_STATIC`,
+so the proxy never binds `:4000`. The same image imports fine on the 4K-page
+nodes.
+
+The blast radius is wider than litellm: oathkeeper proxies every `/mcp/*` path
+to `litellm.litellm.svc:4000`, so a litellm crash-loop means **502 on
+basic-memory, confluence, jira, grafana and kubernetes MCP** while all of those
+pods sit `Running` and healthy. Only `/mcp/gitlab` survives — it has its own
+ingress straight to `mcp-gitlab:3002`, bypassing oathkeeper. Observed
+2026-08-10: 34 restarts, whole MCP fleet unreachable from outside.
+
+This used to be a **soft** preference *for* worker-3 (it has the most spare
+CPU/RAM) — which is exactly how the pod landed on the one node it cannot run
+on. Soft is not enough; under pressure the scheduler still picks it. An earlier
+hard pin *to a single node* had left litellm `Pending` when that node had no
+room, so don't go back to that either: `NotIn` avoids both traps by excluding
+one node rather than demanding one.
+
+The exclusion is by hostname, not by a page-size label — cheapest thing that
+works while worker-3 is the only 16K-page node. If a second one appears, label
+the nodes (e.g. `pagesize=4k`) and match on that instead.
 
 ## Backends
 
