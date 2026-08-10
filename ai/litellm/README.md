@@ -110,6 +110,24 @@ The exclusion is by hostname, not by a page-size label — cheapest thing that
 works while worker-3 is the only 16K-page node. If a second one appears, label
 the nodes (e.g. `pagesize=4k`) and match on that instead.
 
+The schema-migration Job cannot be steered the same way: `litellm-helm` exposes
+no `migrationJob.affinity` / `nodeSelector`, so it can still land on worker-3 and
+fail there (seen 2026-08-10, `BackoffLimitExceeded`). Re-running it usually lands
+elsewhere; the durable fix would be a taint on worker-3, not values.
+
+### CPU limit must allow a burst at boot
+
+`limits.cpu: "2"`, `requests.cpu: 100m`. Idle draw is tens of millicores, but
+startup (imports + prisma) is CPU-bound and the 4K-page nodes are Pi 4s. With
+the old `500m` cap the container sat pinned at ~445m and never bound `:4000`
+inside the chart's `startupProbe` budget (`failureThreshold: 30` ×
+`periodSeconds: 10` = 5 min), so the kubelet killed it — *"Container litellm
+failed startup probe, will be restarted"*, exit 137, empty logs. That reads like
+a crash but is a throttled boot; check `kubectl top pod` against the limit
+before blaming the image. Requests stay low on purpose — this is burst headroom,
+not a reservation. If a boot ever needs more than 5 minutes even unthrottled,
+raise `startupProbe.failureThreshold` rather than the request.
+
 ## Backends
 
 `proxy_config.model_list` in [`application.yaml`](application.yaml) holds

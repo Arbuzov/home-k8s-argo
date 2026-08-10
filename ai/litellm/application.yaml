@@ -116,7 +116,7 @@ spec:
               cpu: "100m"
             limits:
               memory: "2Gi"
-              cpu: "500m"
+              cpu: "2"
           affinity:
             nodeAffinity:
               requiredDuringSchedulingIgnoredDuringExecution:
