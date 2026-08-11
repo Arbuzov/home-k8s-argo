@@ -40,11 +40,11 @@ every key in `litellm-env-secret` as a pod env var (`environmentSecrets`).
 ## DB-backed (Postgres)
 
 `image.repository: ghcr.io/berriai/litellm-database` + `db.useExisting: true`
-(pointed at the `litellm-postgres` Deployment in [`db/`](db/)) +
-`migrationJob.enabled: true`. The `-database` image variant activates the
-DB-backed code paths — admin UI, virtual/team keys, budgets, and request
-logging — that `db.useExisting` wires up; a one-shot Prisma migration Job
-creates the schema on first sync.
+(pointed at the `litellm-postgres` Deployment in [`db/`](db/)). The `-database`
+image variant activates the DB-backed code paths — admin UI, virtual/team keys,
+budgets, and request logging — that `db.useExisting` wires up. Schema changes
+are applied by hand, not by the chart's Job; see
+[Migrations](#migrations-are-manual--the-chart-job-cannot-finish-here) below.
 
 > **History / don't-revert notes**
 >
@@ -63,36 +63,70 @@ creates the schema on first sync.
 >   `checkpoint.prisma.io`, which would otherwise eat the whole hardcoded
 >   migration timeout.
 
-### `migrationJob.hooks.argocd.enabled: true` — don't set it back to `false`
+### Migrations are manual — the chart Job cannot finish here
 
-The chart default is `true`; it was briefly `false` on the reasoning that there
-is no bundled Postgres to wait on, so a sync need not be gated on a hook. That
+`migrationJob.enabled: false`, and `DISABLE_SCHEMA_UPDATE: "true"` is pinned
+**by hand** because of it: the chart only injects that variable while the Job
+is enabled, so turning the Job off would otherwise hand schema updates back to
+the proxy's own startup path — the one place with even less time budget (its
+`startupProbe` already needs the full 15 min documented below).
+
+It goes in `extraEnvVars`, not `envVars`, and that is deliberate. The chart
+renders `envVars` (sorted), then `extraEnvVars`, then its own
+`DISABLE_SCHEMA_UPDATE` when the Job is enabled. `extraEnvVars` is therefore
+the slot that reproduces the exact position the chart's own injection used —
+`env` is an ordered list, so putting it anywhere else reorders the container
+env, changes the pod template, and forces a rollout. With `strategy.type:
+Recreate` and the slow boot below, that is a real outage for a no-op change.
+Verified: rendered this way the pod template is byte-identical to the live one,
+so disabling the Job restarts nothing.
+
+The Job is off because on this hardware it can never succeed. Measured
+2026-08-11 in the running proxy pod (2-CPU limit): a cold
+`python -m prisma migrate status` takes **83 s wall / 65 s user** — CPU-bound
+single-threaded Node startup, not the network and not Postgres. Every timeout
+in `litellm_proxy_extras` is a hardcoded `timeout=60`; there is no env knob.
+So every attempt times out, and after its retries the script logs
+
+```text
+Database migration failed but continuing startup.
+LiteLLM: Setup complete. Skipping server startup as requested.
+```
+
+and **exits 0**. The Job reported `Complete` every single time while never
+having migrated anything. More CPU does not help — the 83 s figure was already
+measured against a 2-core limit, and the work is single-threaded.
+
+To apply a schema change after a version bump, run it by hand with no timeout
+(~85 s):
+
+```sh
+kubectl exec -n litellm deploy/litellm -- \
+  sh -c 'cd /app && python -m prisma migrate deploy'
+```
+
+`python -m prisma migrate status` is the read-only check — it prints
+`Database schema is up to date!` when there is nothing to do.
+
+#### If the Job is ever re-enabled, keep `hooks.argocd.enabled: true`
+
+The chart default is `true`; it was `false` here on the reasoning that there is
+no bundled Postgres to wait on, so a sync need not be gated on a hook. That
 reasoning holds, but the side effect does not: with the hook off, the Job is an
 ordinary **managed** resource carrying the chart's
 `ttlSecondsAfterFinished: 120`. The TTL controller deletes it two minutes after
 it completes, `syncPolicy.automated.selfHeal` sees the resource missing and
-recreates it, and the migration runs again — a permanent ~2-minute loop that
-burns ~436m CPU against the Pi and pins the Application at `Progressing`
-forever (observed 2026-08-11).
+recreates it, and it runs again — a permanent ~2-minute loop burning Pi CPU and
+pinning the Application at `Progressing` (observed 2026-08-11: Job UID
+`d99d5fe0` → `a749f829` in 14 minutes).
 
-As a `PreSync` hook the Job is no longer part of the *steady-state* desired
-set, which is what breaks the loop: its TTL deletion is no longer drift, so
-self-heal has nothing to recreate. It still belongs to Argo during a sync —
-`hook-delete-policy: BeforeHookCreation` clears the previous one, and a failed
-hook still shows up in the sync result. What it stops doing is counting as a
-missing managed resource once it is gone. A chart bump also stops trying to
-patch a Job's immutable `spec.template`.
-
-Note that the hook does **not** run only on manual syncs: self-heal performs
-real sync operations, so any other drift in this app re-runs the migration.
-`prisma migrate deploy` is a no-op once the schema is current and Argo runs
-hooks serially, so that is safe here — but it is a reason to keep unrelated
-drift out of this app rather than an invitation to add some.
-
-The trade-off is real — a migration that fails (e.g. the `kube-worker-3`
-landing described under [Scheduling](#scheduling)) now fails the whole sync
-instead of only itself. That is the intended signal; the durable fix is to keep
-the Job off that node, not to turn the hook back off.
+As a `PreSync` hook the Job leaves the *steady-state* desired set, which is
+what breaks the loop: its TTL deletion is no longer drift, so self-heal has
+nothing to recreate (verified — the hook Job was TTL-deleted and stayed gone).
+It still belongs to Argo during a sync, so a failed hook fails the sync, and
+self-heal syncs re-run it. That last part is why the Job is off rather than
+merely hooked: a guaranteed-to-time-out migration would block every sync of
+this app for ~12 minutes.
 
 ## Admin UI & Google SSO
 

@@ -32,7 +32,7 @@ spec:
               usernameKey: username
               passwordKey: password
           migrationJob:
-            enabled: true
+            enabled: false
             resources:
               requests:
                 memory: "256Mi"
@@ -55,6 +55,9 @@ spec:
             # access-token file is an absolute path so it reads the read-only secret mount and ignores token_dir.
             GITHUB_COPILOT_TOKEN_DIR: "/tmp/github_copilot"
             GITHUB_COPILOT_ACCESS_TOKEN_FILE: "/etc/copilot/access-token"
+          extraEnvVars:
+            - name: DISABLE_SCHEMA_UPDATE
+              value: "true"
           environmentSecrets:
             - litellm-env-secret
           proxy_config:
