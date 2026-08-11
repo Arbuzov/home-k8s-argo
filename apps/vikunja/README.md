@@ -91,6 +91,51 @@ Argo Application [`vikunja-db`](application-db.yaml) with `ServerSideApply` (lik
 backs up to the shared `postgres-backups/vikunja/`. Removing the old SQLite
 `database` PVC is the last follow-up, once the CNPG DB has soaked.
 
+### Duplicate `tasks (project_id, index)` blocked the v2.5.0 migration (2026-08)
+
+Vikunja v2.5.0 migration `20260720120000` recreates the unique index
+`UQE_tasks_tasks_project_index` on `tasks (project_id, "index")`. It refused to
+run and crash-looped the pod:
+
+```text
+Migration failed: migration 20260720120000 failed: cannot recreate the unique
+index on tasks (project_id, index) because 826 sets of duplicate values exist
+```
+
+The Postgres schema that `vikunja migrate` built during the CNPG move above did
+**not** carry that unique index, so nothing enforced per-project `index`
+uniqueness afterwards. The GitHub-issue sync creates tasks in concurrent
+batches, and Vikunja's next-index lookup (`max(index) + 1`) is not atomic — so
+every batch handed the same `index` to all of its tasks. Duplicates accrued
+daily from 2026-07-22 to 2026-08-06: 826 groups, up to 12 rows each, 4726 rows
+in total out of 6347.
+
+They are **distinct tasks**, not copies — deleting rows would have destroyed
+data. `index` feeds the per-project display reference (`<identifier>-<index>`)
+and not the internal `tasks.id` that rows are joined on, so the fix was to
+renumber: keep the lowest `id` of each colliding group at its current `index`
+and hand every other row a fresh value above the project's `max(index)`
+(`max()` is taken from the statement's snapshot, so it cannot collide with a
+value already in use). Project 3 went from 1612 distinct indexes over 6338 rows
+to 1..6338. The pre-change values are preserved in table
+`tasks_index_backup_20260811` (`id, project_id, index`); drop it once the
+renumbering has soaked.
+
+That renumbering **changed the visible reference of 4726 tasks**. Nothing in
+the database points at a task by `index`: every referencing table
+(`task_relations`, `task_attachments`, `task_comments`, `task_assignees`,
+`label_tasks`, `task_buckets`, `task_positions`, `task_reminders`,
+`time_entries`, …) joins on `task_id` → `tasks.id`, and `index` exists only on
+`tasks` itself. What does break is anything that captured the old
+`<identifier>-<index>` string as *text* — notes, commit messages, comments on
+the synced GitHub issues — which now reads as a different task or none.
+`tasks_index_backup_20260811` is what maps an old reference back to its `id`.
+
+The migration then applied cleanly and the unique index now exists, so the race
+can no longer produce duplicates — the batch insert fails instead. If the sync
+starts erroring on `UQE_tasks_tasks_project_index`, that is this constraint
+doing its job; fix the writer's retry, don't drop the index.
+
 ## Config
 
 `service.publicurl` is mandatory when CORS is on — without it you get an

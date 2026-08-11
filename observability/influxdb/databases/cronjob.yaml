@@ -1,0 +1,38 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: influxdb-databases
+  namespace: influxdb
+spec:
+  schedule: "25 5 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      template:
+        spec:
+          restartPolicy: OnFailure
+          nodeSelector:
+            kubernetes.io/hostname: kube-master
+          containers:
+            - name: influx
+              image: arm64v8/influxdb:1.8.10
+              command:
+                - sh
+                - -c
+                - |
+                  set -eu
+                  # CREATE DATABASE is a no-op when the database already
+                  # exists, so this is safe to run on every schedule.
+                  for db in homeassistant keenetic homepage; do
+                    influx -host influxdb -execute "CREATE DATABASE \"$db\""
+                  done
+              resources:
+                requests:
+                  cpu: 10m
+                  memory: 32Mi
+                limits:
+                  cpu: 200m
+                  memory: 128Mi

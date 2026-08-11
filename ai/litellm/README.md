@@ -61,8 +61,38 @@ creates the schema on first sync.
 > - `envVars.CHECKPOINT_DISABLE: "1"` (+ `PRISMA_HIDE_UPDATE_MESSAGE`): the
 >   Prisma CLI's telemetry/update-check hangs ~60s with no reachable
 >   `checkpoint.prisma.io`, which would otherwise eat the whole hardcoded
->   migration timeout. `migrationJob.hooks.{argocd,helm}.enabled: false` — no
->   bundled Postgres to wait on, so sync isn't gated on a hook.
+>   migration timeout.
+
+### `migrationJob.hooks.argocd.enabled: true` — don't set it back to `false`
+
+The chart default is `true`; it was briefly `false` on the reasoning that there
+is no bundled Postgres to wait on, so a sync need not be gated on a hook. That
+reasoning holds, but the side effect does not: with the hook off, the Job is an
+ordinary **managed** resource carrying the chart's
+`ttlSecondsAfterFinished: 120`. The TTL controller deletes it two minutes after
+it completes, `syncPolicy.automated.selfHeal` sees the resource missing and
+recreates it, and the migration runs again — a permanent ~2-minute loop that
+burns ~436m CPU against the Pi and pins the Application at `Progressing`
+forever (observed 2026-08-11).
+
+As a `PreSync` hook the Job is no longer part of the *steady-state* desired
+set, which is what breaks the loop: its TTL deletion is no longer drift, so
+self-heal has nothing to recreate. It still belongs to Argo during a sync —
+`hook-delete-policy: BeforeHookCreation` clears the previous one, and a failed
+hook still shows up in the sync result. What it stops doing is counting as a
+missing managed resource once it is gone. A chart bump also stops trying to
+patch a Job's immutable `spec.template`.
+
+Note that the hook does **not** run only on manual syncs: self-heal performs
+real sync operations, so any other drift in this app re-runs the migration.
+`prisma migrate deploy` is a no-op once the schema is current and Argo runs
+hooks serially, so that is safe here — but it is a reason to keep unrelated
+drift out of this app rather than an invitation to add some.
+
+The trade-off is real — a migration that fails (e.g. the `kube-worker-3`
+landing described under [Scheduling](#scheduling)) now fails the whole sync
+instead of only itself. That is the intended signal; the durable fix is to keep
+the Job off that node, not to turn the hook back off.
 
 ## Admin UI & Google SSO
 

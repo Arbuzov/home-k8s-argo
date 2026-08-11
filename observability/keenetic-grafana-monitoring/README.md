@@ -48,3 +48,12 @@ It must exist first, or the pod CrashLoopBackOffs on the first write
 ```sh
 kubectl exec -n influxdb influxdb-0 -- influx -execute 'CREATE DATABASE keenetic'
 ```
+
+That command is now only the manual shortcut — the database is reconciled
+daily by [`../influxdb/databases/`](../influxdb/databases/), added after the
+2026-07-18 InfluxDB wipe took every database with it (see
+[`../influxdb/README.md`](../influxdb/README.md)). This pod had logged 482
+restarts before that was noticed on 2026-08-11, because a crash-looping
+exporter is the only symptom and nothing alerts on it. So if this pod is in
+`CrashLoopBackOff`, still check `SHOW DATABASES` on InfluxDB first — the
+reconcile closes the gap to ≤ 24 h, it does not remove it.

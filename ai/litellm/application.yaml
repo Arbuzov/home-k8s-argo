@@ -42,7 +42,7 @@ spec:
                 cpu: "1000m"
             hooks:
               argocd:
-                enabled: false
+                enabled: true
               helm:
                 enabled: false
           envVars:
