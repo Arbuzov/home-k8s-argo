@@ -58,16 +58,6 @@ spec:
                   style: column
                   columns: 1
           bookmarks:
-            - AI:
-              - "Claude":
-                - href: https://claude.ai/
-                  icon: claude-ai.png
-              - "ChatGPT":
-                - abbr: CG
-                  href: https://chatgpt.com/
-              - "ChatGPT Codex":
-                - abbr: CX
-                  href: https://chatgpt.com/codex/
             - Developer:
               - "Github Arbuzov":
                 - icon: https://github.com/favicon.ico
