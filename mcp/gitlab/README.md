@@ -98,3 +98,66 @@ kubectl -n mcp create secret generic mcp-gitlab-credentials \
 kubectl -n mcp create secret generic mcp-gitlab-stateless \
   --from-literal=OAUTH_STATELESS_SECRET="$(openssl rand -base64 32 | tr '+/' '-_' | tr -d '=')"
 ```
+
+## SIGSEGV crash loop after a worker-3 reboot = bit-rot in the image snapshot
+
+Symptom (2026-08-13): the `mcp-gitlab` container exits **139 (SIGSEGV)** ~2 s
+after start, **with no log output at all**, forever. Sidecars stay healthy, so
+the pod sits at 2/3 and the Argo app never leaves `Progressing`.
+
+It is not the app. Same image digest, same node, same spec had been Ready for
+two days; the crash loop starts at a node reboot (here 2026-08-12 23:28 UTC) and
+never recovers. What actually broke is the **on-disk copy of the image**:
+`kube-worker-3` boots off an SD card (`mmcblk0`), a card flips bits silently,
+and the page cache hides it until a reboot forces a cold read. containerd only
+verifies digests at pull time, so nothing ever reports an error.
+
+Confirm it by hashing the binary in the snapshot against the registry — do not
+guess:
+
+```sh
+# on the node (privileged pod with / mounted at /host, or ssh)
+ls -d /host/var/lib/containerd/io.containerd.snapshotter.v1.overlayfs/snapshots/*/fs/usr/local/bin/node \
+  | xargs sha256sum
+```
+
+Same size, same mtime, different hash than the layer in the registry = corrupt.
+(To get the reference hash, pull the arm64 manifest's node layer from Docker Hub
+and `sha256sum usr/local/bin/node` out of it.) A useful second check: copy the
+registry's `node` binary plus the app tree into the *sidecar* and run it there —
+if it starts fine on the same node, in the same netns, with the same secrets,
+the only remaining variable is the container's own rootfs.
+
+### Fix: force a re-pull, and remove every ref first
+
+`crictl rmi <tag>` is **not enough**. containerd keeps additional refs — the
+digest ref and the image-ID ref — and while any of them lives, the layer
+snapshots stay referenced, GC skips them, and `ctr snapshots rm` fails with
+`cannot remove snapshot with child`. A re-pull then silently reuses the corrupt
+snapshot by chainID, so the crash comes back. Bumping the image tag does not
+help either: the 52 MB Node base layer is shared across tags and would be reused
+from the same bad copy.
+
+```sh
+kubectl cordon kube-worker-3                    # keep the replacement pod Pending
+kubectl -n mcp delete pod <mcp-gitlab-pod>      # release the container snapshots
+
+# on the node — every ref, not just the tag:
+ctr -n k8s.io images rm --sync \
+  docker.io/zereight050/gitlab-mcp:<tag> \
+  docker.io/zereight050/gitlab-mcp@sha256:<index-digest> \
+  sha256:<image-id>
+
+kubectl uncordon kube-worker-3                  # kubelet pulls fresh, unpacks clean
+```
+
+GC drops the snapshot within seconds of the last ref going away. Verify the new
+snapshot's `node` hash matches the registry before declaring victory.
+
+Helper pods that need to land on a cordoned node must set `nodeName:` directly —
+that bypasses the scheduler, so the cordon does not hold them back.
+
+> One corrupted file is a warning about the card, not just this image. Check
+> `dmesg` for I/O errors (there were none here — the corruption was silent), and
+> treat a repeat as a reason to re-image the node or move its root to USB. Note
+> that `ai/litellm`'s `nodeAffinity` already keeps that workload off worker-3.
