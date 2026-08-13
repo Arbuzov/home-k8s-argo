@@ -98,15 +98,28 @@ having migrated anything. More CPU does not help — the 83 s figure was already
 measured against a 2-core limit, and the work is single-threaded.
 
 To apply a schema change after a version bump, run it by hand with no timeout
-(~85 s):
+(~85 s). **Run it from `litellm_proxy_extras`, not from `/app`** — that is where
+the migrations actually live:
 
 ```sh
-kubectl exec -n litellm deploy/litellm -- \
-  sh -c 'cd /app && python -m prisma migrate deploy'
+kubectl exec -n litellm deploy/litellm -- sh -c \
+  'cd /app/litellm-proxy-extras/litellm_proxy_extras && \
+   python -m prisma migrate deploy --schema=schema.prisma'
 ```
 
-`python -m prisma migrate status` is the read-only check — it prints
-`Database schema is up to date!` when there is nothing to do.
+`… migrate status --schema=schema.prisma` is the read-only check — it prints
+`141 migrations found` plus either `Database schema is up to date!` or the list
+of pending ones (and exits 1 when any are pending).
+
+> **`cd /app` gives a false all-clear — don't use it.** `/app/schema.prisma`
+> ships with no `prisma/migrations` directory next to it, so from there the CLI
+> prints `No migration found in prisma/migrations` and then
+> `Database schema is up to date!` — vacuously true, it compared the DB against
+> an empty migration set. Observed 2026-08-13 on the 1.90.0 → 1.96.2 bump: `/app`
+> reported the schema clean while the real directory had **14 pending
+> migrations** (MCP OAuth client table, `key_type`, savings/compression spend,
+> daily tool spend, spend-log index). The proxy runs fine in that state until
+> something touches a missing column, so the false all-clear is silent.
 
 #### If the Job is ever re-enabled, keep `hooks.argocd.enabled: true`
 
@@ -329,6 +342,19 @@ worker-3) kept the `litellm` app **Degraded** long after recovery. The TTL
 self-cleans finished jobs after 24h; it only applies to jobs created after the
 change — stale failed jobs need one manual
 `kubectl -n litellm delete job <litellm-nim-sync-...>`.
+
+> **Deleting the failed Job does not clear `Degraded` — only the next
+> successful scheduled run does.** Argo CD 3.4 also health-checks the
+> **CronJob itself**: `status.lastScheduleTime` newer than
+> `status.lastSuccessfulTime` reads as Degraded, and neither deleting the failed
+> Job nor a manual `kubectl create job --from=cronjob/...` touches those fields
+> (a manual Job has no owner reference, so it never updates the CronJob status).
+> Observed 2026-08-13 during the 1.90.0 → 1.96.2 bump: the 15:00 sync ran into
+> the `Recreate` restart window and failed, and the app stayed Degraded through
+> `refresh=normal`, `refresh=hard` and a full `argocd-application-controller`
+> restart — a fresh controller with a cold cluster cache still reported it. It
+> cleared by itself at the 18:00 run. So: check the two CronJob timestamps
+> before hunting for a broken workload.
 
 ## Backups
 
