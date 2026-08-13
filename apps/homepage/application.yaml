@@ -107,7 +107,7 @@ spec:
                 - LiteLLM:
                     icon: https://avatars.githubusercontent.com/u/121462774?s=200&v=4
                     description: LLM proxy
-                    href: https://litellm.whitediver.keenetic.link/
+                    href: https://litellm.whitediver.keenetic.link/ui
                 - Vikunja:
                     icon: vikunja.png
                     description: Tasks
