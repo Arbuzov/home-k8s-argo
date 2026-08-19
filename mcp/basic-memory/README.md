@@ -34,15 +34,21 @@ read/send timeouts are raised to 3600s because MCP streamable-http holds
 long-lived responses that nginx would otherwise cut. See
 [`../../platform/oathkeeper`](../../platform/oathkeeper).
 
-## Semantic search env is pinned, not defaulted
+## Semantic search is off (FastEmbed segfaults on arm64)
 
-`BASIC_MEMORY_SEMANTIC_*` mirror the image defaults (enabled, local FastEmbed
-`bge-small-en-v1.5`, no API key) but are pinned here so behaviour stays
-deterministic if the `latest` image ever changes its defaults. The embedding
-model cache is **not** persisted, so on each pod start FastEmbed re-downloads
-the model from HuggingFace and re-embeds the rebuilt SQLite index; if HF is
-unreachable at start, search silently falls back to text until the model is
-available.
+`BASIC_MEMORY_SEMANTIC_SEARCH_ENABLED: "false"`. The cluster workers are
+arm64 (Raspberry Pi 5); the FastEmbed/onnxruntime path in the `latest` image
+dies with SIGSEGV (exit 139) a few minutes after start, right after it pulls
+`bge-small-en-v1.5` from HuggingFace — which put the pod in CrashLoopBackOff
+(119 restarts) and took the whole MCP server down, not just semantic search.
+Search falls back to the SQLite full-text index, which is what `search_notes`
+uses anyway.
+
+The `BASIC_MEMORY_SEMANTIC_EMBEDDING_{PROVIDER,MODEL}` and
+`_MIN_SIMILARITY` vars were dropped with it — they only apply when semantic
+search is enabled. To bring it back, embeddings have to be computed off-box
+(e.g. an OpenAI-compatible provider pointed at in-cluster litellm), not by
+onnxruntime on the Pi.
 
 ## SMB volume + StorageClass naming
 

@@ -45,10 +45,7 @@ spec:
                   BASIC_MEMORY_SYNC_CHANGES: "true"
                   BASIC_MEMORY_LOG_LEVEL: INFO
                   BASIC_MEMORY_NO_PROMOS: "1"
-                  BASIC_MEMORY_SEMANTIC_SEARCH_ENABLED: "true"
-                  BASIC_MEMORY_SEMANTIC_EMBEDDING_PROVIDER: fastembed
-                  BASIC_MEMORY_SEMANTIC_EMBEDDING_MODEL: bge-small-en-v1.5
-                  BASIC_MEMORY_SEMANTIC_MIN_SIMILARITY: "0.55"
+                  BASIC_MEMORY_SEMANTIC_SEARCH_ENABLED: "false"
                 ports:
                   - name: http
                     containerPort: 8000
