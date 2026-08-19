@@ -9,7 +9,7 @@ spec:
   project: mcp
   source:
     repoURL: https://arbuzov.github.io/mcp-helm/
-    targetRevision: 0.2.7
+    targetRevision: 0.2.8
     chart: mcpo
     helm:
       values: |
