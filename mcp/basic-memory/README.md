@@ -1,6 +1,6 @@
 # mcp/basic-memory
 
-Basic Memory MCP server (`ghcr.io/basicmachines-co/basic-memory:latest`),
+Basic Memory MCP server (`ghcr.io/basicmachines-co/basic-memory:0.22.1`),
 single replica on `kube-worker-3`, behind the `/mcp/basic-memory`
 ingress on `dev.whitediver.keenetic.link` with `mcp-basic-auth` htpasswd.
 The markdown note tree is SMB-backed; the SQLite index and embedding model
@@ -37,7 +37,7 @@ long-lived responses that nginx would otherwise cut. See
 ## Semantic search is off (FastEmbed segfaults on arm64)
 
 `BASIC_MEMORY_SEMANTIC_SEARCH_ENABLED: "false"`. The cluster workers are
-arm64 (Raspberry Pi 5); the FastEmbed/onnxruntime path in the `latest` image
+arm64 (Raspberry Pi 5); the FastEmbed/onnxruntime path in the image
 dies with SIGSEGV (exit 139) a few minutes after start, right after it pulls
 `bge-small-en-v1.5` from HuggingFace — which put the pod in CrashLoopBackOff
 (119 restarts) and took the whole MCP server down, not just semantic search.
@@ -49,6 +49,17 @@ The `BASIC_MEMORY_SEMANTIC_EMBEDDING_{PROVIDER,MODEL}` and
 search is enabled. To bring it back, embeddings have to be computed off-box
 (e.g. an OpenAI-compatible provider pointed at in-cluster litellm), not by
 onnxruntime on the Pi.
+
+## Image tag is pinned, not `latest`
+
+`latest` is what broke this app: it silently moved onto a build whose
+FastEmbed path segfaults on arm64, and `imagePullPolicy: Always` re-pulled it
+on every restart, so there was no last-known-good to fall back to. The tag is
+pinned to the exact release that was verified healthy here — `0.22.1`, which
+at the time of pinning was byte-identical to `latest`
+(`sha256:0da35f46…`). Upgrades are now an explicit commit. Pin the digest as
+well (`tag: "0.22.1@sha256:…"`) only if an upstream release tag is ever found
+to have been re-pushed.
 
 ## SMB volume + StorageClass naming
 
