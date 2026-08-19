@@ -35,6 +35,10 @@ spec:
                     secretKeyRef:
                       name: litellm-env-secret
                       key: NVIDIA_NIM_API_BASE
+                # Same reason as the proxy env on the litellm Deployment: NVIDIA 451s this
+                # ISP's IP. Only https:// is proxied, so LL (http://litellm:4000) stays direct.
+                - name: HTTPS_PROXY
+                  value: "http://wg-vless-gateway-proxy.vpn.svc.cluster.local:1080"
               command: ["python3", "-c"]
               args:
                 - |
@@ -78,9 +82,16 @@ spec:
                   existing = {m["model_name"] for m in info}
                   added = 0
 
-                  # NVIDIA NIM: whole catalog, dynamically
-                  catalog = [m["id"] for m in get(NIM_BASE + "/models", NIM_KEY)["data"]]
-                  for mid in catalog:
+                  # NVIDIA NIM: whole catalog, dynamically. A catalog fetch can fail for
+                  # reasons that have nothing to do with the models (451 when egress leaves
+                  # through a blocked IP, proxy down, NVIDIA outage) - that is not a reason
+                  # to fail the run, and definitely not a reason to prune.
+                  try:
+                      catalog = [m["id"] for m in get(NIM_BASE + "/models", NIM_KEY)["data"]]
+                  except Exception as e:
+                      print("NIM catalog unavailable, skipping NIM add + prune:", e)
+                      catalog = None
+                  for mid in (catalog or []):
                       if mid in existing:
                           continue
                       try:
@@ -107,12 +118,13 @@ spec:
                   # the council keeps calling a dead id that 410s ("times out / glitches"). Scope: only
                   # models we manage (litellm_params.model == "nvidia_nim/<id>") - never the wildcard
                   # or github_copilot/*. Safety cap: if more than PRUNE_CAP look stale the catalog
-                  # probably came back short, so skip rather than mass-delete good models. The catalog
-                  # fetch above raises on failure, so we never prune against an empty/failed catalog.
+                  # probably came back short, so skip rather than mass-delete good models. And when
+                  # the fetch failed outright (catalog is None) the loop below sees no candidates,
+                  # so a failed catalog can never be read as "everything is EOL, delete it all".
                   PRUNE_CAP = 15
-                  catalog_set = set(catalog)
+                  catalog_set = set(catalog or [])
                   stale = []
-                  for m in info:
+                  for m in (info if catalog is not None else []):
                       pm = (m.get("litellm_params") or {}).get("model") or ""
                       if not pm.startswith("nvidia_nim/") or pm == "nvidia_nim/*":
                           continue
@@ -135,4 +147,5 @@ spec:
                               print("FAIL prune", m["model_name"], e)
 
                   print("done: %d added, %d pruned, %d existing, %d nim catalog, %d copilot"
-                        % (added, removed, len(existing), len(catalog), len(COPILOT)))
+                        % (added, removed, len(existing),
+                           -1 if catalog is None else len(catalog), len(COPILOT)))

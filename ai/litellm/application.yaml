@@ -55,6 +55,15 @@ spec:
             # access-token file is an absolute path so it reads the read-only secret mount and ignores token_dir.
             GITHUB_COPILOT_TOKEN_DIR: "/tmp/github_copilot"
             GITHUB_COPILOT_ACCESS_TOKEN_FILE: "/etc/copilot/access-token"
+            # Provider egress goes through the in-cluster VLESS gateway: NVIDIA blocks this
+            # ISP's IP at the edge (451, before auth - unauthenticated curl gets it too).
+            # Proven from this pod: direct -> 451, via gateway with the same key -> 200 / 102
+            # models. http:// not socks5:// - xray's :1080 answers HTTP CONNECT, and the
+            # litellm image has no socksio (socks5:// raises ImportError).
+            # Only HTTPS_PROXY: the six mcp_servers below are plain http:// cluster URLs and
+            # must stay direct, and Copilot (the 4 models that work today) is excluded too.
+            HTTPS_PROXY: "http://wg-vless-gateway-proxy.vpn.svc.cluster.local:1080"
+            NO_PROXY: "localhost,127.0.0.1,.svc.cluster.local,.cluster.local,litellm,litellm-pg-rw,api.githubcopilot.com,api.github.com"
           extraEnvVars:
             - name: DISABLE_SCHEMA_UPDATE
               value: "true"
