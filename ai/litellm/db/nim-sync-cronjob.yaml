@@ -121,8 +121,14 @@ spec:
                   # probably came back short, so skip rather than mass-delete good models. And when
                   # the fetch failed outright (catalog is None) the loop below sees no candidates,
                   # so a failed catalog can never be read as "everything is EOL, delete it all".
-                  PRUNE_CAP = 15
-                  catalog_set = set(catalog or [])
+                  # Scale the cap with the catalog instead of a flat 15: the 451 outage left a
+                  # 24-model backlog that a flat 15 refused to touch forever, while the guard
+                  # that actually matters is "the catalog came back SHORT". At 102 models the
+                  # cap is 25; if NVIDIA ever answers with a handful, the floor of 15 still
+                  # blocks a mass delete.
+                  PRUNE_CAP = max(15, len(catalog_full) // 4)
+                  catalog_full = catalog or []
+                  catalog_set = set(catalog_full)
                   stale = []
                   for m in (info if catalog is not None else []):
                       pm = (m.get("litellm_params") or {}).get("model") or ""
