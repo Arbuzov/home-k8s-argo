@@ -126,8 +126,8 @@ spec:
                   # that actually matters is "the catalog came back SHORT". At 102 models the
                   # cap is 25; if NVIDIA ever answers with a handful, the floor of 15 still
                   # blocks a mass delete.
-                  PRUNE_CAP = max(15, len(catalog_full) // 4)
                   catalog_full = catalog or []
+                  PRUNE_CAP = max(15, len(catalog_full) // 4)
                   catalog_set = set(catalog_full)
                   stale = []
                   for m in (info if catalog is not None else []):
