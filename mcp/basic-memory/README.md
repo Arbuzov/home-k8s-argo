@@ -61,6 +61,13 @@ at the time of pinning was byte-identical to `latest`
 well (`tag: "0.22.1@sha256:…"`) only if an upstream release tag is ever found
 to have been re-pushed.
 
+`pullPolicy: IfNotPresent` has to be stated explicitly, not left to the
+kubelet default. The chart only emits the field when it is set, so while the
+tag was `latest` the API server defaulted it to `Always` — and that defaulted
+value is owned by no applier, so `ServerSideApply` never prunes it. Changing
+the tag alone left the pod still re-pulling from GHCR on every restart, which
+makes a restart depend on the registry being reachable.
+
 ## SMB volume + StorageClass naming
 
 The data volume and its `StorageClass` are both managed by this one

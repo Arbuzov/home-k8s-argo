@@ -27,6 +27,7 @@ spec:
                 image:
                   repository: ghcr.io/basicmachines-co/basic-memory
                   tag: "0.22.1"
+                  pullPolicy: IfNotPresent
                 command:
                   - basic-memory
                 args:
