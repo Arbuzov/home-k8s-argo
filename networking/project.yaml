@@ -21,6 +21,8 @@ spec:
       namespace: mcp
     - server: https://kubernetes.default.svc
       namespace: argo-cd
+    - server: https://kubernetes.default.svc
+      namespace: keenetic-operator
   clusterResourceWhitelist:
     - group: '*'
       kind: '*'

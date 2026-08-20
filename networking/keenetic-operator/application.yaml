@@ -1,0 +1,28 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: keenetic-operator
+  namespace: argo-cd
+spec:
+  project: networking
+  source:
+    repoURL: git@github.com:Arbuzov/home-k8s-helm.git
+    targetRevision: HEAD
+    path: arbuzov/networking/keenetic-operator
+    helm:
+      values: |
+        keenetic:
+          host: "192.168.99.1:22"
+          existingSecret: keenetic-operator-creds
+          defaultIngressIP: "192.168.99.44"
+        nodeSelector:
+          kubernetes.io/hostname: kube-master
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: keenetic-operator
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
