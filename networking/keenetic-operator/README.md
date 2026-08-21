@@ -1,8 +1,8 @@
 # keenetic-operator
 
 Syncs cluster Ingress hosts to `ip host` records on the Keenetic router over SSH, so
-`*.whitediver.keenetic.link` resolves to the nginx LB from inside the LAN without anyone
-editing the router by hand. Source: [Arbuzov/keenetic-operator](https://github.com/Arbuzov/keenetic-operator),
+`*.whitediver.keenetic.link` resolves inside the LAN without anyone editing the router
+by hand. Source: [Arbuzov/keenetic-operator](https://github.com/Arbuzov/keenetic-operator),
 chart at `arbuzov/networking/keenetic-operator` in home-k8s-helm.
 
 Picked up by the `networking` app-of-apps automatically — unlike `openconnect-gateway` and
@@ -27,9 +27,10 @@ land and the manager pod stays in `CreateContainerConfigError`.
 ## Values set here
 
 - `keenetic.host` — the router's SSH endpoint. `192.168.99.1:22`.
-- `keenetic.defaultIngressIP` — `192.168.99.44`, the shared nginx LB. Only a fallback:
-  every Ingress in this cluster already reports that address in
-  `status.loadBalancer`, so the operator normally reads it from there.
+- `keenetic.defaultIngressIP` — `192.168.99.1`, the router itself. Only a fallback:
+  every Ingress in this cluster already reports that address in `status.loadBalancer`,
+  so the operator normally reads it from there. It is set to the same value the
+  Ingresses publish so that the fallback path cannot quietly disagree with them.
 - `nodeSelector` — pinned to `kube-master` like the other singletons. Leader election
   means a second replica would be safe, but only one ever writes to the router, so
   there is nothing to gain from spreading it.
@@ -37,6 +38,47 @@ land and the manager pod stays in `CreateContainerConfigError`.
 `keenetic.hostKey` is deliberately left unset: host-key verification is off, which is
 acceptable on this LAN. Pin it with
 `ssh-keyscan -t ssh-ed25519 192.168.99.1 | ssh-keygen -lf -` if that stops being true.
+
+## The records point at the router, not at the nginx LB
+
+`192.168.99.1`, not `192.168.99.44`. LAN clients therefore reach an app the same way the
+internet does — through the router's KeenDNS reverse proxy — instead of hitting
+ingress-nginx directly. The reason is not this operator's: only the router holds a valid
+Let's Encrypt certificate for `whitediver.keenetic.link`, and `use-forwarded-headers` on
+the controller assumes nothing but the router can reach it. Both are spelled out in
+[`../../platform/nginx/README.md`](../../platform/nginx/README.md).
+
+Nothing here configures that address — it comes from `status.loadBalancer` on each
+Ingress, which ingress-nginx fills from `--publish-status-address`. Change it there, not
+here, or the two will fight.
+
+## `ip host` entries are (name, address) pairs — changing an address leaves the old one
+
+The router keys a static record on the pair, not on the name:
+
+```console
+(config)> ip host probe.invalid 10.99.99.1
+(config)> ip host probe.invalid 10.99.99.2
+(config)> show running-config
+ip host probe.invalid 10.99.99.1
+ip host probe.invalid 10.99.99.2
+```
+
+Both survive, and the name then resolves round-robin between them. The operator does not
+account for this: `EnsureHost` compares the (host, address) pair, sees the new address is
+absent and writes it, but never removes the record carrying the *previous* address —
+`spec.address` has no `status.appliedAddress` counterpart to clean up from. So a
+migration like `192.168.99.44` → `192.168.99.1` needs the stale halves deleted by hand,
+once:
+
+```text
+no ip host <name> 192.168.99.44     # per name
+system configuration save
+```
+
+Until that is done, every second lookup lands on the old address — which for this
+migration means an intermittent certificate warning rather than a clean failure, so
+verify with `show running-config` that exactly one record per name is left.
 
 ## Blast radius
 

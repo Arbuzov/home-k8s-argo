@@ -14,7 +14,7 @@ spec:
         keenetic:
           host: "192.168.99.1:22"
           existingSecret: keenetic-operator-creds
-          defaultIngressIP: "192.168.99.44"
+          defaultIngressIP: "192.168.99.1"
         nodeSelector:
           kubernetes.io/hostname: kube-master
   destination:

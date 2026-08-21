@@ -28,13 +28,14 @@ spec:
           admissionWebhooks:
             enabled: false
 
-          # Prometheus-метрики контроллера на :10254. Сервис намеренно остаётся БЕЗ
-          # prometheus.io/scrape-аннотаций — иначе его подберёт дефолтный job
-          # kubernetes-service-endpoints, у которого нет metric_relabel_configs, и в
-          # TSDB на Pi приедет вся телеметрия nginx целиком. Скрейпит выделенный job
-          # ingress-nginx с keep-листом, см. ../../observability/prometheus.
           metrics:
             enabled: true
+
+          publishService:
+            enabled: false
+
+          extraArgs:
+            publish-status-address: 192.168.99.1
 
           service:
             externalIPs:

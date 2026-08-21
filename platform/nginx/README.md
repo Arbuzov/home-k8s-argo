@@ -6,6 +6,38 @@ namespace `nginx`. Every `*.whitediver.keenetic.link` hostname reaches the
 cluster through it: the Keenetic router terminates TLS and reverse-proxies
 plain HTTP to `192.168.99.44:80`, and this controller routes by `Host`.
 
+## Ingress status advertises the router, not this controller
+
+`publishService.enabled: false` + `extraArgs.publish-status-address: 192.168.99.1`, so
+every Ingress reports the **router's** LAN address in `status.loadBalancer`, not
+`192.168.99.44`. `kubectl get ingress` showing `192.168.99.1` in `ADDRESS` is the
+intended result, not drift.
+
+The one consumer of that status is `../../networking/keenetic-operator`, which turns it
+into `ip host <name> <address>` records on the Keenetic. While it published
+`192.168.99.44`, LAN clients resolved every `*.whitediver.keenetic.link` name straight
+to this controller and bypassed the router, which broke two things at once:
+
+- **TLS.** Only the router holds the Let's Encrypt certificate for
+  `whitediver.keenetic.link` (KeenDNS obtained it; the name is not in a zone we can
+  issue for). Most Ingresses here carry no `spec.tls`, so a direct hit answers with
+  `CN=Kubernetes Ingress Controller Fake Certificate` — a warning on every phone and
+  laptop on the LAN, while the same name from outside was fine.
+- **`use-forwarded-headers: "true"`.** That key is only safe because nothing but the
+  router can reach the controller (see below). A LAN client resolving to
+  `192.168.99.44:443` reaches it directly and can therefore spoof `X-Forwarded-*`.
+
+Going through the router costs nothing measurable: a 1.7 MB asset from `photos` pulls at
+the same rate over both paths (Wi-Fi is the bottleneck, not the proxy), with about
++100 ms of TTFB.
+
+**A new public hostname needs a matching `ip http proxy` entry on the router.** That
+table is hand-maintained (`home`, `dev`, `k8s`, `n8n`, `homepage`, `photos`, `tasks`,
+`books`, `litellm`, `otel`, each `upstream … d8:3a:dd:27:94:7d 80`, i.e. `kube-master`).
+A name that is missing from it does not fall through to this controller — the router
+answers `200` with its own web UI, which looks like the app is broken in a confusing
+way. Add the router entry when you add the Ingress.
+
 ## Adopted from a hand-run Helm release (2026-07-25)
 
 This release was installed with the Helm CLI and lived outside Argo for 441
