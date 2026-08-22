@@ -48,42 +48,49 @@ spec:
             color: gray
             target: _self
             layout:
-              - Multimedia:
+              - News:
                   style: column
                   columns: 1
-              - Home:
+              - Developer:
                   style: column
                   columns: 1
               - System:
                   style: column
                   columns: 1
+              - Home:
+                  style: column
+                  columns: 1
+              - Multimedia:
+                  style: column
+                  columns: 1
+                  initiallyCollapsed: true
           bookmarks:
             - Developer:
+              - "Grafana (work)":
+                - icon: https://upload.wikimedia.org/wikipedia/commons/thumb/3/3b/Grafana_icon.svg/250px-Grafana_icon.svg.png
+                  href: "{{HOMEPAGE_VAR_WORK_GRAFANA_URL}}"
+              - "Jira (work)":
+                - icon: jira.png
+                  href: "{{HOMEPAGE_VAR_WORK_JIRA_URL}}"
+              - "Jenkins (work)":
+                - icon: jenkins.png
+                  href: "{{HOMEPAGE_VAR_WORK_JENKINS_URL}}"
               - "Github Arbuzov":
                 - icon: https://github.com/favicon.ico
                   href: https://github.com/arbuzov
               - "GitLab (work)":
                 - icon: https://about.gitlab.com/images/press/gitlab-logo-500-rgb.png
                   href: "{{HOMEPAGE_VAR_WORK_GITLAB_URL}}"
-              - "Jenkins (work)":
-                - icon: jenkins.png
-                  href: "{{HOMEPAGE_VAR_WORK_JENKINS_URL}}"
-              - "Jira (work)":
-                - icon: jira.png
-                  href: "{{HOMEPAGE_VAR_WORK_JIRA_URL}}"
-              - "Grafana (work)":
-                - icon: https://upload.wikimedia.org/wikipedia/commons/thumb/3/3b/Grafana_icon.svg/250px-Grafana_icon.svg.png
-                  href: "{{HOMEPAGE_VAR_WORK_GRAFANA_URL}}"
             - News:
               - "RBC":
                 - icon: https://s0.rbk.ru/v1_static/images/common/logo.svg
                   href: https://rbc.ru/
-              - "Linkedin":
-                - icon: https://upload.wikimedia.org/wikipedia/commons/thumb/c/ca/LinkedIn_logo_initials.png/250px-LinkedIn_logo_initials.png
-                  href: https://www.linkedin.com/
               - "IDBank":
                 - icon: https://idbank.am/documents/IDBank_logo_300x300.png
                   href: https://idbank.am/ru/
+              - "Linkedin":
+                - icon: https://upload.wikimedia.org/wikipedia/commons/thumb/c/ca/LinkedIn_logo_initials.png/250px-LinkedIn_logo_initials.png
+                  href: https://www.linkedin.com/
 
           services:
             - Multimedia:
@@ -96,22 +103,22 @@ spec:
                     description: E-book library
                     href: https://books.whitediver.keenetic.link
             - Home:
-                - Home assistant:
-                    icon: home-assistant.png
-                    description: Smart home
-                    href: https://home.whitediver.keenetic.link/
-                - n8n:
-                    icon: n8n.png
-                    description: Workflow automation
-                    href: https://n8n.whitediver.keenetic.link/
                 - LiteLLM:
                     icon: https://avatars.githubusercontent.com/u/121462774?s=200&v=4
                     description: LLM proxy
                     href: https://litellm.whitediver.keenetic.link/ui
+                - n8n:
+                    icon: n8n.png
+                    description: Workflow automation
+                    href: https://n8n.whitediver.keenetic.link/
                 - Vikunja:
                     icon: vikunja.png
                     description: Tasks
                     href: https://tasks.whitediver.keenetic.link/
+                - Home assistant:
+                    icon: home-assistant.png
+                    description: Smart home
+                    href: https://home.whitediver.keenetic.link/
                 - OctoPrint:
                     icon: octoprint.png
                     description: 3D printer control
@@ -121,10 +128,6 @@ spec:
                     icon: grafana.png
                     description: Dashboards
                     href: https://dev.whitediver.keenetic.link/grafana/
-                - Prometheus:
-                    icon: prometheus.png
-                    description: Metrics
-                    href: https://dev.whitediver.keenetic.link/prometheus
                 - Argo CD:
                     icon: https://argo-cd.readthedocs.io/en/stable/assets/logo.png
                     description: Declarative GitOps for Kubernetes
@@ -133,6 +136,10 @@ spec:
                       type: argocd
                       url: https://dev.whitediver.keenetic.link/argo-cd/
                       key: "{{HOMEPAGE_VAR_ARGOCD_TOKEN}}"
+                - Prometheus:
+                    icon: prometheus.png
+                    description: Metrics
+                    href: https://dev.whitediver.keenetic.link/prometheus
 
           widgets:
             - logo:

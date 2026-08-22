@@ -15,6 +15,16 @@ widgets that need an API key/token are provisioned out-of-band via the
 actually deployed on that host) and Calibre-Web; jellyfin + photoprism are
 held back via `media/bootstrap.yaml` and not deployed.
 
+Group order in `settings.layout` (News → Developer → System → Home →
+Multimedia) and tile order inside each group are click-driven: most-clicked
+first, per the `homepage-clicks` Grafana dashboard fed by the tracking below.
+The bookmark groups (`News`, `Developer`) are deliberately listed in
+`settings.layout` — without an entry there Homepage renders bookmarks at the
+bottom of the page, yet they take the majority of clicks. `Multimedia` is
+`initiallyCollapsed` (zero clicks so far). Argo CD keeps its high slot
+despite few clicks because its value is the glanceable status widget, not
+the link itself.
+
 ## Tile sizing
 
 `customCss` (mounted by the chart as ConfigMap `homepage-custom` at
