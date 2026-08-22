@@ -199,35 +199,6 @@ spec:
                   timeZone: Australia/Sydney
                   timeZoneName: shortOffset
 
-        customCss: |
-          li.service .service-card,
-          li.bookmark > a {
-            height: 3.25rem;
-            margin-bottom: 0.35rem;
-          }
-          li.service:has(.service-container) .service-card {
-            height: auto;
-          }
-          li.service .service-name,
-          li.bookmark .bookmark-name {
-            font-size: 0.8rem;
-            line-height: 1rem;
-          }
-          li.service .service-description,
-          li.bookmark .bookmark-text {
-            font-size: 0.65rem;
-            line-height: 0.9rem;
-          }
-          li.bookmark div:has(> img),
-          li.bookmark img {
-            width: 1.75rem;
-            height: 1.75rem;
-          }
-          .services-group,
-          .bookmark-group {
-            margin-bottom: 0.5rem;
-          }
-
         customJs: |
           (function () {
             var ENDPOINT = "https://n8n.whitediver.keenetic.link/webhook/homepage-click";
