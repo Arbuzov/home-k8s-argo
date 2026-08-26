@@ -327,9 +327,9 @@ and the app serves at `/mcp` (its ingress rewrites `/mcp/gitlab`→`/mcp`), not
 Cross-namespace, so the `.mcp.svc.cluster.local` FQDN is required. Talking to the
 ClusterIP directly bypasses the ingress basic-auth (same as `mcpo` does), and
 `transport: http` matches the streamable-http those servers run with. `gitlab` is
-excluded from the `mcp` app-of-apps but is live (applied push-based from its local
-overlay — see [`mcp/gitlab/README.md`](../../mcp/gitlab/README.md)), so it's
-listed too. Skipped: `mcpo` (an MCP→OpenAPI proxy, not an MCP server) and
+excluded from the `mcp` app-of-apps but is live (applied push-based out-of-band,
+merged with the live `hostAliases` — see
+[`mcp/gitlab/README.md`](../../mcp/gitlab/README.md)), so it's listed too. Skipped: `mcpo` (an MCP→OpenAPI proxy, not an MCP server) and
 `graphiti`/`homeassistant`/`kubernetes` (still held back in the `exclude` glob).
 Add a server here as it comes online — note the name key can't contain `-`
 (litellm rejects it; use `_`), even though the URL can.
