@@ -46,6 +46,16 @@ kubectl apply -f observability/cloud-billing/application-stackdriver-exporter.ya
 namespace is whitelisted) and is held back only until the GCP project exists —
 see its README.
 
+## The `include` glob also picks up `configmap*.yaml`
+
+[`bootstrap.yaml`](bootstrap.yaml)'s `include` is
+`'{project.yaml,*/application*.yaml,*/configmap*.yaml}'` — wider than the other
+groups'. The `configmap*.yaml` entry exists for apps that need a mounted script
+rather than a custom image; today that is only
+[`claude-status`](claude-status/README.md), whose exporter is carried in a
+ConfigMap. That file is **generated, not hand-written** — see
+[`claude-status/README.md`](claude-status/README.md) before touching it.
+
 ## Sync ordering
 
 `project.yaml` carries `sync-wave: "-1"` so the `observability` AppProject is

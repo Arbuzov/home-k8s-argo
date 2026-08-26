@@ -88,15 +88,26 @@ List several to disable more at once:
 ### Currently excluded
 
 `graphiti`, `homeassistant`, and `gitlab` are held back in the `exclude` glob.
+
+> **These three are excluded for a reason that is not "not ready yet".** Each
+> carries deployment-specific values that must not live in a public repo —
+> private `hostAliases`, VPN-side addresses. Their live Applications are applied
+> out-of-band and are deliberately left **unmanaged** here. Letting Argo sync
+> them overwrites the real values with the scrubbed placeholders committed in
+> git; for `gitlab/` that wipes `hostAliases` and the pod instantly loses DNS
+> for the upstream host. Removing one from `exclude` is therefore an outage, not
+> an enablement — see [`gitlab/README.md`](gitlab/README.md).
+
 `homeassistant` uses an `mcp-helm` chart that currently runs the server in
 **stdio** mode, which crashloops under Argo CD — it needs a stdio→SSE (HTTP)
 bridge before it can be enabled. `graphiti` is a different chart (`bjw-s`
 `app-template`, a neo4j-backed server) and is held back separately. `gitlab` is
 held back on purpose: its committed manifest is a placeholder (`hostAliases: []`)
-because the corp-DNS pin is employer-specific, so it is applied **push-based**
-from a gitignored `gitlab/application.local.yaml` overlay — see
-[`gitlab/README.md`](gitlab/README.md). Remove each from `exclude` once it's
-ready to deploy.
+because the corp-DNS pin is employer-specific, so it is applied **push-based**,
+out-of-band, merged with the live `hostAliases` — see
+[`gitlab/README.md`](gitlab/README.md). Remove `graphiti` and `homeassistant`
+from `exclude` once they're ready to deploy; `gitlab` is a permanent exclusion,
+not a pending one.
 
 `kubernetes` **is now enabled**: it was previously held back for the same
 stdio-crashloop reason, but its chart was rebuilt to run a real HTTP server

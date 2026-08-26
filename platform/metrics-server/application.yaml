@@ -15,7 +15,6 @@ spec:
     helm:
       releaseName: metrics-server
       values: |
-        # Pinned to master: image is cached there and worker-3 can't reach registry.k8s.io
         nodeSelector:
           kubernetes.io/hostname: kube-master
         args:

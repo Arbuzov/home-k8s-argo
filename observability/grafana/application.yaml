@@ -29,9 +29,6 @@ spec:
           httpGet:
             path: /api/health
             port: 3000
-          # Чарт 10.5.14 не рендерит startupProbe, поэтому запас на медленный старт
-          # (Grafana 12 на ARM: плагины + unified-storage) даём прямо в liveness:
-          # 180 + 20*15 = ~480с, иначе liveness убивал на 240с в краш-луп.
           initialDelaySeconds: 180
           timeoutSeconds: 30
           periodSeconds: 15
@@ -47,9 +44,6 @@ spec:
         testFramework:
           enabled: false
         env:
-          # Не преинсталлить bundled drilldown-аппы (exploretraces/lokiexplore/
-          # pyroscope/metricsdrilldown): каждый тянется с grafana.com ~100с на
-          # RU-линии → старт не укладывался в liveness. Дашбордам они не нужны.
           GF_PLUGINS_PREINSTALL_DISABLED: "true"
         envValueFrom:
           GF_AUTH_GOOGLE_CLIENT_SECRET:
@@ -61,18 +55,11 @@ spec:
               name: grafana-pg-app
               key: password
         persistence:
-          # БД уведена с SMB на local-path (быстрый локальный диск) — CIFS-локи, из-за
-          # которых Grafana падала/мерцала (database is locked, 503 на /login), исчезают.
-          # PVC grafana-local предзаполнен бэкапом старой БД (13 дашбордов/3 DS/6 алертов),
-          # local-path PV привязан к kube-master → под пиннится туда по volume affinity.
           enabled: true
           type: pvc
           existingClaim: grafana-local
         initChownData:
           enabled: false
-        # Ни file-провижн дашбордов, ни gnetId-загрузки: дашборды живут в БД Grafana
-        # (UI/MCP). Провайдер убран, чтобы провижн не удалял восстановленные дашборды;
-        # download-dashboards init (висел на curl к grafana.com) тоже больше не создаётся.
         ingress:
           enabled: true
           ingressClassName: nginx
@@ -88,17 +75,12 @@ spec:
                 - dev.whitediver.keenetic.link
         grafana.ini:
           database:
-            # БД на CNPG Postgres (grafana-pg) — единообразно с litellm/n8n/vikunja
-            # и реальный конкурентный доступ (SQLite упирался в "database is locked").
-            # Пароль — из секрета grafana-pg-app через GF_DATABASE_PASSWORD (env).
             type: postgres
             host: grafana-pg-rw:5432
             name: grafana
             user: grafana
             ssl_mode: require
           analytics:
-            # Не дёргать grafana.com на старте (проверка обновлений плагинов): на
-            # RU-линии это ~30с/плагин, и старт не укладывался в liveness → краш-луп.
             check_for_plugin_updates: false
             reporting_enabled: false
           server:
@@ -111,8 +93,6 @@ spec:
             cookie_samesite: lax
           users:
             auto_assign_org_role: Admin
-          # Алертинг включён (chart default): на Postgres конкурентные писатели
-          # (ngalert + unified-storage) больше не упираются в один SQLite-лок.
           auth.google:
             enabled: true
             allow_sign_up: true

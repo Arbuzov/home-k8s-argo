@@ -4,9 +4,6 @@ metadata:
   name: blackbox-exporter
   namespace: argo-cd
 spec:
-  # project: default (не observability) — как у prometheus-app: цель ns=prometheus,
-  # которого нет в destinations проекта observability. Blackbox — де-факто сайдкар
-  # Prometheus, живёт с ним в одном ns → короткое DNS-имя сервиса.
   project: default
   source:
     repoURL: https://prometheus-community.github.io/helm-charts
@@ -14,7 +11,6 @@ spec:
     targetRevision: 11.15.1
     helm:
       values: |
-        # Короткое имя сервиса: blackbox-exporter.prometheus.svc:9115
         fullnameOverride: blackbox-exporter
         resources:
           requests:
@@ -22,21 +18,11 @@ spec:
             memory: 24Mi
           limits:
             memory: 48Mi
-        # ВАЖНО: дефолтные values чарта содержат только http_2xx — модуль tcp_connect
-        # (то, чем щупаем L4-хопы каскада) надо задать явно. Merge с http_2xx, он не мешает.
         config:
           modules:
             tcp_connect:
               prober: tcp
               timeout: 5s
-            # Проба живости MCP-серверов (job blackbox-mcp в prometheus-app).
-            # Отдельный модуль, а не http_2xx: MCP — это JSON-RPC поверх POST/SSE,
-            # на GET / сервер штатно отвечает 404/405/406/426, а из-за oathkeeper
-            # приходит 401/403. С дефолтным http_2xx все девять таргетов горели бы
-            # красным при полностью здоровом парке.
-            # Вопрос, на который отвечает проба: «HTTP-цикл жив и endpoint отвечает»,
-            # а НЕ «ответ содержательно верный» — второе по внешнему признаку не
-            # проверяется вообще, см. панель Blind spots на дашборде.
             mcp_http:
               prober: http
               timeout: 5s

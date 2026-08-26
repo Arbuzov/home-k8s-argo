@@ -68,6 +68,19 @@ value is owned by no applier, so `ServerSideApply` never prunes it. Changing
 the tag alone left the pod still re-pulling from GHCR on every restart, which
 makes a restart depend on the registry being reachable.
 
+## Resource sizing — measured, not guessed
+
+| | value | was | why |
+| --- | --- | --- | --- |
+| `requests.memory` | `1Gi` | `256Mi` | actual draw is ~943Mi; the request is matched to it so this pod isn't the first evicted under node pressure |
+| `requests.cpu` | `500m` | `50m` | bursty — idle ~4m, but indexing peaks near 1880m |
+| `limits.memory` | `1536Mi` | `1Gi` | 943Mi actual was riding the OOM edge at a 1Gi cap |
+| `limits.cpu` | `2000m` | *(none)* | new cap — previously unlimited, and indexing pegged `kube-worker-3` at 1880m / 82% |
+
+The CPU limit is the one to be careful with: it was added to stop indexing from
+starving the rest of `kube-worker-3`, not because the workload wants less CPU.
+Lowering it further trades node headroom for slower indexing.
+
 ## SMB volume + StorageClass naming
 
 The data volume and its `StorageClass` are both managed by this one

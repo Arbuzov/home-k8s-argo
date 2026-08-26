@@ -15,10 +15,22 @@ the chart skips the ConfigMap entirely. The token therefore never lands
 in git nor in a plaintext ConfigMap.
 
 The manifest sets `existingConfigSecret: mcpo-secrets` and pins chart
-`targetRevision: 0.2.7`. The `config:` block in `application.yaml` is
-kept as **documentation** and as the source for regenerating the Secret;
-the chart ignores it while `existingConfigSecret` is set (the committed
-`Authorization` value stays a `REPLACE_WITH_*` placeholder).
+`targetRevision: 0.2.8` (`existingConfigSecret` needs ≥ 0.2.7). The `config:`
+block in `application.yaml` is kept as **documentation** and as the source for
+regenerating the Secret; the chart ignores it while `existingConfigSecret` is
+set (the committed `Authorization` value stays a `REPLACE_WITH_*` placeholder).
+
+## No CPU limit — on purpose
+
+`resources` sets `requests.cpu`/`requests.memory` and `limits.memory`, but
+**deliberately no `limits.cpu`**. Do not "complete" the block by adding one.
+
+`uvicorn` does not bind `:8000` until its startup hook has *serially* dialled
+jira, confluence and home-assistant. Throttled to `300m` on arm64 that takes
+~56s, against a liveness budget of 30s + 3 × 10s — so every `kube-master` reboot
+cost 10–25 minutes of crash-looping until one attempt happened to win the race.
+Uncapped, the startup burst finishes inside the budget. The `requests` still
+protect the node's scheduling, which is the part that actually matters here.
 
 ## No stdio `memory` server
 

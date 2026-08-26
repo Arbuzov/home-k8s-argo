@@ -41,10 +41,16 @@ filter-выражениями; в Python это один dict. Экспорте�
 собрать образ из `claude-observability/Dockerfile` в ghcr.io и заменить
 `image` + `command`.
 
-## ConfigMap
+## ConfigMap — ГЕНЕРИРУЕТСЯ, НЕ РЕДАКТИРУЕТСЯ РУКАМИ
 
-**Не редактировать `configmap.yaml` руками** — разъедется с источником.
-Он генерируется из `claude-observability/exporters/claude_status_exporter.py`:
+> **`configmap.yaml` — сгенерированный файл.** Раньше об этом предупреждал
+> баннер в самом файле; по конвенции репо
+> ([`CLAUDE.md`](../../CLAUDE.md)) манифесты комментариев не несут, поэтому
+> предупреждение живёт здесь. Правка руками разъедется с источником и будет
+> затёрта при следующей генерации.
+
+Источник — `claude-observability/exporters/claude_status_exporter.py`.
+Перегенерировать после **любого** изменения экспортера:
 
 ```powershell
 cd C:\Users\info\Documents\git\claude-observability
@@ -53,10 +59,30 @@ cd C:\Users\info\Documents\git\claude-observability
   -Namespace claude-status
 ```
 
-Скрипт нормализует CRLF в LF: с CRLF Python в контейнере падает на shebang.
+Две вещи, которые делает скрипт и которые легко сломать вручную:
+
+- **нормализует CRLF в LF** — с CRLF Python в контейнере падает на shebang;
+- **держит YAML-обвязку в ASCII** — кириллический here-string ломается при
+  ANSI-парсинге в PowerShell 5.1. Кириллица внутри самого Python (docstring,
+  комментарии) при этом сохраняется, потому что приезжает из файла-источника,
+  а не из литерала в скрипте.
 
 Чтобы ConfigMap подхватился app-of-apps, в `observability/bootstrap.yaml`
-маска `include` расширена на `*/configmap*.yaml`.
+маска `include` расширена на `*/configmap*.yaml` — см.
+[`../README.md`](../README.md).
+
+## Почему `project: default`
+
+Как у `grafana` и `prometheus` в этой же папке. AppProject `observability` не
+подходит по двум причинам сразу: в его `sourceRepos` нет `bjw-s-labs`, а в
+`destinations` нет namespace `claude-status`.
+
+## `persistence.tmp` — emptyDir на `/tmp`
+
+Под запускается с `runAsUser: 65534` и read-only `$HOME`, а образ — голый
+`python:3.13-slim`, который на старте делает `pip install prometheus-client`.
+Без writable `/tmp` (плюс `HOME=/tmp` и `PYTHONUSERBASE=/tmp/.local` в env)
+pip'у некуда писать и контейнер не стартует вообще.
 
 ## Связанное
 

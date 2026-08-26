@@ -6,8 +6,6 @@ metadata:
   finalizers:
     - resources-finalizer.argocd.argoproj.io
 spec:
-  # project: default — AppProject observability не содержит
-  # open-telemetry.github.io в sourceRepos.
   project: default
   source:
     repoURL: https://open-telemetry.github.io/opentelemetry-helm-charts
@@ -32,8 +30,6 @@ spec:
             cpu: 500m
             memory: 512Mi
 
-        # Чарт по умолчанию тянет сбор логов и метрик хоста — тут нужен
-        # только приём OTLP от Claude Code с воркстейшна.
         presets:
           logsCollection:
             enabled: false
@@ -94,8 +90,6 @@ spec:
               check_interval: 5s
               limit_percentage: 80
               spike_limit_percentage: 20
-            # user.email приезжает в атрибутах при OAuth-логине.
-            # Один пользователь — лейбл бесполезен, а PII лишний.
             attributes/scrub:
               actions:
                 - key: user.email
@@ -104,13 +98,9 @@ spec:
           exporters:
             prometheus:
               endpoint: 0.0.0.0:8889
-              # OTel-атрибуты (skill.name, model, agent.name) -> лейблы.
-              # Без этого вся атрибуция схлопывается и половина дашборда пустая.
               resource_to_telemetry_conversion:
                 enabled: true
               enable_open_metrics: false
-              # Метрика исчезает, если её не обновляли сутки. Иначе серии
-              # мёртвых сессий висят вечно.
               metric_expiration: 24h
 
           service:
@@ -125,21 +115,11 @@ spec:
               metrics:
                 level: basic
 
-        # Path на общем dev.*, а НЕ свой хост otel.*. Так живёт весь homelab, и
-        # у dev.* уже есть и рабочий внешний роутинг, и TLS-сертификат: отдельный
-        # хост требовал бы своего сертификата (его нигде не было — nginx отдавал
-        # дефолтный) и записи на внешнем прокси (её нет — оттуда прилетал 404).
-        # TLS-блок не нужен: nginx мержит ingress'ы одного хоста в один server,
-        # сертификат dev.* приезжает от соседей (prometheus/grafana/...).
-        # rewrite: /otel/v1/metrics -> /v1/metrics (OTLP сам дописывает /v1/metrics
-        # к OTEL_EXPORTER_OTLP_ENDPOINT).
         ingress:
           enabled: true
           ingressClassName: nginx
           annotations:
             nginx.ingress.kubernetes.io/auth-type: basic
-            # Секрет обязан лежать в ЭТОМ namespace — nginx не ходит в чужие.
-            # Без него локация отдаёт 503, а не 401.
             nginx.ingress.kubernetes.io/auth-secret: mcp-basic-auth
             nginx.ingress.kubernetes.io/auth-realm: "Authentication Required"
             nginx.ingress.kubernetes.io/use-regex: "true"

@@ -70,15 +70,49 @@ overlay (below), not in git.
 
 Because the corp GitLab URL and `hostAliases` are employer-specific, this app is
 **excluded** from the `mcp` app-of-apps and applied directly, like the
-`networking/` apps:
+`networking/` apps. The committed `application.yaml` is a placeholder template
+with `hostAliases: []`; the live `Application` carries the real block.
+
+To change anything here, apply the committed manifest **merged with the live
+`hostAliases`** — read the live copy first, never apply `application.yaml` as-is:
 
 ```sh
-kubectl apply -f mcp/gitlab/application.local.yaml
+kubectl -n argo-cd get application mcp-gitlab -o yaml   # read the live hostAliases
+# merge your change with that block, then apply the merged manifest
 ```
 
-`application.local.yaml` is your real manifest (gitignored): it adds the
-`hostAliases` block pinning the corp hostname to its VPN IP. The committed
-`application.yaml` is a placeholder template with `hostAliases: []`.
+**Historical note.** This used to be an `application.local.yaml` overlay — a
+gitignored real manifest applied directly, with `*.local.yaml` excluded by
+`.gitignore`. That mechanism is retired (see the root
+[`README.md`](../../README.md)) and no such file exists in this tree any more;
+`.gitignore` still excludes the pattern as a safety net.
+
+> **`hostAliases: []` in git is a scrubbed placeholder — never let Argo sync it.**
+> The live Application carries a real entry mapping the upstream GitLab host to
+> its VPN-side address. Without that entry the pod cannot resolve the host **at
+> all** (cluster DNS has no record for it) and every call fails with
+> `ENOTFOUND`. That is precisely why
+> [`mcp/bootstrap.yaml`](../bootstrap.yaml) lists this file in its `exclude`
+> glob: syncing it would overwrite the real entry with this empty list and take
+> the server down instantly.
+>
+> So: apply changes to this file **out-of-band, merged with the live
+> `hostAliases`** — never by removing the `exclude`. To read what is live:
+> `kubectl -n argo-cd get application mcp-gitlab -o yaml`.
+
+## Ingress timeouts — 600s, not nginx's 60s default
+
+```yaml
+nginx.ingress.kubernetes.io/proxy-read-timeout: "600"
+nginx.ingress.kubernetes.io/proxy-send-timeout: "600"
+```
+
+The upstream GitLab is reached over the openconnect tunnel, so broad queries —
+`list_merge_requests` with no `project_id`, `get_merge_request` on a large MR —
+routinely run past nginx's 60s default and get cut mid-flight. The client sees
+only *"operation timed out"*, which reads as a dead server rather than a
+truncated response. 600s is the same window the litellm ingress already uses
+(see [`../../ai/litellm/README.md`](../../ai/litellm/README.md)).
 
 ## Required out-of-band secrets
 

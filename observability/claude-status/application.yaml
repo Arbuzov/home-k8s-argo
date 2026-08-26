@@ -6,9 +6,6 @@ metadata:
   finalizers:
     - resources-finalizer.argocd.argoproj.io
 spec:
-  # project: default, как grafana и prometheus в этой же папке.
-  # AppProject observability не подходит: в его sourceRepos нет bjw-s-labs,
-  # а в destinations нет этого namespace.
   project: default
   source:
     repoURL: https://bjw-s-labs.github.io/helm-charts
@@ -90,7 +87,6 @@ spec:
                 port: 9102
 
         persistence:
-          # runAsUser 65534 + read-only $HOME: pip некуда писать без этого
           tmp:
             enabled: true
             type: emptyDir

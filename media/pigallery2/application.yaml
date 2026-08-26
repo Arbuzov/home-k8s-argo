@@ -32,7 +32,7 @@ spec:
                     protocol: TCP
                 resources:
                   requests:
-                    memory: 512Mi   # was 128Mi; actual ~408Mi
+                    memory: 512Mi
                     cpu: 100m
                   limits:
                     memory: 1Gi
@@ -68,10 +68,6 @@ spec:
             storageClass: smb
             globalMounts:
               - path: /app/data/config
-          # SQLite index — node-local hostPath (pod is pinned to kube-worker-3).
-          # NOT smb (SQLite on CIFS+nobrl is lock-fragile) and NOT local-path
-          # (its DEFAULT nodePathMap sends non-master nodes to /tmp, wiped on reboot).
-          # Survives pod/node restarts so the library index isn't rebuilt each time.
           db:
             type: hostPath
             hostPath: /var/lib/pigallery2-db

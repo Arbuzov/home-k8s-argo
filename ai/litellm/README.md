@@ -201,8 +201,15 @@ inside the chart's `startupProbe` budget (`failureThreshold: 30` ×
 `periodSeconds: 10` = 5 min), so the kubelet killed it — *"Container litellm
 failed startup probe, will be restarted"*, exit 137, empty logs. That reads like
 a crash but is a throttled boot; check `kubectl top pod` against the limit
-before blaming the image. Requests stay low on purpose — this is burst headroom,
-not a reservation.
+before blaming the image. CPU requests stay low on purpose — this is burst
+headroom, not a reservation.
+
+**Memory requests are the opposite** — `requests.memory: 1Gi`, raised from
+`256Mi`. Actual steady-state RSS is ~1073Mi, so the scheduler was
+under-accounting this pod roughly 4×: it packed nodes as if litellm needed a
+quarter of what it takes, which is how the pod kept landing somewhere it did not
+fit. Memory is not compressible, so an under-sized request buys nothing and
+risks eviction; keep the request near the real figure.
 
 ### The boot is slow because there is only one node it can use
 
@@ -254,6 +261,51 @@ Self-hosted NIM (not the hosted `integrate.api.nvidia.com`)? add
 To add another provider: a new `model_list` entry whose `api_key` is
 `os.environ/<KEY>`, plus that `<KEY>` added to `litellm-env-secret`
 (`environmentSecrets` already exports the whole Secret).
+
+### GitHub Copilot
+
+Copilot models are **not** in `model_list`. They are registered explicitly by
+name (no wildcard) into the DB by the sync CronJob — see
+[`db/nim-sync-cronjob.yaml`](db/nim-sync-cronjob.yaml) and
+[Postgres](#postgres--migrated-to-cloudnativepg-2026-07) below. Auth is the
+access-token mounted into the litellm pod, so the CronJob needs no Copilot
+credentials of its own.
+
+Two env vars wire that mount up, and the split between them matters:
+
+| Var | Value | Why |
+| --- | --- | --- |
+| `GITHUB_COPILOT_TOKEN_DIR` | `/tmp/github_copilot` | where litellm **writes** and refreshes the short-lived `api-key.json` — must be writable |
+| `GITHUB_COPILOT_ACCESS_TOKEN_FILE` | `/etc/copilot/access-token` | an **absolute** path, so it reads the read-only Secret mount (`litellm-copilot-token`) and ignores `token_dir` |
+
+The list is curated to ids that actually return content on the current
+subscription. The full Copilot catalog also exposes gated ids (opus, gpt-5.5)
+and ids that answer with an empty response (gemini, kimi) — adding those back
+produces models that look registered and then fail at call time.
+
+### Provider egress goes through the in-cluster VLESS gateway
+
+`HTTPS_PROXY: http://wg-vless-gateway-proxy.vpn.svc.cluster.local:1080`, plus a
+`NO_PROXY` list.
+
+NVIDIA blocks this ISP's IP range at the edge — **451 before authentication**,
+so even an unauthenticated `curl` gets it. Proven from inside this pod: direct
+→ 451; through the gateway with the same key → 200 and 102 models.
+
+Two details that are easy to get wrong:
+
+- **`http://`, not `socks5://`.** xray's `:1080` answers HTTP `CONNECT`, and
+  this image ships no `socksio`, so a `socks5://` URL raises `ImportError` at
+  import time.
+- **Only `HTTPS_PROXY`, never `HTTP_PROXY`.** The `mcp_servers` below are plain
+  `http://` cluster URLs and must stay direct. `NO_PROXY` additionally exempts
+  cluster DNS suffixes, the Postgres endpoint, and the two Copilot API hosts
+  (`api.githubcopilot.com`, `api.github.com`) — Copilot is reachable directly
+  and does not need the hop.
+
+The sync CronJob carries the **same** `HTTPS_PROXY` for the same reason. It is
+unaffected for its own traffic: it talks to litellm over `http://litellm:4000`,
+which `https://`-only proxying leaves direct.
 
 ## MCP gateway
 
