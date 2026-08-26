@@ -37,8 +37,10 @@ git ls-files '*.yaml' '*.yml' | grep -v secret \
   | xargs grep -nE '(^[[:space:]]*#|[^[:space:]][[:space:]]+#[[:space:]])' -- 2>/dev/null
 ```
 
-Every hit is either a violation or one of the carve-outs above — read each one,
-don't assume. The test is **where the `#` sits**, not which file it is in: inside
+It is a grep, not a YAML parser, so it also flags a `#` inside a quoted scalar
+(`summary: "cpu # throttled"`). Read every hit — a hit is a violation, one of the
+carve-outs above, or a quoted `#`. The test is **where the `#` sits**, not which
+file it is in: inside
 an embedded `command:`/`args:` block scalar it is program source and stays;
 anywhere else in the YAML it is manifest rationale and belongs in a README.
 (At the time of writing the only hits were script comments in

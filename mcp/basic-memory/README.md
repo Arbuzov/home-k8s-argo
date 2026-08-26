@@ -70,7 +70,7 @@ makes a restart depend on the registry being reachable.
 
 ## Resource sizing — measured, not guessed
 
-| | value | was | why |
+| setting | value | was | why |
 | --- | --- | --- | --- |
 | `requests.memory` | `1Gi` | `256Mi` | actual draw is ~943Mi; the request is matched to it so this pod isn't the first evicted under node pressure |
 | `requests.cpu` | `500m` | `50m` | bursty — idle ~4m, but indexing peaks near 1880m |

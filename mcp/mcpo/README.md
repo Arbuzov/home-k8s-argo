@@ -26,11 +26,12 @@ set (the committed `Authorization` value stays a `REPLACE_WITH_*` placeholder).
 **deliberately no `limits.cpu`**. Do not "complete" the block by adding one.
 
 `uvicorn` does not bind `:8000` until its startup hook has *serially* dialled
-jira, confluence and home-assistant. Throttled to `300m` on arm64 that takes
-~56s, against a liveness budget of 30s + 3 × 10s — so every `kube-master` reboot
-cost 10–25 minutes of crash-looping until one attempt happened to win the race.
-Uncapped, the startup burst finishes inside the budget. The `requests` still
-protect the node's scheduling, which is the part that actually matters here.
+jira, confluence and home-assistant. Back when a `300m` limit was set, that took
+~56s on arm64 against a liveness budget of 30s + 3 × 10s, so every `kube-master`
+reboot cost 10–25 minutes of crash-looping until one attempt happened to win the
+race. Uncapped, the startup burst finishes inside the budget. The `requests`
+still protect the node's scheduling, which is the part that actually matters
+here.
 
 ## No stdio `memory` server
 

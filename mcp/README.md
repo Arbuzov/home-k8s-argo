@@ -89,14 +89,19 @@ List several to disable more at once:
 
 `graphiti`, `homeassistant`, and `gitlab` are held back in the `exclude` glob.
 
-> **These three are excluded for a reason that is not "not ready yet".** Each
-> carries deployment-specific values that must not live in a public repo —
-> private `hostAliases`, VPN-side addresses. Their live Applications are applied
-> out-of-band and are deliberately left **unmanaged** here. Letting Argo sync
-> them overwrites the real values with the scrubbed placeholders committed in
-> git; for `gitlab/` that wipes `hostAliases` and the pod instantly loses DNS
-> for the upstream host. Removing one from `exclude` is therefore an outage, not
-> an enablement — see [`gitlab/README.md`](gitlab/README.md).
+The three are not excluded for the same reason, and it matters which:
+
+> **`gitlab` is a permanent exclusion, not a pending one.** Its committed
+> manifest carries a value scrubbed for this public repo — `hostAliases: []` in
+> place of the corp-DNS pin. The live Application is applied out-of-band and is
+> deliberately left **unmanaged** here: letting Argo sync this file overwrites
+> the real entry with the empty list, and the pod instantly loses DNS for the
+> upstream host. Removing `gitlab` from `exclude` is an outage, not an
+> enablement — see [`gitlab/README.md`](gitlab/README.md).
+
+`graphiti` and `homeassistant` carry no scrubbed values; they are held back only
+until they work under Argo CD, and are enabled the ordinary way — by removing
+them from the glob.
 
 `homeassistant` uses an `mcp-helm` chart that currently runs the server in
 **stdio** mode, which crashloops under Argo CD — it needs a stdio→SSE (HTTP)

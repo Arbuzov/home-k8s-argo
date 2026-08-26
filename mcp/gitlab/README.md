@@ -6,10 +6,10 @@ self-hosted GitLab behind a corporate VPN over the shared
 [`openconnect-gateway`](../../networking/openconnect-gateway/).
 
 > **Employer-specific routing is not in git.** The real GitLab URL, the
-> VPN subnet, and the `/etc/hosts` pin live only in out-of-band Secrets and a
-> local overlay (this app is held back from the app-of-apps and applied
-> push-based — see **Out-of-band routing** below). The committed manifest
-> carries placeholders only.
+> VPN subnet, and the `/etc/hosts` pin live only in out-of-band Secrets and in
+> the live `Application` itself (this app is held back from the app-of-apps and
+> applied push-based — see **Out-of-band routing** below). The committed
+> manifest carries placeholders only.
 
 ## Image & auth (2.1.x: remote-auth + stateless + token-injector)
 
@@ -56,8 +56,8 @@ run its own OpenConnect tunnel — it routes the corp subnet through the shared
 
 The self-hosted GitLab exists **only in corp DNS**, which neither cluster DNS nor
 the sidecar's resolver can reach — so the pod pins the hostname to its corp-VPN IP
-via `hostAliases`. That mapping is employer-specific, so it lives in the local
-overlay (below), not in git.
+via `hostAliases`. That mapping is employer-specific, so it lives only in the
+live `Application` (below), not in git.
 
 > **Lesson learned — pick the right tunnel group:** the corp VPN concentrator
 > exposed several tunnel groups; only one actually passed traffic. The others
