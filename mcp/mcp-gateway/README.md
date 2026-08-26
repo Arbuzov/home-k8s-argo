@@ -22,11 +22,12 @@ shared, rewrite-free Ingress can't express.
 
 ## gitlab
 
-`gitlab` is deployed **push-based** from a local overlay (excluded from the
-app-of-apps), so its live ingress isn't managed here. To route it too: in the
-gitlab overlay set `ingress.enabled: false` and re-apply, then add a `/mcp/gitlab`
-path to [`gateway-ingress.yaml`](gateway-ingress.yaml). Its litellm `allow_all_keys`
-and oathkeeper rule are already in place.
+`gitlab` is deployed **push-based**, out-of-band (excluded from the
+app-of-apps), so its live ingress isn't managed here. To route it too: set
+`ingress.enabled: false` in the manifest you apply — merged with the live
+`hostAliases`, see [`../gitlab/README.md`](../gitlab/README.md) — then add a
+`/mcp/gitlab` path to [`gateway-ingress.yaml`](gateway-ingress.yaml). Its litellm
+`allow_all_keys` and oathkeeper rule are already in place.
 
 ## Cutover note
 

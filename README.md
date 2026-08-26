@@ -191,7 +191,7 @@ service's `README.md` has the concrete command):
 | `apps/openclaw`         | `openclaw-env-secret`                                                            |
 | `apps/vikunja`          | `vikunja-oidc` (Google OIDC client ID/secret — shared with Argo CD)              |
 | `mcp/atlassian`         | `mcp-corp-config` (Jira/Confluence/GitLab URLs + VPN subnet, shared), `mcp-atlassian-{jira,confluence}-credentials`, `mcp-atlassian-vpn-credentials` |
-| `mcp/gitlab`            | `mcp-gitlab-credentials` (PAT), `mcp-gitlab-stateless`, `mcp-corp-config` (shared); held back — applied push-based from a gitignored overlay (see `mcp/gitlab/README.md`) |
+| `mcp/gitlab`            | `mcp-gitlab-credentials` (PAT), `mcp-gitlab-stateless`, `mcp-corp-config` (shared); held back — applied push-based out-of-band, merged with the live `hostAliases` (see `mcp/gitlab/README.md`) |
 | `mcp/graphiti`          | `graphiti-neo4j-auth`, `graphiti-mcp-secrets` (Neo4j + OpenAI)                   |
 | `mcp/mcpo`              | `mcpo-secrets` (`config.json` incl. Home Assistant LLAT)                         |
 | `media/photoprism`      | `photoprism-basic-auth` (htpasswd)                                               |
