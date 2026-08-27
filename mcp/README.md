@@ -13,9 +13,12 @@ everything under `mcp/` automatically.
 | [`bootstrap.yaml`](bootstrap.yaml) | `Application` | The **app-of-apps** — deploys `project.yaml` + every child app |
 | `<service>/application*.yaml` | `Application` | One MCP server each (`project: mcp`) |
 
-Services: `atlassian` (Jira + Confluence), `basic-memory`, `gitlab`,
-`graphiti`, `homeassistant`, `kubernetes`, `mcpo`. Each has its own
-`README.md` for the out-of-band Secrets it expects.
+Services: `atlassian` (Jira + Confluence), `basic-memory`, `gitlab`, `grafana`,
+`graphiti`, `homeassistant`, `kubernetes`, `mcpo`. Each has its own `README.md`
+for the out-of-band Secrets it expects.
+
+[`mcp-gateway/`](mcp-gateway/) is not a server — it is the shared Ingress that
+fronts several of them at `/mcp/*`.
 
 The `mcp` AppProject's `sourceRepos` whitelists the chart sources the child
 Applications pull from — the `https://arbuzov.github.io/mcp-helm/` and
