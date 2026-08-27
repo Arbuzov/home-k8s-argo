@@ -242,8 +242,11 @@ issued for the ingress hosts, not credentials you create by hand.
 > `Cluster` here bootstraps with a bare `initdb` (`database` + `owner`, no
 > `secret:` reference), so the operator **generates** `litellm-pg-app`,
 > `n8n-pg-app`, `vikunja-pg-app` and `grafana-pg-app` itself on a fresh cluster —
-> you do not have to create them, and the app manifests reference the separate
-> `*-db` Secret for the password.
+> you do not have to create them. Most apps then read the password from their
+> own separate Secret (`litellm-db`, `postgres-n8n`, `vikunja-db`).
+> **`observability/grafana` is the exception**: it reads
+> `GF_DATABASE_PASSWORD` straight out of `grafana-pg-app`, so whatever CNPG
+> generates is what Grafana uses — there is no second Secret to keep in sync.
 >
 > Pre-create a `<cluster>-app` Secret only when the password has to be a
 > *specific* value — which is exactly the migration case these services went

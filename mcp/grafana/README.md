@@ -31,8 +31,10 @@ bjw-s `app-template` chart (same pattern as `basic-memory`).
   the 1 GB workers (`kube-worker-1`, `kube-worker-2`) do not have it.
 
   This used to say "co-located with the Grafana pod (also on worker-3)". **That
-  is no longer true** — Grafana's database moved to a static `local-path` PVC
-  bound to `kube-master`, so volume affinity now pins the Grafana pod there (see
+  is no longer true** — Grafana now sits on `kube-master`: its own PVC
+  (`grafana-local`) is node-bound there, and its CNPG database is on the static
+  `grafana-pg-local` class whose PV lives at `/var/lib/grafana-pg` on that node
+  (see
   [`../../observability/grafana/README.md`](../../observability/grafana/README.md)).
   Co-location was never load-bearing anyway: this server reaches Grafana through
   the ClusterIP service, not over localhost, so the two can sit on different
