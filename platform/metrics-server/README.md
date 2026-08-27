@@ -15,16 +15,22 @@ See [`../README.md`](../README.md) for how to enable it (the chart repo and the
 This file holds the rationale that, by repo convention, must **not** live as
 comments inside `application.yaml` (see the root [`CLAUDE.md`](../../CLAUDE.md)).
 
-## `nodeSelector: kube-master`
+## `nodeSelector: kube-master` — the reason it was added no longer holds
 
-The pod is pinned to `kube-master` because that is the only node where the image
-is cached — `kube-worker-3` cannot reach `registry.k8s.io` on this network, so a
-pod scheduled there sits in `ImagePullBackOff`.
+The manifest comment this replaced said the pod is pinned to `kube-master`
+because that is the only node with the image cached — `kube-worker-3` could not
+reach `registry.k8s.io`, so a pod scheduled there sat in `ImagePullBackOff`.
 
-This is a workaround for the egress restriction, not a placement requirement:
-`metrics-server` itself is happy on any node. If the image is ever mirrored
-somewhere reachable from every node (or pre-pulled onto them), drop the
-`nodeSelector` rather than keeping the control plane as a de-facto image cache.
+**That is stale.** All four nodes were verified to reach `registry.k8s.io` on
+2026-07-25, during the nginx adoption work — see
+[`../nginx/README.md`](../nginx/README.md), which dropped its own image-cache
+pin for the same reason and explicitly flagged this note as out of date.
+
+The `nodeSelector` is therefore a leftover, kept only because nothing has
+re-tested `metrics-server` without it. `metrics-server` has no placement
+requirement of its own. **Removing it is the intended direction** — do it in a
+commit that says so, rather than leaving the control plane as a de-facto image
+cache. Nothing here justifies the pin any more.
 
 ## `--kubelet-insecure-tls`
 
