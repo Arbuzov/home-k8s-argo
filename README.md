@@ -87,19 +87,22 @@ Two delivery models live side by side:
 
 ### App-of-apps groups — pull-based GitOps
 
-`apps/`, `media/`, `mcp/`, `networking/`, `platform/` and `storage/` each ship a
-`bootstrap.yaml` app-of-apps that points Argo CD at this repo on GitHub over
-**SSH** (`https://github.com/Arbuzov/home-k8s-argo.git` — SSH/port 22, since GitHub
-HTTPS is DPI-filtered on this network) and reconciles that group's `AppProject` (`<group>/project.yaml`, where
-the group has one — `media/` and `storage/` have none, so their children stay
-in `default`) plus every enabled child `Application` automatically. Bootstrap
-each once, after the repo is pushed to GitHub:
+**Every** group ships a `bootstrap.yaml` app-of-apps — `ai/`, `apps/`, `mcp/`,
+`media/`, `networking/`, `observability/`, `platform/`, `storage/`. Each points
+Argo CD at this repo on GitHub over **SSH**
+(`https://github.com/Arbuzov/home-k8s-argo.git` — SSH/port 22, since GitHub
+HTTPS is DPI-filtered on this network) and reconciles that group's `AppProject`
+(`<group>/project.yaml`) plus every enabled child `Application` automatically.
+`storage/` is the only group with **no** `AppProject`, so its children stay in
+`default`. Bootstrap each once, after the repo is pushed to GitHub:
 
 ```sh
+kubectl apply -f ai/bootstrap.yaml
 kubectl apply -f apps/bootstrap.yaml
-kubectl apply -f media/bootstrap.yaml
 kubectl apply -f mcp/bootstrap.yaml
+kubectl apply -f media/bootstrap.yaml
 kubectl apply -f networking/bootstrap.yaml
+kubectl apply -f observability/bootstrap.yaml
 kubectl apply -f platform/bootstrap.yaml
 kubectl apply -f storage/bootstrap.yaml
 ```
@@ -107,19 +110,34 @@ kubectl apply -f storage/bootstrap.yaml
 From then on Argo CD watches `main`: edit a `<group>/<service>/application.yaml`,
 commit and push, and it syncs on its own (each app-of-apps runs `automated`
 sync with `prune` + `selfHeal`). The children belong to their group's
-AppProject (`project: apps` / `mcp` / `platform`); the app-of-apps itself stays
-in `default` so it can create that project. `media/` is the exception — it has
-no AppProject, so its children and its app-of-apps both stay in `default`. Each
-group's `README.md` documents which children are enabled vs. held back via the
-`bootstrap.yaml` `exclude` glob (`platform/` currently deploys only `argo-cd` +
-`arc-operator`; `media/` holds back `opds-shelf`; `networking/` deploys only
-`wg-vless-gateway`, holding back `openconnect-gateway` + `wstunnel`).
+AppProject (`project: apps` / `mcp` / `platform` / …); the app-of-apps itself
+stays in `default` so it can create that project. `storage/` is the exception —
+it has no AppProject, so its children and its app-of-apps both stay in
+`default`.
 
-### Everything else — push-based
+Each group's `README.md` documents which children are enabled vs. held back via
+the `bootstrap.yaml` `exclude` glob. Currently held back:
 
-The remaining groups, and any app-of-apps child held back by an `exclude`
-glob, are **not** watched by Argo CD. To deliver a change, apply the
-Application directly:
+| Group | Held back |
+| --- | --- |
+| `ai/` | — |
+| `apps/` | `heimdall`, `openclaw` |
+| `mcp/` | `graphiti`, `homeassistant`, `gitlab` |
+| `media/` | `jellyfin`, `photoprism` |
+| `networking/` | `openconnect-gateway`, `wstunnel` |
+| `observability/` | `influxdb`, `prometheus`, `cloud-billing/stackdriver-exporter` |
+| `platform/` | `kubernetes-dashboard`, `metrics-server` |
+| `storage/` | — |
+
+Everything else in each group is reconciled automatically. Read this table off
+the `exclude` globs, not from memory — it has drifted before.
+
+### Held-back children — push-based
+
+There are no longer any "remaining groups": all eight are app-of-apps. What
+stays push-based is the individual children held back by an `exclude` glob (the
+table above). Those are **not** watched by Argo CD, so to deliver a change,
+apply the Application directly:
 
 ```sh
 kubectl apply -f <group>/<service>/application.yaml
