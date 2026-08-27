@@ -17,8 +17,10 @@ Services: `atlassian` (Jira + Confluence), `basic-memory`, `gitlab`, `grafana`,
 `graphiti`, `homeassistant`, `kubernetes`, `mcpo`. Each has its own `README.md`
 for the out-of-band Secrets it expects.
 
-[`mcp-gateway/`](mcp-gateway/) is not a server — it is the shared Ingress that
-fronts several of them at `/mcp/*`.
+Two members are not servers: [`mcp-gateway/`](mcp-gateway/) is the shared Ingress
+that fronts several of them at `/mcp/*`, and [`ignis/`](ignis/) is Obsidian-in-a-
+browser over `basic-memory`'s note volume — it lives here because that PVC does
+(see [`ignis/README.md`](ignis/README.md)).
 
 The `mcp` AppProject's `sourceRepos` whitelists the chart sources the child
 Applications pull from — the `https://arbuzov.github.io/mcp-helm/` and

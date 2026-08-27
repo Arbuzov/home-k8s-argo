@@ -1,0 +1,132 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: ignis
+  namespace: argo-cd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: mcp
+  source:
+    repoURL: https://bjw-s-labs.github.io/helm-charts
+    chart: app-template
+    targetRevision: 3.6.0
+    helm:
+      values: |
+        controllers:
+          ignis:
+            type: deployment
+            replicas: 1
+            strategy: Recreate
+            pod:
+              nodeSelector:
+                kubernetes.io/hostname: kube-worker-3
+            containers:
+              app:
+                image:
+                  repository: docker.io/nobbe/ignis
+                  tag: "0.8.10"
+                  pullPolicy: IfNotPresent
+                env:
+                  PUID: "1000"
+                  PGID: "1000"
+                  VAULT_ROOT: /vaults
+                  DATA_ROOT: /app/data
+                  WS_ORIGINS: https://notes.whitediver.keenetic.link
+                  WRITE_COALESCE_MS: "500"
+                  UV_THREADPOOL_SIZE: "64"
+                  AUTO_CREATE_DEFAULT: "false"
+                ports:
+                  - name: http
+                    containerPort: 8080
+                resources:
+                  requests:
+                    memory: 256Mi
+                    cpu: 100m
+                  limits:
+                    memory: 1Gi
+                    cpu: 1000m
+                probes:
+                  liveness:
+                    enabled: true
+                    custom: true
+                    spec:
+                      tcpSocket:
+                        port: 8080
+                      initialDelaySeconds: 30
+                      periodSeconds: 30
+                  readiness:
+                    enabled: true
+                    custom: true
+                    spec:
+                      tcpSocket:
+                        port: 8080
+                      initialDelaySeconds: 10
+                      periodSeconds: 10
+                  startup:
+                    enabled: true
+                    custom: true
+                    spec:
+                      tcpSocket:
+                        port: 8080
+                      periodSeconds: 10
+                      failureThreshold: 90
+
+        service:
+          app:
+            controller: ignis
+            ports:
+              http:
+                port: 8080
+
+        ingress:
+          app:
+            className: nginx
+            annotations:
+              nginx.ingress.kubernetes.io/ssl-redirect: "false"
+              nginx.ingress.kubernetes.io/auth-type: basic
+              nginx.ingress.kubernetes.io/auth-secret: mcp-basic-auth
+              nginx.ingress.kubernetes.io/auth-realm: "Authentication Required"
+              nginx.ingress.kubernetes.io/proxy-body-size: "100m"
+              nginx.ingress.kubernetes.io/proxy-buffering: "off"
+              nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+              nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+            hosts:
+              - host: notes.whitediver.keenetic.link
+                paths:
+                  - path: /
+                    pathType: Prefix
+                    service:
+                      identifier: app
+                      port: http
+
+        persistence:
+          vault:
+            type: persistentVolumeClaim
+            existingClaim: basic-memory-data-smb
+            advancedMounts:
+              ignis:
+                app:
+                  - path: /vaults/basic-memory
+          state:
+            type: persistentVolumeClaim
+            accessMode: ReadWriteOnce
+            size: 2Gi
+            storageClass: local-path
+            advancedMounts:
+              ignis:
+                app:
+                  - path: /app/data
+                    subPath: data
+                  - path: /app/obsidian-app
+                    subPath: obsidian-app
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: mcp
+  syncPolicy:
+    automated:
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
