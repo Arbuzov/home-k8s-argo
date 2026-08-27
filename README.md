@@ -89,12 +89,25 @@ Two delivery models live side by side:
 
 **Every** group ships a `bootstrap.yaml` app-of-apps — `ai/`, `apps/`, `mcp/`,
 `media/`, `networking/`, `observability/`, `platform/`, `storage/`. Each points
-Argo CD at this repo on GitHub over **SSH**
-(`https://github.com/Arbuzov/home-k8s-argo.git` — SSH/port 22, since GitHub
-HTTPS is DPI-filtered on this network) and reconciles that group's `AppProject`
+Argo CD at this repo on GitHub over **HTTPS**
+(`https://github.com/Arbuzov/home-k8s-argo.git`) and reconciles that group's
+`AppProject`
 (`<group>/project.yaml`) plus every enabled child `Application` automatically.
 `storage/` is the only group with **no** `AppProject`, so its children stay in
-`default`. Bootstrap each once, after the repo is pushed to GitHub:
+`default`.
+
+> **On the repo URL.** All eight `bootstrap.yaml` files use the `https://` form,
+> and the Argo repo credential for this repo (`repo-home-k8s-argo`, out-of-band)
+> is a plain `type: git` entry on that same HTTPS URL carrying **no**
+> `sshPrivateKey`, username or password — it needs none, the repo is public.
+> These docs used to claim the sync runs over SSH on port 22 because GitHub
+> HTTPS was DPI-filtered here; nothing in the repo reflects that any more.
+> Your **workstation** `git remote` is still SSH (`git@github.com:…`) — that is
+> a separate path from what Argo CD does in-cluster. If HTTPS is ever filtered
+> again, switching means changing the `repoURL` in all eight bootstraps *and*
+> the credential to the `git@github.com:` form, plus adding a deploy key.
+
+Bootstrap each once, after the repo is pushed to GitHub:
 
 ```sh
 kubectl apply -f ai/bootstrap.yaml
@@ -215,6 +228,7 @@ service's `README.md` has the concrete command):
 | `media/photoprism`      | `photoprism-basic-auth` (htpasswd), `photoprism-oidc` (OIDC client + admin password) |
 | `media/opds-shelf`      | `opds-shelf-basic-auth` (htpasswd for `/opds`) — Google login is Calibre-Web native OAuth in `app.db`, not a Secret |
 | `mcp/grafana`           | `mcp-grafana-token` (Grafana service-account token) |
+| `networking/keenetic-operator` | `keenetic-operator-creds` (router SSH login, via `keenetic.existingSecret`) |
 | `observability/grafana` | `grafana-oauth` (Google OAuth `client_secret`), `grafana-pg-app` (CNPG DB user/password) |
 | `observability/keenetic-grafana-monitoring` | `keenetic-grafana-monitoring-config` (influxdb) — `config.ini` (router pw + InfluxDB token) |
 | `observability/prometheus` | `blackbox-targets` (real cascade probe IPs — gitignored, `optional: true` so the pod starts without it) |

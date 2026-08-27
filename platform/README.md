@@ -20,15 +20,18 @@ with out-of-band Secrets documents them in its own `README.md`.
 > `oathkeeper` used to be disabled by a `.disabled` rename, and this section
 > still said so. It is **live**: `oathkeeper/application.yaml` carries its real
 > name, `project: platform`, and is not in the `exclude` glob, so the app-of-apps
-> syncs it into namespace `mcp`. It is load-bearing — it fronts every `/mcp/*`
-> path and injects the litellm key, so `basic-memory`, `grafana` and the other
-> MCP servers reach clients through it. See
+> syncs it into namespace `mcp`. It is load-bearing — it injects the litellm key
+> for the `/mcp/*` paths that route through it (`jira`, `confluence`,
+> `kubernetes`, `grafana` via [`../mcp/mcp-gateway`](../mcp/mcp-gateway/README.md),
+> plus `basic-memory`, which points its own ingress at `oathkeeper-proxy`).
+> `/mcp/gitlab` is the exception — it has its own ingress straight to
+> `mcp-gitlab:3002` and bypasses oathkeeper entirely. See
 > [`oathkeeper/README.md`](oathkeeper/README.md).
 
 ## How it deploys (app-of-apps)
 
 - [`bootstrap.yaml`](bootstrap.yaml) is the app-of-apps. Its source is this repo on
-  GitHub over **SSH** (`https://github.com/Arbuzov/home-k8s-argo.git`,
+  GitHub over **HTTPS** (`https://github.com/Arbuzov/home-k8s-argo.git`,
   branch `main`), path `platform`, with `directory.recurse` + an `include`
   glob that picks up `project.yaml` and every `*/application*.yaml` — but
   **not** `bootstrap.yaml` itself, so the app-of-apps never manages itself.

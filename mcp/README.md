@@ -33,7 +33,7 @@ repo is private with no Pages; see [`kubernetes/README.md`](kubernetes/README.md
 ## How it deploys (app-of-apps)
 
 - [`bootstrap.yaml`](bootstrap.yaml) is the app-of-apps. Its source is this repo on
-  GitHub over **SSH** (`https://github.com/Arbuzov/home-k8s-argo.git`,
+  GitHub over **HTTPS** (`https://github.com/Arbuzov/home-k8s-argo.git`,
   branch `main`), path `mcp`, with `directory.recurse` + an `include` glob
   that picks up `project.yaml` and every `*/application*.yaml` — but **not**
   `bootstrap.yaml` itself, so the app-of-apps never manages itself.
@@ -52,9 +52,10 @@ kubectl apply -f mcp/bootstrap.yaml
 ```
 
 From then on Argo CD keeps the `mcp` project and all child apps in sync from
-git — no further manual `apply` is needed for this group. (Register the SSH
-deploy key as a repo credential in Argo CD first — SSH needs a key even for a
-public repo, and GitHub HTTPS is DPI-blocked on this network.)
+git — no further manual `apply` is needed for this group. (No repo credential is
+strictly required: the sync uses the public HTTPS URL — see the root
+[`README.md`](../README.md) for why the old "SSH deploy key, HTTPS is
+DPI-blocked" instruction no longer matches what the manifests do.)
 
 Create each service's Secrets (see its `README.md`) before its first sync.
 
