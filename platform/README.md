@@ -12,12 +12,18 @@ services under `platform/` automatically.
 | [`bootstrap.yaml`](bootstrap.yaml) | `Application` | The **app-of-apps** — deploys `project.yaml` + every enabled child app |
 | `<service>/application.yaml` | `Application` | One app each (`project: platform`) |
 
-Services deployed: `argo-cd`, `arc-operator`, `cnpg-operator`, `nginx`. Kept in git but **disabled**:
-`kubernetes-dashboard` and `metrics-server` via the `exclude` glob in
-`bootstrap.yaml`; `oathkeeper` via the `.disabled` rename (its chart repo and
-namespace are pre-registered in `project.yaml`, so enabling it is a pure `git
-mv` — see [`oathkeeper/README.md`](oathkeeper/README.md)). Each service with
-out-of-band Secrets documents them in its own `README.md`.
+Services deployed: `argo-cd`, `arc-operator`, `cnpg-operator`, `nginx`,
+`oathkeeper`. Kept in git but **disabled**: `kubernetes-dashboard` and
+`metrics-server`, both via the `exclude` glob in `bootstrap.yaml`. Each service
+with out-of-band Secrets documents them in its own `README.md`.
+
+> `oathkeeper` used to be disabled by a `.disabled` rename, and this section
+> still said so. It is **live**: `oathkeeper/application.yaml` carries its real
+> name, `project: platform`, and is not in the `exclude` glob, so the app-of-apps
+> syncs it into namespace `mcp`. It is load-bearing — it fronts every `/mcp/*`
+> path and injects the litellm key, so `basic-memory`, `grafana` and the other
+> MCP servers reach clients through it. See
+> [`oathkeeper/README.md`](oathkeeper/README.md).
 
 ## How it deploys (app-of-apps)
 

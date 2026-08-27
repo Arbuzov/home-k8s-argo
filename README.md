@@ -185,7 +185,7 @@ service's `README.md` has the concrete command):
 | `platform/argo-cd`      | `argocd-secret` (admin bcrypt, Google OIDC client ID/secret), `argocd-redis`     |
 | `platform/arc-operator` | `controller-manager` (GitHub PAT)                                                |
 | `ai/n8n`                | `n8n-secrets` (encryption key), `postgres-n8n` (DB creds)                        |
-| `ai/litellm`            | `litellm-masterkey` (proxy master key), `litellm-env-secret` (backend API keys, e.g. `NVIDIA_NIM_API_KEY`) |
+| `ai/litellm`            | `litellm-masterkey` (proxy master key), `litellm-env-secret` (backend API keys, e.g. `NVIDIA_NIM_API_KEY`), `litellm-copilot-token` (GitHub Copilot access token, mounted read-only) |
 | `apps/heimdall`         | `heimdall-postgres` (DB creds)                                                   |
 | `apps/homepage`         | `homepage-secrets` (Argo CD homepage token, Home Assistant LLAT), `homepage-bookmarks` (work-bookmark URLs `HOMEPAGE_VAR_WORK_*`) |
 | `apps/openclaw`         | `openclaw-env-secret`                                                            |
@@ -196,9 +196,15 @@ service's `README.md` has the concrete command):
 | `mcp/mcpo`              | `mcpo-secrets` (`config.json` incl. Home Assistant LLAT)                         |
 | `media/photoprism`      | `photoprism-basic-auth` (htpasswd)                                               |
 | `media/opds-shelf`      | `opds-shelf-basic-auth` (htpasswd for `/opds`) — Google login is Calibre-Web native OAuth in `app.db`, not a Secret |
+| `mcp/grafana`           | `mcp-grafana-token` (Grafana service-account token) |
+| `observability/grafana` | `grafana-oauth` (Google OAuth `client_secret`), `grafana-pg-app` (CNPG DB user/password) |
 | `observability/keenetic-grafana-monitoring` | `keenetic-grafana-monitoring-config` (influxdb) — `config.ini` (router pw + InfluxDB token) |
+| `observability/prometheus` | `blackbox-targets` (real cascade probe IPs — gitignored, `optional: true` so the pod starts without it) |
+| `platform/oathkeeper`   | `oathkeeper-rules` (access rules incl. the litellm key injection) |
 
-The remaining services have no secrets in their manifests.
+The remaining services have no secrets in their manifests. TLS Secrets
+(`chart-*-tls`, `dev.whitediver.keenetic.link-tls`) are not listed — they are
+issued for the ingress hosts, not credentials you create by hand.
 
 Cluster-wide shared Secrets that several Applications expect to find:
 
