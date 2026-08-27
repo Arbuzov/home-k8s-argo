@@ -1,9 +1,9 @@
 # networking
 
-`AppProject` + `bootstrap.yaml` app-of-apps for the networking / VPN gateway
-apps (`openconnect-gateway`, `wg-vless-gateway`, `wstunnel`). The
-`Application` manifests live in this repo (`home-k8s-argo`); their Helm
-charts are pulled from the separate `home-k8s-helm` chart repo.
+`AppProject` + `bootstrap.yaml` app-of-apps for the networking apps
+(`keenetic-operator`, `openconnect-gateway`, `wg-vless-gateway`, `wstunnel`).
+The `Application` manifests live in this repo (`home-k8s-argo`); the VPN
+gateways' Helm charts are pulled from the separate `home-k8s-helm` chart repo.
 
 ## Delivery — app-of-apps, with two children held back
 
@@ -15,14 +15,16 @@ sync, `prune` + `selfHeal`). Bootstrap once:
 kubectl apply -f networking/bootstrap.yaml
 ```
 
-| Child                  | Namespace  | Delivery                                     |
-| ---------------------- | ---------- | -------------------------------------------- |
-| `wg-vless-gateway`     | `vpn`      | app-of-apps (enabled)                        |
-| `openconnect-gateway`  | `mcp`      | push-based — held back by the `exclude` glob |
-| `wstunnel`             | `wstunnel` | push-based — held back by the `exclude` glob |
+| Child                  | Namespace           | Delivery                                     |
+| ---------------------- | ------------------- | -------------------------------------------- |
+| `wg-vless-gateway`     | `vpn`               | app-of-apps (enabled)                        |
+| `keenetic-operator`    | `keenetic-operator` | app-of-apps (enabled)                        |
+| `openconnect-gateway`  | `mcp`               | push-based — held back by the `exclude` glob |
+| `wstunnel`             | `wstunnel`          | push-based — held back by the `exclude` glob |
 
-Only `wg-vless-gateway` is wired into the app-of-apps. The other two stay
-push-based — apply them directly when they change:
+`wg-vless-gateway` and `keenetic-operator` are wired into the app-of-apps; only
+the latter two are excluded. Those stay push-based — apply them directly when
+they change:
 
 ```sh
 kubectl apply -f networking/openconnect-gateway/application.yaml
