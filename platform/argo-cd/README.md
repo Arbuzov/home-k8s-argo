@@ -70,12 +70,21 @@ out-of-band secret.
 
 Argo CD here keeps **no persistent state**: there are no PVCs in the namespace,
 and the bundled Redis is a pure **ephemeral cache** (a cold restart just
-rebuilds it). Nothing therefore needs to be pinned to a particular node, so no
-component carries a `nodeSelector` — the scheduler places the controller,
-Redis and the rest on any node (the chart's default `kubernetes.io/os: linux`
-still applies). Previously `controller` and `redis` were pinned to
-`kube-master`; that pin was removed because it bought nothing without
-persistent local data.
+rebuilds it). Nothing therefore needs to be pinned for **data** reasons, and no
+component carries a `nodeSelector`; Redis and the rest are placed by the
+scheduler on any node (the chart's default `kubernetes.io/os: linux` still
+applies). The old `kube-master` `nodeSelector` on `controller` and `redis` was
+removed for exactly that reason — it bought nothing without persistent local
+data.
+
+**The controller is still constrained, for a different reason.** It carries a
+hard `affinity.nodeAffinity`
+(`requiredDuringSchedulingIgnoredDuringExecution`) admitting only `kube-master`
+and `kube-worker-3`. That is about **memory, not data**: those are the 8 GB
+nodes, and the controller needs the headroom described below — it does not fit
+on the ~1 GB Pi workers. So "placed on any node" applies to every component
+*except* the controller, and a `Pending` controller means both 8 GB nodes are
+full, not that the scheduler is misbehaving.
 
 ## Server, ingress and HPA
 
