@@ -22,11 +22,6 @@ spec:
             cpu: "50m"
           limits:
             memory: "384Mi"
-            # No cpu limit on purpose. uvicorn does not bind :8000 until its startup hook
-            # has serially dialled jira + confluence + home-assistant; throttled to 300m on
-            # arm64 that takes ~56s against a 30s+3x10s liveness budget, so every kube-master
-            # reboot cost 10-25 min of crashloop until one attempt won the race. requests
-            # still protect the node.
         ingress:
           enabled: true
           className: nginx

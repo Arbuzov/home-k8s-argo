@@ -1,14 +1,19 @@
 # observability
 
-Metrics / logs apps for the cluster: `blackbox-exporter`, `cloud-billing`,
-`grafana`, `influxdb`, `keenetic-grafana-monitoring`, `prometheus`. Group AppProject is
-`observability`; the app-of-apps (`bootstrap.yaml`) stays in `default` so it can
-create that project (see the root `README.md` for the general app-of-apps
-model).
+Metrics / logs apps for the cluster: `blackbox-exporter`, `claude-status`,
+`cloud-billing`, `grafana`, `influxdb`, `keenetic-grafana-monitoring`,
+`otel-collector`, `prometheus`. Group AppProject is `observability`; the
+app-of-apps (`bootstrap.yaml`) stays in `default` so it can create that project
+(see the root `README.md` for the general app-of-apps model).
 
-`cloud-billing/` is the one directory here holding more than one Application: it
-ships the AWS and GCP exporters that feed cloud resource + spend metrics into
-`prometheus`. See [`cloud-billing/README.md`](cloud-billing/README.md).
+Three directories here hold more than one `Application`:
+
+- `cloud-billing/` — the AWS and GCP exporters feeding cloud resource + spend
+  metrics into `prometheus` (the AWS one is currently `.disabled`). See
+  [`cloud-billing/README.md`](cloud-billing/README.md).
+- `grafana/` — the app plus `application-db.yaml`, its CloudNativePG cluster.
+- `influxdb/` — the app plus `application-databases.yaml`, the CronJob that
+  reconciles the databases themselves.
 
 `blackbox-exporter/` is a de-facto Prometheus sidecar: it runs in the
 `prometheus` namespace (so `project: default`, like `prometheus` itself — that
@@ -45,6 +50,16 @@ kubectl apply -f observability/cloud-billing/application-stackdriver-exporter.ya
 `cloud-billing/stackdriver-exporter` is in `project: observability` (its
 namespace is whitelisted) and is held back only until the GCP project exists —
 see its README.
+
+## The `include` glob also picks up `configmap*.yaml`
+
+[`bootstrap.yaml`](bootstrap.yaml)'s `include` is
+`'{project.yaml,*/application*.yaml,*/configmap*.yaml}'` — wider than the other
+groups'. The `configmap*.yaml` entry exists for apps that need a mounted script
+rather than a custom image; today that is only
+[`claude-status`](claude-status/README.md), whose exporter is carried in a
+ConfigMap. That file is **generated, not hand-written** — see
+[`claude-status/README.md`](claude-status/README.md) before touching it.
 
 ## Sync ordering
 

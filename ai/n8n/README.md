@@ -46,6 +46,10 @@ so do it manually here).
 - **Do NOT add `valuesObject` to the `helm:` block.** An empty
   `valuesObject` wins over `values`, and the chart silently renders its
   defaults (no worker/webhook/db tiers).
+- `main.resources.requests.cpu` is `250m`, trimmed from `700m`: measured idle
+  draw is ~43m, so the old request reserved most of a core for nothing and
+  distorted scheduling on this cluster. Burst capacity is unaffected — the
+  `1500m` limit still allows it. Trim the request, not the limit.
 
 ## Postgres storage (hostPath on kube-master) — RETIRED
 

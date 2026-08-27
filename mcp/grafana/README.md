@@ -27,8 +27,18 @@ bjw-s `app-template` chart (same pattern as `basic-memory`).
   admin creds from the `grafana` secret. Store BOM-safe
   (`printf '%s' "$token" > f; kubectl create secret --from-file=...=f`) — Git
   Bash pipes corrupt the value to UTF-16LE otherwise.
-- **`nodeSelector: kube-worker-3`** — co-located with the Grafana pod (also on
-  worker-3), which has the free CPU/mem headroom (the 1 GB workers do not).
+- **`nodeSelector: kube-worker-3`** — picked for the free CPU/memory headroom;
+  the 1 GB workers (`kube-worker-1`, `kube-worker-2`) do not have it.
+
+  This used to say "co-located with the Grafana pod (also on worker-3)". **That
+  is no longer true** — Grafana now sits on `kube-master`: its own PVC
+  (`grafana-local`) is node-bound there, and its CNPG database is on the static
+  `grafana-pg-local` class whose PV lives at `/var/lib/grafana-pg` on that node
+  (see
+  [`../../observability/grafana/README.md`](../../observability/grafana/README.md)).
+  Co-location was never load-bearing anyway: this server reaches Grafana through
+  the ClusterIP service, not over localhost, so the two can sit on different
+  nodes. Only the headroom argument still stands.
 - **Public path via the shared gateway.** The server is registered in
   `ai/litellm` `mcp_servers` (`http://grafana-mcp.mcp.svc.cluster.local:8000/mcp`)
   and surfaced at `dev.whitediver.keenetic.link/mcp/grafana` the same way as

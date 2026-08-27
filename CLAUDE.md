@@ -29,12 +29,21 @@ manifest rationale): comments *inside* an embedded script carried in a block
 scalar (`command: |` / `args: |` shell or Python), and non-comment `#` tokens
 in an embedded language (e.g. Lua's `#length` operator).
 
-Self-check before committing — list stray whole-line YAML comments:
+Self-check before committing — list stray YAML comments, both whole-line and
+trailing (`memory: 1Gi   # was 256Mi`, which the whole-line pattern misses):
 
 ```sh
 git ls-files '*.yaml' '*.yml' | grep -v secret \
-  | xargs grep -nE '^[[:space:]]*#' -- 2>/dev/null
+  | xargs grep -nE '(^[[:space:]]*#|[^[:space:]][[:space:]]+#[[:space:]])' -- 2>/dev/null
 ```
 
-Examples already converted: `observability/influxdb/`, `ai/litellm/` — the
-rationale lives in the sibling `README.md` and `application.yaml` is comment-free.
+It is a grep, not a YAML parser, so it also flags a `#` inside a quoted scalar
+(`summary: "cpu # throttled"`). Read every hit — a hit is a violation, one of the
+carve-outs above, or a quoted `#`. The test is **where the `#` sits**, not which
+file it is in: inside
+an embedded `command:`/`args:` block scalar it is program source and stays;
+anywhere else in the YAML it is manifest rationale and belongs in a README.
+(At the time of writing the only hits were script comments in
+`ai/litellm/db/nim-sync-cronjob.yaml`, `observability/claude-status/configmap.yaml`,
+`ai/n8n/application.yaml` and `observability/influxdb/databases/cronjob.yaml` —
+useful as a sanity check, not as a closed list.)

@@ -35,8 +35,6 @@ spec:
                     secretKeyRef:
                       name: litellm-env-secret
                       key: NVIDIA_NIM_API_BASE
-                # Same reason as the proxy env on the litellm Deployment: NVIDIA 451s this
-                # ISP's IP. Only https:// is proxied, so LL (http://litellm:4000) stays direct.
                 - name: HTTPS_PROXY
                   value: "http://wg-vless-gateway-proxy.vpn.svc.cluster.local:1080"
               command: ["python3", "-c"]

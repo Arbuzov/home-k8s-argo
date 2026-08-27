@@ -6,10 +6,10 @@ self-hosted GitLab behind a corporate VPN over the shared
 [`openconnect-gateway`](../../networking/openconnect-gateway/).
 
 > **Employer-specific routing is not in git.** The real GitLab URL, the
-> VPN subnet, and the `/etc/hosts` pin live only in out-of-band Secrets and a
-> local overlay (this app is held back from the app-of-apps and applied
-> push-based — see **Out-of-band routing** below). The committed manifest
-> carries placeholders only.
+> VPN subnet, and the `/etc/hosts` pin live only in out-of-band Secrets and in
+> the live `Application` itself (this app is held back from the app-of-apps and
+> applied push-based — see **Out-of-band routing** below). The committed
+> manifest carries placeholders only.
 
 ## Image & auth (2.1.x: remote-auth + stateless + token-injector)
 
@@ -56,8 +56,8 @@ run its own OpenConnect tunnel — it routes the corp subnet through the shared
 
 The self-hosted GitLab exists **only in corp DNS**, which neither cluster DNS nor
 the sidecar's resolver can reach — so the pod pins the hostname to its corp-VPN IP
-via `hostAliases`. That mapping is employer-specific, so it lives in the local
-overlay (below), not in git.
+via `hostAliases`. That mapping is employer-specific, so it lives only in the
+live `Application` (below), not in git.
 
 > **Lesson learned — pick the right tunnel group:** the corp VPN concentrator
 > exposed several tunnel groups; only one actually passed traffic. The others
@@ -70,15 +70,49 @@ overlay (below), not in git.
 
 Because the corp GitLab URL and `hostAliases` are employer-specific, this app is
 **excluded** from the `mcp` app-of-apps and applied directly, like the
-`networking/` apps:
+`networking/` apps. The committed `application.yaml` is a placeholder template
+with `hostAliases: []`; the live `Application` carries the real block.
+
+To change anything here, apply the committed manifest **merged with the live
+`hostAliases`** — read the live copy first, never apply `application.yaml` as-is:
 
 ```sh
-kubectl apply -f mcp/gitlab/application.local.yaml
+kubectl -n argo-cd get application mcp-gitlab -o yaml   # read the live hostAliases
+# merge your change with that block, then apply the merged manifest
 ```
 
-`application.local.yaml` is your real manifest (gitignored): it adds the
-`hostAliases` block pinning the corp hostname to its VPN IP. The committed
-`application.yaml` is a placeholder template with `hostAliases: []`.
+**Historical note.** This used to be an `application.local.yaml` overlay — a
+gitignored real manifest applied directly, with `*.local.yaml` excluded by
+`.gitignore`. That mechanism is retired (see the root
+[`README.md`](../../README.md)) and no such file exists in this tree any more;
+`.gitignore` still excludes the pattern as a safety net.
+
+> **`hostAliases: []` in git is a scrubbed placeholder — never let Argo sync it.**
+> The live Application carries a real entry mapping the upstream GitLab host to
+> its VPN-side address. Without that entry the pod cannot resolve the host **at
+> all** (cluster DNS has no record for it) and every call fails with
+> `ENOTFOUND`. That is precisely why
+> [`mcp/bootstrap.yaml`](../bootstrap.yaml) lists this file in its `exclude`
+> glob: syncing it would overwrite the real entry with this empty list and take
+> the server down instantly.
+>
+> So: apply changes to this file **out-of-band, merged with the live
+> `hostAliases`** — never by removing the `exclude`. To read what is live:
+> `kubectl -n argo-cd get application mcp-gitlab -o yaml`.
+
+## Ingress timeouts — 600s, not nginx's 60s default
+
+```yaml
+nginx.ingress.kubernetes.io/proxy-read-timeout: "600"
+nginx.ingress.kubernetes.io/proxy-send-timeout: "600"
+```
+
+The upstream GitLab is reached over the openconnect tunnel, so broad queries —
+`list_merge_requests` with no `project_id`, `get_merge_request` on a large MR —
+routinely run past nginx's 60s default and get cut mid-flight. The client sees
+only *"operation timed out"*, which reads as a dead server rather than a
+truncated response. 600s is the same window the litellm ingress already uses
+(see [`../../ai/litellm/README.md`](../../ai/litellm/README.md)).
 
 ## Required out-of-band secrets
 

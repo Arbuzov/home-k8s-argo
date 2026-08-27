@@ -125,7 +125,9 @@ rather than sit `Pending`.
 
 The image-cache argument for the pin no longer holds: all four nodes reach
 `registry.k8s.io` (checked 2026-07-25 — the "worker-3 can't reach
-registry.k8s.io" note in `../metrics-server/application.yaml` is stale).
+registry.k8s.io" claim is stale; it now lives in
+[`../metrics-server/README.md`](../metrics-server/README.md), marked as such,
+and `metrics-server`'s own `nodeSelector` is a leftover awaiting removal).
 
 Pod *placement* no longer matters for traffic: the Service is a
 `LoadBalancer` with `externalIPs: [192.168.99.44]`, so packets arrive at

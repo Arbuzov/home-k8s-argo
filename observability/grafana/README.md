@@ -13,60 +13,93 @@ Pinned to `10.5.14` (Grafana 12.3.1). Only the very latest `10.5.15` carries
 newest *non-deprecated* release is pinned — one below the deprecated tip. Bump
 `targetRevision` to move it.
 
-## Dashboards
+## Dashboards — not provisioned from git
 
-Provisioned via the chart's `dashboardProviders` + `dashboards` values (file
-provider at `/var/lib/grafana/dashboards/default`, mounted from a ConfigMap — not
-the PVC). The chart's `download-dashboards` init container fetches each `gnetId`
-from grafana.com at pod start, so adding one is a three-line entry, not a JSON
-blob in git.
+There is **no** dashboard file-provisioning and **no** `gnetId` download. The
+dashboards live in Grafana's own database and are edited through the UI or the
+Grafana MCP server.
 
-Currently provisioned:
+The `dashboardProviders` entry was removed deliberately, not by accident: a file
+provider treats git as the source of truth and **deletes** dashboards it does
+not know about, which would wipe the set restored into `grafana.db`. Dropping it
+also stops the chart from rendering the `download-dashboards` init container,
+which used to hang on `curl` to grafana.com and block pod start on this
+connection. Don't re-add either without moving the dashboards into git first.
 
-- **`argo-cd`** — `gnetId: 14584` rev 1, the official Argo CD dashboard
-  (`argocd_*` metrics). `datasource: Prometheus` matches the manually-added
-  Prometheus datasource by **name** (the init container substitutes the
-  `DS_PROMETHEUS` input with that string), so no datasource is provisioned in
-  git — the existing one is reused.
+Dashboards still depend on the metrics existing — the sibling `prometheus` app
+carries the `argo-cd` scrape job, see
+[`../prometheus/README.md`](../prometheus/README.md). Without it the panels
+render but read **No data**.
 
-Requires the metrics to exist: the sibling `prometheus` app has an `argo-cd`
-scrape job — see [`../prometheus/README.md`](../prometheus/README.md). Without
-it the panels render but read **No data**.
+## Storage — database on CNPG Postgres, `grafana.db` gone
 
-Add more by appending another `gnetId`/`revision`/`datasource` entry under
-`dashboards.default`. Trade-off: `gnetId` is a **runtime dependency on
-grafana.com reachability at pod start** — if it's unreachable the init container
-fails and blocks the pod. Acceptable here (the cluster already pulls charts over
-the internet); pin the JSON inline instead if that ever becomes a problem.
+Grafana's backing store is the **CloudNativePG** cluster `grafana-pg`
+(`grafana-pg-rw:5432`, `ssl_mode: require`), deployed by the sibling
+[`application-db.yaml`](application-db.yaml). That Application also runs in
+`project: default` for the same reason this one does — ns `grafana` is not in
+the `observability` AppProject's `destinations` — and it syncs the CNPG
+`Cluster`, its local PV, and the backup `CronJob` from [`db/`](db/).
 
-## Storage
+Postgres rather than SQLite for two reasons: it is consistent with
+litellm / n8n / vikunja, and it gives real concurrent access. SQLite kept hitting
+`database is locked` — with unified storage and `ngalert` both writing, one
+SQLite lock is a single point of contention, and users saw it as `503` on
+`/login`. On Postgres those concurrent writers no longer collide, which is why
+alerting is left **on** at the chart default.
 
-Dynamic PVC on the base `smb` StorageClass (`smb.csi.k8s.io`, CIFS). The mount
-forces `uid=999,gid=999` (`file_mode=0600`, `nobrl`, `cache=none` — covers
-SQLite over CIFS), so:
+The password is **not in git**: it comes from the `grafana-pg-app` Secret via
+`GF_DATABASE_PASSWORD` (`envValueFrom`), so it never reaches the rendered
+`grafana.ini` ConfigMap.
 
-- `securityContext` runs the pod as **999** (`runAsUser`/`runAsGroup`/`fsGroup`)
-  so Grafana can read/write its data dir.
-- `initChownData` is **disabled** — chown is a no-op / fails on CIFS (ownership
-  is fixed by the mount), so the init step would only error.
-- `deploymentStrategy: Recreate` because the volume is **RWO** — two pods can't
-  mount it at once during a rollout.
+Two different volumes are involved, and it is worth keeping them apart:
 
-Was on a dedicated `smb-grafana` StorageClass until 2026-06-06, when the base
-`smb` class got the same options and the dedicated class was retired to reduce
-sprawl. The subDir template `pvc-${ns}-${name}` is identical, so the data folder
-on the share is reused as-is.
+- **The database** lives on StorageClass **`grafana-pg-local`** — a static
+  `no-provisioner` class defined in [`db/storage.yaml`](db/storage.yaml), with PV
+  `grafana-pg-local-1` at `/var/lib/grafana-pg` on **`kube-master`**,
+  `Retain`. Same pattern as `litellm-pg-local` and `vikunja-pg-local`, and for
+  the same reason: the cluster's own `local-path` class is unusable for this
+  (exfat/tmpfs). Its `nodeAffinity` is what pins the CNPG pod to `kube-master`.
+- **Grafana's own PVC** is `persistence.existingClaim: grafana-local` — kept for
+  plugins and file state, created out-of-band (it is not defined in this repo)
+  and pre-seeded from a backup of the old database (13 dashboards /
+  3 datasources / 6 alerts). It is node-bound too, so volume affinity pins the
+  Grafana pod alongside.
 
-> Originally migrated from a hostPath PV (`/srv/kubernetes/grafana` on
-> kube-master) to SMB; dashboards/datasources from the old deployment were
-> **not** carried over (fresh `grafana.db`).
+Backups go to a separate PVC on **`smb-pgbackup`**
+([`db/backup.yaml`](db/backup.yaml)): a nightly 03:30 `pg_dump` into the shared
+`postgres-backups/` tree, same arrangement as `ai/litellm` and `ai/n8n`. That
+StorageClass is defined in `ai/n8n` (first mover), so this is a cross-app
+dependency — n8n has to be deployed for the backup PVC to bind.
+
+`initChownData` stays **disabled** and `deploymentStrategy: Recreate` stays set:
+the volume is RWO, so two pods cannot mount it during a rollout.
+
+> **History.** Originally a hostPath PV (`/srv/kubernetes/grafana` on
+> kube-master) → SMB (`smb-grafana`, then the base `smb` class from 2026-06-06)
+> → node-local storage + CNPG Postgres. The move off SMB is what removed the
+> CIFS locks that made Grafana crash and flicker. Don't move the database back
+> onto CIFS.
 
 ## Startup probes
 
-`livenessProbe`/`readinessProbe` are given long `initialDelaySeconds` (90 / 30)
-and high `failureThreshold`. The chart defaults (readiness `initialDelay=0s`,
-`timeout=1s`, `failure=3`) kill the pod mid-startup on this Pi cluster — plugin
-registration alone can take 50–60s per plugin under CPU/SMB-I/O contention.
+The chart at `10.5.14` does **not** render a `startupProbe`, so the whole
+slow-start allowance has to live in `livenessProbe`:
+`initialDelaySeconds: 180` + `failureThreshold: 20` × `periodSeconds: 15`
+≈ 480s. Grafana 12 on ARM needs it — plugin registration plus unified-storage
+init runs long, and at the previous ~240s budget liveness killed the pod
+mid-start, into a crash loop.
+
+Two settings exist purely to keep that start inside the budget, and both are
+about **not reaching grafana.com at boot**:
+
+- `GF_PLUGINS_PREINSTALL_DISABLED: "true"` — stops the bundled drilldown apps
+  (`exploretraces`, `lokiexplore`, `pyroscope`, `metricsdrilldown`) from being
+  pre-installed. Each one is a ~100s download on this line, and none of the
+  dashboards use them.
+- `analytics.check_for_plugin_updates: false` — the update check costs ~30s
+  *per plugin* here.
+
+If you ever re-enable either, raise the liveness budget in the same commit.
 
 ## Access / OAuth
 

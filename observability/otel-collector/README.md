@@ -70,7 +70,50 @@ cd C:\Users\info\Documents\git\claude-observability
 `prometheus_tsdb_head_series`.
 
 `metric_expiration: 24h` в экспортере подчищает серии, которые перестали
-обновляться.
+обновляться: метрика исчезает, если её не обновляли сутки, иначе серии мёртвых
+сессий висят вечно.
+
+## Почему `project: default`
+
+Не `observability`: в `sourceRepos` того AppProject'а нет
+`open-telemetry.github.io`, так что дочернее `Application` было бы отклонено.
+То же самое у `grafana`, `prometheus` и `claude-status` в этой же папке.
+
+## Что выключено в чарте
+
+`presets`: `logsCollection`, `kubernetesAttributes`, `hostMetrics`,
+`kubeletMetrics` — все `false`. По умолчанию чарт тянет сбор логов и метрик
+хоста; здесь нужен **только** приём OTLP от Claude Code с воркстейшна, всё
+остальное — лишняя нагрузка на Pi и лишняя кардинальность. Приёмники
+`jaeger`/`zipkin`/`prometheus` и пайплайны `traces`/`logs` занулены по той же
+причине.
+
+## `attributes/scrub` — `user.email` удаляется
+
+При OAuth-логине Claude Code кладёт `user.email` в атрибуты. Пользователь один,
+поэтому как лейбл он бесполезен, а PII в TSDB — лишний. Процессор
+`attributes/scrub` удаляет ключ до экспорта; он стоит в пайплайне между
+`memory_limiter` и `batch`, то есть до того, как что-либо уедет в Prometheus.
+
+## Ingress — путь на общем `dev.*`, а не свой хост
+
+Ingress живёт как **path** на общем `dev.whitediver.keenetic.link`, а не на
+отдельном `otel.*`. Так устроен весь homelab, и у `dev.*` уже есть и рабочий
+внешний роутинг, и TLS-сертификат. Отдельный хост потребовал бы:
+
+- своего сертификата — его нигде не было, nginx отдавал дефолтный;
+- записи на внешнем прокси — её нет, оттуда прилетал 404.
+
+`tls`-блок здесь **не нужен**: nginx мержит все ingress'ы одного хоста в один
+`server`, и сертификат `dev.*` приезжает от соседей (prometheus / grafana / …).
+
+Rewrite: `/otel(/|$)(.*)` → `/$2`, то есть `/otel/v1/metrics` → `/v1/metrics`.
+OTLP сам дописывает `/v1/metrics` к `OTEL_EXPORTER_OTLP_ENDPOINT`, поэтому на
+воркстейшне в endpoint'е указывается только `.../otel`.
+
+Basic-auth берётся из секрета `mcp-basic-auth`, и он **обязан лежать в этом же
+namespace** — nginx не читает секреты из чужих. Без него локация отдаёт **503**,
+а не 401, что при отладке читается как «сломался backend», а не «нет секрета».
 
 ## Связанное
 

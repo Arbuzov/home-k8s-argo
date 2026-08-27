@@ -117,7 +117,7 @@ spec:
           resources:
             requests:
               memory: "512Mi"
-              cpu: "250m"   # was 700m; actual idle ~43m, burst still allowed via 1500m limit
+              cpu: "250m"
             limits:
               memory: "1536Mi"
               cpu: "1500m"

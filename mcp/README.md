@@ -13,9 +13,12 @@ everything under `mcp/` automatically.
 | [`bootstrap.yaml`](bootstrap.yaml) | `Application` | The **app-of-apps** — deploys `project.yaml` + every child app |
 | `<service>/application*.yaml` | `Application` | One MCP server each (`project: mcp`) |
 
-Services: `atlassian` (Jira + Confluence), `basic-memory`, `gitlab`,
-`graphiti`, `homeassistant`, `kubernetes`, `mcpo`. Each has its own
-`README.md` for the out-of-band Secrets it expects.
+Services: `atlassian` (Jira + Confluence), `basic-memory`, `gitlab`, `grafana`,
+`graphiti`, `homeassistant`, `kubernetes`, `mcpo`. Each has its own `README.md`
+for the out-of-band Secrets it expects.
+
+[`mcp-gateway/`](mcp-gateway/) is not a server — it is the shared Ingress that
+fronts several of them at `/mcp/*`.
 
 The `mcp` AppProject's `sourceRepos` whitelists the chart sources the child
 Applications pull from — the `https://arbuzov.github.io/mcp-helm/` and
@@ -30,7 +33,7 @@ repo is private with no Pages; see [`kubernetes/README.md`](kubernetes/README.md
 ## How it deploys (app-of-apps)
 
 - [`bootstrap.yaml`](bootstrap.yaml) is the app-of-apps. Its source is this repo on
-  GitHub over **SSH** (`https://github.com/Arbuzov/home-k8s-argo.git`,
+  GitHub over **HTTPS** (`https://github.com/Arbuzov/home-k8s-argo.git`,
   branch `main`), path `mcp`, with `directory.recurse` + an `include` glob
   that picks up `project.yaml` and every `*/application*.yaml` — but **not**
   `bootstrap.yaml` itself, so the app-of-apps never manages itself.
@@ -49,9 +52,10 @@ kubectl apply -f mcp/bootstrap.yaml
 ```
 
 From then on Argo CD keeps the `mcp` project and all child apps in sync from
-git — no further manual `apply` is needed for this group. (Register the SSH
-deploy key as a repo credential in Argo CD first — SSH needs a key even for a
-public repo, and GitHub HTTPS is DPI-blocked on this network.)
+git — no further manual `apply` is needed for this group. (No repo credential is
+strictly required: the sync uses the public HTTPS URL — see the root
+[`README.md`](../README.md) for why the old "SSH deploy key, HTTPS is
+DPI-blocked" instruction no longer matches what the manifests do.)
 
 Create each service's Secrets (see its `README.md`) before its first sync.
 
@@ -88,15 +92,31 @@ List several to disable more at once:
 ### Currently excluded
 
 `graphiti`, `homeassistant`, and `gitlab` are held back in the `exclude` glob.
+
+The three are not excluded for the same reason, and it matters which:
+
+> **`gitlab` is a permanent exclusion, not a pending one.** Its committed
+> manifest carries a value scrubbed for this public repo — `hostAliases: []` in
+> place of the corp-DNS pin. The live Application is applied out-of-band and is
+> deliberately left **unmanaged** here: letting Argo sync this file overwrites
+> the real entry with the empty list, and the pod instantly loses DNS for the
+> upstream host. Removing `gitlab` from `exclude` is an outage, not an
+> enablement — see [`gitlab/README.md`](gitlab/README.md).
+
+`graphiti` and `homeassistant` carry no scrubbed values; they are held back only
+until they work under Argo CD, and are enabled the ordinary way — by removing
+them from the glob.
+
 `homeassistant` uses an `mcp-helm` chart that currently runs the server in
 **stdio** mode, which crashloops under Argo CD — it needs a stdio→SSE (HTTP)
 bridge before it can be enabled. `graphiti` is a different chart (`bjw-s`
 `app-template`, a neo4j-backed server) and is held back separately. `gitlab` is
 held back on purpose: its committed manifest is a placeholder (`hostAliases: []`)
-because the corp-DNS pin is employer-specific, so it is applied **push-based**
-from a gitignored `gitlab/application.local.yaml` overlay — see
-[`gitlab/README.md`](gitlab/README.md). Remove each from `exclude` once it's
-ready to deploy.
+because the corp-DNS pin is employer-specific, so it is applied **push-based**,
+out-of-band, merged with the live `hostAliases` — see
+[`gitlab/README.md`](gitlab/README.md). Remove `graphiti` and `homeassistant`
+from `exclude` once they're ready to deploy; `gitlab` is a permanent exclusion,
+not a pending one.
 
 `kubernetes` **is now enabled**: it was previously held back for the same
 stdio-crashloop reason, but its chart was rebuilt to run a real HTTP server

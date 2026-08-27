@@ -14,11 +14,6 @@ spec:
         server:
           statefulSet:
             enabled: false
-          # Было false. Без PV вся история теряется при каждом рестарте пода.
-          # Для метрик кластера терпимо, для лимитов Claude — нет:
-          # deriv(...{window="seven_day"}[6h]) требует 6ч истории, а проверка
-          # гипотезы про 72-часовой сброс — ~11 дней подряд.
-          # local-path привязывает под к ноде — он и так на одной.
           persistentVolume:
             enabled: true
             size: 8Gi
@@ -39,18 +34,12 @@ spec:
           baseURL: /prometheus
           prefixURL: /prometheus
           resources:
-            # CPU 150m душил Prometheus во время WAL-replay/компакции на Pi → /-/ready
-            # не проходил → endpoints пусты → Grafana не достаёт датасорс. Даём burst
-            # по CPU и запас памяти на реплей (cadvisor уже сужен до vpn, так что OOM нет).
             limits:
               cpu: "1"
               memory: 1Gi
             requests:
               cpu: 200m
               memory: 768Mi
-          # Секретные probe-таргеты каскада (реальные IP) — вне публичного репо,
-          # в gitignored секрете blackbox-targets (ns prometheus). Сырой volume/mount
-          # (не extraSecretMounts — тот кривит Deployment под ArgoCD SSA).
           extraVolumes:
             - name: blackbox-targets
               secret:
@@ -65,11 +54,6 @@ spec:
           ingressClassName: "nginx"
         forceNamespace: "prometheus"
         extraScrapeConfigs: |
-          # job claude-usage удалён 2026-07-19 вместе со слоем лимитов:
-          # /api/oauth/usage требует скоуп user:profile, а токена с ним взять
-          # неоткуда (setup-token его не даёт, .credentials.json больше не
-          # обновляется). Экспортер и правила сохранены в репозитории
-          # claude-observability — вернуть, если способ появится.
           - job_name: cloudnative-pg
             kubernetes_sd_configs:
               - role: pod
@@ -104,17 +88,6 @@ spec:
               - source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_component]
                 target_label: component
           - job_name: ingress-nginx
-            # HTTP-телеметрия всего, что ходит через ingress: коды ответов, размер
-            # ответа, латентность, срок жизни TLS. Питает дашборд MCP Fleet Health.
-            # Сервис метрик НЕ аннотирован prometheus.io/scrape намеренно (см.
-            # ../../platform/nginx/application.yaml): дефолтный job
-            # kubernetes-service-endpoints не даёт metric_relabel_configs, а на Pi
-            # нужен keep-лист. Отсюда — свой job.
-            #
-            # ВАЖНО: namespace/pod из SD сюда НЕ навешиваем. У самих метрик уже есть
-            # namespace и ingress, и это ns ingress-РЕСУРСА (mcp, litellm, ...), а не
-            # контроллера. Target-лейбл с тем же именем увёл бы их в
-            # exported_namespace и сломал бы фильтр {namespace="mcp"} во всех панелях.
             kubernetes_sd_configs:
               - role: endpoints
                 namespaces:
@@ -124,18 +97,10 @@ spec:
                 regex: nginx-ingress-nginx-controller-metrics
                 action: keep
             metric_relabel_configs:
-              # Только те семейства, на которых реально построены панели. Самое
-              # дорогое здесь — request_duration_seconds_bucket (12 бакетов на
-              # комбинацию host/path/method/status); при 16 ingress'ах это терпимо,
-              # но именно его надо убрать первым, если TSDB начнёт пухнуть.
               - source_labels: [__name__]
                 regex: nginx_ingress_controller_(requests|response_size_sum|response_size_count|request_duration_seconds_bucket|request_duration_seconds_count|ssl_expire_time_seconds)
                 action: keep
           - job_name: blackbox-cascade
-            # L4-проба хопов VPN-каскада (home→RU relay→GCP REALITY). Реальные IP —
-            # НЕ здесь (репо публичный), а в gitignored секрете blackbox-targets
-            # (ns prometheus), примонтированном ниже как file_sd. Лейбл hop/leg
-            # приезжает из секрета; file_sd watched → правка IP без рестарта Prometheus.
             metrics_path: /probe
             params:
               module: [tcp_connect]
@@ -150,20 +115,6 @@ spec:
               - target_label: __address__
                 replacement: blackbox-exporter.prometheus.svc:9115
           - job_name: blackbox-mcp
-            # Активная проба живости MCP-серверов. Закрывает слепую зону, из-за
-            # которой сэндбоксная борда не умеет отличать «сервер здоров» от
-            # «сервером просто никто не пользовался»: там всё построено на трафике,
-            # который клиенты и так шлют, и молчащий сервер неотличим от рабочего.
-            #
-            # Бьём в ClusterIP сервисов НАПРЯМУЮ, а не через ingress по публичному
-            # имени: hairpin-NAT на Keenetic из кластера ненадёжен, и проба ловила бы
-            # маршрутизацию роутера вместо состояния сервера. Побочная выгода — так
-            # видно и codex, у которого ingress'а нет вовсе.
-            # Обратная сторона, которую надо помнить: путь router → ingress →
-            # oathkeeper эта проба НЕ проверяет. Его закрывает job ingress-nginx.
-            #
-            # openconnect-gateway сюда не входит: headless-сервис и VPN-шлюз, а не
-            # HTTP-эндпоинт — HTTP-проба по нему давала бы вечный красный.
             metrics_path: /probe
             params:
               module: [mcp_http]
@@ -194,13 +145,6 @@ spec:
               - target_label: __address__
                 replacement: blackbox-exporter.prometheus.svc:9115
           - job_name: kubelet
-            # Контейнерные метрики (CPU/throttle/mem) через cadvisor kubelet'а. Дефолтные
-            # kubernetes-nodes(-cadvisor) джобы up=0: kubelet serving-cert не подписан
-            # кластерным CA, а они верят ему через ca_file. Здесь — прямой :10250 c
-            # insecure_skip_verify. job=kubelet + metrics_path=/metrics/cadvisor —
-            # так метрики совпадают с запросами дашбордов kube-prometheus-стиля (CNPG).
-            # Кардинальность: keep только нужные семейства И только vpn+CNPG namespaces
-            # (не кластер-wide — иначе OOM 768Mi, как уже было).
             scheme: https
             metrics_path: /metrics/cadvisor
             tls_config:
@@ -221,9 +165,6 @@ spec:
                 regex: vpn|n8n|litellm|vikunja
                 action: keep
           - job_name: kubelet-stats
-            # Собственные метрики kubelet (/metrics) — нужны только kubelet_volume_stats_*
-            # для панелей Volume Space. Прямой :10250 insecure, keep только volume-stats
-            # (низкая кардинальность — по одному PVC на под).
             scheme: https
             metrics_path: /metrics
             tls_config:
@@ -238,20 +179,12 @@ spec:
               - source_labels: [__name__]
                 regex: kubelet_volume_stats_.*
                 action: keep
-        # Источник: claude-observability/deploy/rules/claude.rules.yaml.
-        # Дубль вынужденный: без prometheus-operator нет PrometheusRule CRD,
-        # чарт берёт правила только из serverFiles.
         serverFiles:
           recording_rules.yml:
             groups:
-              # Группа claude-forecast удалена 2026-07-19 вместе со слоем лимитов:
-              # без claude_limit_* она всё равно пустая. Сами правила сохранены в
-              # claude-observability/deploy/rules/claude.rules.yaml.
               - name: kube-cadvisor
                 interval: 1m
                 rules:
-                  # Питает панель "CPU Utilisation" дашбордов kube-prometheus-стиля (CNPG):
-                  # recording-rule из cadvisor (job=kubelet), которой в этом Prometheus нет.
                   - record: node_namespace_pod_container:container_cpu_usage_seconds_total:sum_irate
                     expr: |
                       sum by (namespace, pod, container) (
@@ -259,9 +192,6 @@ spec:
                       )
           alerting_rules.yml:
             groups:
-              # Группа claude-limits удалена 2026-07-19: слой лимитов заблокирован
-              # (нужен скоуп user:profile, см. комментарий у extraScrapeConfigs).
-              # ClaudeUsageScrapeFailing иначе горел бы вечно и неразрешимо.
               - name: claude-service
                 interval: 1m
                 rules:

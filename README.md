@@ -87,19 +87,35 @@ Two delivery models live side by side:
 
 ### App-of-apps groups — pull-based GitOps
 
-`apps/`, `media/`, `mcp/`, `networking/`, `platform/` and `storage/` each ship a
-`bootstrap.yaml` app-of-apps that points Argo CD at this repo on GitHub over
-**SSH** (`https://github.com/Arbuzov/home-k8s-argo.git` — SSH/port 22, since GitHub
-HTTPS is DPI-filtered on this network) and reconciles that group's `AppProject` (`<group>/project.yaml`, where
-the group has one — `media/` and `storage/` have none, so their children stay
-in `default`) plus every enabled child `Application` automatically. Bootstrap
-each once, after the repo is pushed to GitHub:
+**Every** group ships a `bootstrap.yaml` app-of-apps — `ai/`, `apps/`, `mcp/`,
+`media/`, `networking/`, `observability/`, `platform/`, `storage/`. Each points
+Argo CD at this repo on GitHub over **HTTPS**
+(`https://github.com/Arbuzov/home-k8s-argo.git`) and reconciles that group's
+`AppProject`
+(`<group>/project.yaml`) plus every enabled child `Application` automatically.
+`storage/` is the only group with **no** `AppProject`, so its children stay in
+`default`.
+
+> **On the repo URL.** All eight `bootstrap.yaml` files use the `https://` form,
+> and the Argo repo credential for this repo (`repo-home-k8s-argo`, out-of-band)
+> is a plain `type: git` entry on that same HTTPS URL carrying **no**
+> `sshPrivateKey`, username or password — it needs none, the repo is public.
+> These docs used to claim the sync runs over SSH on port 22 because GitHub
+> HTTPS was DPI-filtered here; nothing in the repo reflects that any more.
+> Your **workstation** `git remote` is still SSH (`git@github.com:…`) — that is
+> a separate path from what Argo CD does in-cluster. If HTTPS is ever filtered
+> again, switching means changing the `repoURL` in all eight bootstraps *and*
+> the credential to the `git@github.com:` form, plus adding a deploy key.
+
+Bootstrap each once, after the repo is pushed to GitHub:
 
 ```sh
+kubectl apply -f ai/bootstrap.yaml
 kubectl apply -f apps/bootstrap.yaml
-kubectl apply -f media/bootstrap.yaml
 kubectl apply -f mcp/bootstrap.yaml
+kubectl apply -f media/bootstrap.yaml
 kubectl apply -f networking/bootstrap.yaml
+kubectl apply -f observability/bootstrap.yaml
 kubectl apply -f platform/bootstrap.yaml
 kubectl apply -f storage/bootstrap.yaml
 ```
@@ -107,19 +123,34 @@ kubectl apply -f storage/bootstrap.yaml
 From then on Argo CD watches `main`: edit a `<group>/<service>/application.yaml`,
 commit and push, and it syncs on its own (each app-of-apps runs `automated`
 sync with `prune` + `selfHeal`). The children belong to their group's
-AppProject (`project: apps` / `mcp` / `platform`); the app-of-apps itself stays
-in `default` so it can create that project. `media/` is the exception — it has
-no AppProject, so its children and its app-of-apps both stay in `default`. Each
-group's `README.md` documents which children are enabled vs. held back via the
-`bootstrap.yaml` `exclude` glob (`platform/` currently deploys only `argo-cd` +
-`arc-operator`; `media/` holds back `opds-shelf`; `networking/` deploys only
-`wg-vless-gateway`, holding back `openconnect-gateway` + `wstunnel`).
+AppProject (`project: apps` / `mcp` / `platform` / …); the app-of-apps itself
+stays in `default` so it can create that project. `storage/` is the exception —
+it has no AppProject, so its children and its app-of-apps both stay in
+`default`.
 
-### Everything else — push-based
+Each group's `README.md` documents which children are enabled vs. held back via
+the `bootstrap.yaml` `exclude` glob. Currently held back:
 
-The remaining groups, and any app-of-apps child held back by an `exclude`
-glob, are **not** watched by Argo CD. To deliver a change, apply the
-Application directly:
+| Group | Held back |
+| --- | --- |
+| `ai/` | — |
+| `apps/` | `heimdall`, `openclaw` |
+| `mcp/` | `graphiti`, `homeassistant`, `gitlab` |
+| `media/` | `jellyfin`, `photoprism` |
+| `networking/` | `openconnect-gateway`, `wstunnel` |
+| `observability/` | `influxdb`, `prometheus`, `cloud-billing/stackdriver-exporter` |
+| `platform/` | `kubernetes-dashboard`, `metrics-server` |
+| `storage/` | — |
+
+Everything else in each group is reconciled automatically. Read this table off
+the `exclude` globs, not from memory — it has drifted before.
+
+### Held-back children — push-based
+
+There are no longer any "remaining groups": all eight are app-of-apps. What
+stays push-based is the individual children held back by an `exclude` glob (the
+table above). Those are **not** watched by Argo CD, so to deliver a change,
+apply the Application directly:
 
 ```sh
 kubectl apply -f <group>/<service>/application.yaml
@@ -185,20 +216,44 @@ service's `README.md` has the concrete command):
 | `platform/argo-cd`      | `argocd-secret` (admin bcrypt, Google OIDC client ID/secret), `argocd-redis`     |
 | `platform/arc-operator` | `controller-manager` (GitHub PAT)                                                |
 | `ai/n8n`                | `n8n-secrets` (encryption key), `postgres-n8n` (DB creds)                        |
-| `ai/litellm`            | `litellm-masterkey` (proxy master key), `litellm-env-secret` (backend API keys, e.g. `NVIDIA_NIM_API_KEY`) |
+| `ai/litellm`            | `litellm-masterkey` (proxy master key), `litellm-env-secret` (backend API keys, e.g. `NVIDIA_NIM_API_KEY`), `litellm-copilot-token` (GitHub Copilot access token, mounted read-only) |
 | `apps/heimdall`         | `heimdall-postgres` (DB creds)                                                   |
 | `apps/homepage`         | `homepage-secrets` (Argo CD homepage token, Home Assistant LLAT), `homepage-bookmarks` (work-bookmark URLs `HOMEPAGE_VAR_WORK_*`) |
 | `apps/openclaw`         | `openclaw-env-secret`                                                            |
-| `apps/vikunja`          | `vikunja-oidc` (Google OIDC client ID/secret — shared with Argo CD)              |
+| `apps/vikunja`          | `vikunja-oidc` (Google OIDC client ID/secret — shared with Argo CD), `vikunja-db` (DB password). `vikunja-pg-app` is **generated by CNPG** — pre-create it only to pin a specific password (see below) |
 | `mcp/atlassian`         | `mcp-corp-config` (Jira/Confluence/GitLab URLs + VPN subnet, shared), `mcp-atlassian-{jira,confluence}-credentials`, `mcp-atlassian-vpn-credentials` |
-| `mcp/gitlab`            | `mcp-gitlab-credentials` (PAT), `mcp-gitlab-stateless`, `mcp-corp-config` (shared); held back — applied push-based from a gitignored overlay (see `mcp/gitlab/README.md`) |
+| `mcp/gitlab`            | `mcp-gitlab-credentials` (PAT), `mcp-gitlab-stateless`, `mcp-corp-config` (shared); held back — applied push-based out-of-band, merged with the live `hostAliases` (see `mcp/gitlab/README.md`) |
 | `mcp/graphiti`          | `graphiti-neo4j-auth`, `graphiti-mcp-secrets` (Neo4j + OpenAI)                   |
 | `mcp/mcpo`              | `mcpo-secrets` (`config.json` incl. Home Assistant LLAT)                         |
-| `media/photoprism`      | `photoprism-basic-auth` (htpasswd)                                               |
+| `media/photoprism`      | `photoprism-basic-auth` (htpasswd), `photoprism-oidc` (OIDC client + admin password) |
 | `media/opds-shelf`      | `opds-shelf-basic-auth` (htpasswd for `/opds`) — Google login is Calibre-Web native OAuth in `app.db`, not a Secret |
+| `mcp/grafana`           | `mcp-grafana-token` (Grafana service-account token) |
+| `networking/keenetic-operator` | `keenetic-operator-creds` (router SSH login, via `keenetic.existingSecret`) |
+| `observability/grafana` | `grafana-oauth` (Google OAuth `client_secret`). `grafana-pg-app` is **generated by CNPG** — pre-create it only to pin a specific password (see below) |
 | `observability/keenetic-grafana-monitoring` | `keenetic-grafana-monitoring-config` (influxdb) — `config.ini` (router pw + InfluxDB token) |
+| `observability/prometheus` | `blackbox-targets` (real cascade probe IPs — gitignored, `optional: true` so the pod starts without it) |
+| `platform/oathkeeper`   | `oathkeeper-rules` (access rules incl. the litellm key injection) |
 
-The remaining services have no secrets in their manifests.
+The remaining services have no secrets in their manifests. TLS Secrets
+(`chart-*-tls`, `dev.whitediver.keenetic.link-tls`) are not listed — they are
+issued for the ingress hosts, not credentials you create by hand.
+
+> **CNPG `<cluster>-app` secrets are not bootstrap prerequisites.** Every CNPG
+> `Cluster` here bootstraps with a bare `initdb` (`database` + `owner`, no
+> `secret:` reference), so the operator **generates** `litellm-pg-app`,
+> `n8n-pg-app`, `vikunja-pg-app` and `grafana-pg-app` itself on a fresh cluster —
+> you do not have to create them. Most apps then read the password from their
+> own separate Secret (`litellm-db`, `postgres-n8n`, `vikunja-db`).
+> **`observability/grafana` is the exception**: it reads
+> `GF_DATABASE_PASSWORD` straight out of `grafana-pg-app`, so whatever CNPG
+> generates is what Grafana uses — there is no second Secret to keep in sync.
+>
+> Pre-create a `<cluster>-app` Secret only when the password has to be a
+> *specific* value — which is exactly the migration case these services went
+> through: CNPG adopts an existing `<cluster>-app`, so seeding it with the old
+> password lets the role keep working against data that already exists. That is
+> why `ai/litellm` and `apps/vikunja` document it as an out-of-band step; on a
+> genuinely fresh cluster you can skip it.
 
 Cluster-wide shared Secrets that several Applications expect to find:
 
