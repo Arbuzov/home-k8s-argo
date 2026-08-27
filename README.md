@@ -189,12 +189,12 @@ service's `README.md` has the concrete command):
 | `apps/heimdall`         | `heimdall-postgres` (DB creds)                                                   |
 | `apps/homepage`         | `homepage-secrets` (Argo CD homepage token, Home Assistant LLAT), `homepage-bookmarks` (work-bookmark URLs `HOMEPAGE_VAR_WORK_*`) |
 | `apps/openclaw`         | `openclaw-env-secret`                                                            |
-| `apps/vikunja`          | `vikunja-oidc` (Google OIDC client ID/secret — shared with Argo CD)              |
+| `apps/vikunja`          | `vikunja-oidc` (Google OIDC client ID/secret — shared with Argo CD), `vikunja-db` + `vikunja-pg-app` (CNPG password, same value in both so the role adopts it) |
 | `mcp/atlassian`         | `mcp-corp-config` (Jira/Confluence/GitLab URLs + VPN subnet, shared), `mcp-atlassian-{jira,confluence}-credentials`, `mcp-atlassian-vpn-credentials` |
 | `mcp/gitlab`            | `mcp-gitlab-credentials` (PAT), `mcp-gitlab-stateless`, `mcp-corp-config` (shared); held back — applied push-based out-of-band, merged with the live `hostAliases` (see `mcp/gitlab/README.md`) |
 | `mcp/graphiti`          | `graphiti-neo4j-auth`, `graphiti-mcp-secrets` (Neo4j + OpenAI)                   |
 | `mcp/mcpo`              | `mcpo-secrets` (`config.json` incl. Home Assistant LLAT)                         |
-| `media/photoprism`      | `photoprism-basic-auth` (htpasswd)                                               |
+| `media/photoprism`      | `photoprism-basic-auth` (htpasswd), `photoprism-oidc` (OIDC client + admin password) |
 | `media/opds-shelf`      | `opds-shelf-basic-auth` (htpasswd for `/opds`) — Google login is Calibre-Web native OAuth in `app.db`, not a Secret |
 | `mcp/grafana`           | `mcp-grafana-token` (Grafana service-account token) |
 | `observability/grafana` | `grafana-oauth` (Google OAuth `client_secret`), `grafana-pg-app` (CNPG DB user/password) |
