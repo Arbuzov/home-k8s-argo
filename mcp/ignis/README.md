@@ -88,6 +88,21 @@ not replaying Basic-Auth credentials on the `wss://` upgrade — that is the kno
 of this auth choice, and the fix is a session-cookie proxy (oauth2-proxy / Authelia), not a
 change to Ignis.
 
+## Held at `replicas: 0` — start it deliberately
+
+The Application is committed with `replicas: 0`. `kube-master` went unresponsive minutes
+after the first sync (the router answered `502` for every cluster hostname while its own
+UI stayed up), and the first-start work described below is a plausible contributor: the
+`chown -R` walk hits the Samba server, which runs on `kube-master` — the CPU-saturated
+control-plane node — while the vault is 1.5 GB of many small files.
+
+That is a hypothesis, not a diagnosis; the node has its own history of instability. The
+zero replica count exists so a recovering cluster does not immediately restart the walk
+while it is still settling. Raise it to `1` once the node is healthy, and watch
+`kube-master` CPU during the first start. If the walk is the problem, the fix is to keep
+the tree out of `chown -R`'s path: mount the vault elsewhere and leave a symlink in
+`/vaults` (upstream supports it, and `chown -R` does not follow symlinks).
+
 ## Startup is slow the first time
 
 The entrypoint does three things before the server listens:
