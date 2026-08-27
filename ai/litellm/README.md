@@ -297,8 +297,8 @@ Two details that are easy to get wrong:
 - **`http://`, not `socks5://`.** xray's `:1080` answers HTTP `CONNECT`, and
   this image ships no `socksio`, so a `socks5://` URL raises `ImportError` at
   import time.
-- **Only `HTTPS_PROXY`, never `HTTP_PROXY`.** The `mcp_servers` below are plain
-  `http://` cluster URLs and must stay direct. `NO_PROXY` additionally exempts
+- **Only `HTTPS_PROXY`, never `HTTP_PROXY`.** All six `mcp_servers` below are
+  plain `http://` cluster URLs and must stay direct. `NO_PROXY` additionally exempts
   cluster DNS suffixes, the Postgres endpoint, and the two Copilot API hosts
   (`api.githubcopilot.com`, `api.github.com`) — Copilot is reachable directly
   and does not need the hop.
@@ -319,6 +319,8 @@ tools through its own MCP gateway at `/mcp`:
 | `confluence` | `http://mcp-atlassian-confluence.mcp.svc.cluster.local:8000/mcp/confluence` |
 | `gitlab` | `http://mcp-gitlab.mcp.svc.cluster.local:3002/mcp` |
 | `basic_memory` | `http://basic-memory.mcp.svc.cluster.local:8000/mcp/basic-memory` |
+| `kubernetes` | `http://mcp-kubernetes.mcp.svc.cluster.local:8080/mcp` |
+| `grafana` | `http://grafana-mcp.mcp.svc.cluster.local:8000/mcp` |
 
 `gitlab` differs: port `3002` (its token-injector sidecar adds the `Private-Token`)
 and the app serves at `/mcp` (its ingress rewrites `/mcp/gitlab`→`/mcp`), not
@@ -329,8 +331,10 @@ ClusterIP directly bypasses the ingress basic-auth (same as `mcpo` does), and
 `transport: http` matches the streamable-http those servers run with. `gitlab` is
 excluded from the `mcp` app-of-apps but is live (applied push-based out-of-band,
 merged with the live `hostAliases` — see
-[`mcp/gitlab/README.md`](../../mcp/gitlab/README.md)), so it's listed too. Skipped: `mcpo` (an MCP→OpenAPI proxy, not an MCP server) and
-`graphiti`/`homeassistant`/`kubernetes` (still held back in the `exclude` glob).
+[`mcp/gitlab/README.md`](../../mcp/gitlab/README.md)), so it's listed too.
+Skipped: `mcpo` (an MCP→OpenAPI proxy, not an MCP server) and
+`graphiti`/`homeassistant` (still held back in the `mcp` app-of-apps `exclude`
+glob — see [`mcp/README.md`](../../mcp/README.md)).
 Add a server here as it comes online — note the name key can't contain `-`
 (litellm rejects it; use `_`), even though the URL can.
 
