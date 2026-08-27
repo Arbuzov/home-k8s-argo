@@ -51,20 +51,34 @@ The password is **not in git**: it comes from the `grafana-pg-app` Secret via
 `GF_DATABASE_PASSWORD` (`envValueFrom`), so it never reaches the rendered
 `grafana.ini` ConfigMap.
 
-The PVC is still mounted (`persistence.existingClaim: grafana-local`) for
-plugins and file state, but it is now a **static `local-path` PVC pinned to
-`kube-master`**, not SMB. It was pre-seeded from a backup of the old database
-(13 dashboards / 3 datasources / 6 alerts), and because a `local-path` PV is
-bound to one node, volume affinity pins the pod to `kube-master` as a side
-effect.
+Two different volumes are involved, and it is worth keeping them apart:
+
+- **The database** lives on StorageClass **`grafana-pg-local`** — a static
+  `no-provisioner` class defined in [`db/storage.yaml`](db/storage.yaml), with PV
+  `grafana-pg-local-1` at `/var/lib/grafana-pg` on **`kube-master`**,
+  `Retain`. Same pattern as `litellm-pg-local` and `vikunja-pg-local`, and for
+  the same reason: the cluster's own `local-path` class is unusable for this
+  (exfat/tmpfs). Its `nodeAffinity` is what pins the CNPG pod to `kube-master`.
+- **Grafana's own PVC** is `persistence.existingClaim: grafana-local` — kept for
+  plugins and file state, created out-of-band (it is not defined in this repo)
+  and pre-seeded from a backup of the old database (13 dashboards /
+  3 datasources / 6 alerts). It is node-bound too, so volume affinity pins the
+  Grafana pod alongside.
+
+Backups go to a separate PVC on **`smb-pgbackup`**
+([`db/backup.yaml`](db/backup.yaml)): a nightly 03:30 `pg_dump` into the shared
+`postgres-backups/` tree, same arrangement as `ai/litellm` and `ai/n8n`. That
+StorageClass is defined in `ai/n8n` (first mover), so this is a cross-app
+dependency — n8n has to be deployed for the backup PVC to bind.
 
 `initChownData` stays **disabled** and `deploymentStrategy: Recreate` stays set:
 the volume is RWO, so two pods cannot mount it during a rollout.
 
 > **History.** Originally a hostPath PV (`/srv/kubernetes/grafana` on
 > kube-master) → SMB (`smb-grafana`, then the base `smb` class from 2026-06-06)
-> → local-path + CNPG Postgres. The move off SMB is what removed the CIFS locks
-> that made Grafana crash and flicker. Don't move the database back onto CIFS.
+> → node-local storage + CNPG Postgres. The move off SMB is what removed the
+> CIFS locks that made Grafana crash and flicker. Don't move the database back
+> onto CIFS.
 
 ## Startup probes
 
