@@ -4,7 +4,8 @@
 running as a real web app in the browser, pointed at the **basic-memory note tree** so the
 vault can be read (and edited) from a phone or laptop without a desktop Obsidian install.
 Single replica on `kube-worker-3`, at `notes.whitediver.keenetic.link` behind the shared
-`mcp-basic-auth` htpasswd.
+`mcp-basic-auth` htpasswd — currently held at
+[`replicas: 0`](#held-at-replicas-0--start-it-deliberately).
 
 Ignis is a shim that reimplements the Electron APIs Obsidian uses; the image ships **no**
 Obsidian code — it downloads Obsidian from the official release on first start (see
