@@ -59,11 +59,21 @@ Two different volumes are involved, and it is worth keeping them apart:
   `Retain`. Same pattern as `litellm-pg-local` and `vikunja-pg-local`, and for
   the same reason: the cluster's own `local-path` class is unusable for this
   (exfat/tmpfs). Its `nodeAffinity` is what pins the CNPG pod to `kube-master`.
-- **Grafana's own PVC** is `persistence.existingClaim: grafana-local` — kept for
-  plugins and file state, created out-of-band (it is not defined in this repo)
-  and pre-seeded from a backup of the old database (13 dashboards /
-  3 datasources / 6 alerts). It is node-bound too, so volume affinity pins the
-  Grafana pod alongside.
+- **Grafana's own PVC is no longer mounted** (`persistence.enabled: false`,
+  2026-08-28). It was `existingClaim: grafana-local` — a 2 GB `local-path` volume
+  on `kube-master`, created out-of-band and pre-seeded from a backup of the old
+  database (13 dashboards / 3 datasources / 6 alerts). Once the database moved to
+  CNPG, all of that lives in Postgres and the volume held only plugin/file state —
+  and no `plugins:` are declared here, so there is nothing to re-download. What it
+  did still do was **pin the pod to `kube-master`** through volume affinity, on the
+  node whose disk is the cluster's tightest constraint. With `/var/lib/grafana` on
+  an `emptyDir`, Grafana requests 128Mi and can be scheduled on any node, including
+  the 1 GB Pi workers.
+
+  The `grafana-local` PVC itself is deliberately **left in place** — it is not
+  defined in this repo, so nothing prunes it, and reverting this is a one-line
+  change back to the `existingClaim`. `deploymentStrategy: Recreate` is kept, but
+  it is now only a preference: the RWO volume that required it is gone.
 
 Backups go to a separate PVC on **`smb-pgbackup`**
 ([`db/backup.yaml`](db/backup.yaml)): a nightly 03:30 `pg_dump` into the shared
