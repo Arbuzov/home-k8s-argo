@@ -158,23 +158,28 @@ name, tokens, cost, key, timestamps — the per-tool stats we want) but redacts
 request/response **content**, so corp jira/confluence/gitlab tool payloads never
 land in the litellm Postgres.
 
-## Held at `replicaCount: 0` (2026-08-28) — the image no longer fits on the master
+## The 2026-08-28 disk crunch — how it was resolved
 
-`kube-master` ran out of ephemeral storage during the 2026-08-28 outage, and kubelet's
-image GC dropped the cached `litellm-database` image. It cannot be re-pulled there any
-more: the eviction threshold is `4535063527` bytes (~4.5 GB free) and the node was down
-to ~3.8 GB, so every pull attempt was evicted part-way, each leaving more partial content
-behind — free space fell while `containerd` stayed pegged, which starved the API server
-on the same node.
+`kube-master` ran out of ephemeral storage during the 2026-08-28 outage and kubelet's image
+GC dropped the cached `litellm-database` image. It then could not be re-pulled: the eviction
+threshold is `4535063527` bytes (~4.5 GB free) and the node was down to ~3.8 GB, so every
+pull attempt was evicted part-way, each leaving more partial content behind. Free space fell
+while `containerd` stayed pegged, which starved the API server on the same node. The app was
+held at `replicaCount: 0` as a circuit breaker until the node had room.
 
-`replicaCount: 0` is a circuit breaker, not a fix. Restore it to `1` **after** freeing
-several GB on `kube-master` — the pull needs headroom above the 4.5 GB threshold, not just
-up to it. The precedent is in the note above: freeing opds-shelf's 1.3 GB calibre image
-once brought the margin to ~5.2 GB. The durable answer is moving container storage off
-the master's SD card (`roles/master/tasks/usb-mount.yml` in local-cluster-ansible).
+Room was made by cutting Prometheus retention `90d → 30d` (that TSDB is the largest single
+consumer of `/srv/kubernetes/local-provisioner` on the master's card) and clearing exited
+containers — 3.8 GB → 6.4 GB free. The arm64 image is 380 MB compressed / ~1.5 GB on disk,
+so it now fits with the threshold still satisfied.
 
-While this is at zero, oathkeeper has no upstream, so every `/mcp/*` path except
-`/mcp/gitlab` returns 502 — see the blast-radius note under [Scheduling](#scheduling).
+**Pre-pull it with `crictl pull` rather than letting the kubelet do it.** A `crictl pull` is
+not subject to pod eviction, so it either succeeds or fails cleanly; a kubelet pull that
+crosses the threshold mid-way is evicted and leaves partial content, which is what turned a
+tight disk into a spiral. Check `df -h /` on the node before and after.
+
+Headroom is thin — roughly 400 MB above the threshold with the image cached. The durable
+answer is still moving container storage off the master's SD card
+(`roles/master/tasks/usb-mount.yml` in local-cluster-ansible).
 
 ## Scheduling
 
