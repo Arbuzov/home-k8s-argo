@@ -41,7 +41,12 @@ spec:
         authenticatedEmailsFile:
           enabled: true
           persistence: configmap
-          restrictedUserAccess: |
+          # Именно restricted_access. У чарта есть похожее поле
+          # restrictedUserAccessKey — это имя ключа, а не содержимое; на
+          # опечатке ConfigMap просто не рендерится, под навсегда остаётся в
+          # ContainerCreating с FailedMount, и ingress отвечает 500, потому что
+          # nginx некуда слать auth_request.
+          restricted_access: |-
             info@whitediver.com
 
         ingress:
