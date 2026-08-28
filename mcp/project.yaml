@@ -12,6 +12,8 @@ spec:
     - https://arbuzov.github.io/mcp-helm/
     - git@github.com:Arbuzov/home-k8s-helm.git
     - https://bjw-s-labs.github.io/helm-charts
+    # oauth2-proxy: Google-логин перед notes.*, см. mcp/oauth2-proxy.
+    - https://oauth2-proxy.github.io/manifests
   destinations:
     - server: https://kubernetes.default.svc
       namespace: mcp
