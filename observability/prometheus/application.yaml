@@ -20,7 +20,7 @@ spec:
             storageClass: local-path
             accessModes:
               - ReadWriteOnce
-          retention: 90d
+          retention: 30d
           persistent:
             enabled: false
           ingress:

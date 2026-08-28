@@ -10,13 +10,22 @@ comments inside `application.yaml` (see the root [`CLAUDE.md`](../../CLAUDE.md))
 
 ## Storage — `persistentVolume` is on, and must stay on
 
-8Gi on `local-path` with `retention: 90d`. It used to be
+8Gi on `local-path` with `retention: 30d` (**was `90d` until 2026-08-28**). It used to be
 `persistentVolume.enabled: false`, which loses the **entire** history on every
 pod restart. That is tolerable for cluster metrics and was not tolerable for the
 Claude limits layer: `deriv(...{window="seven_day"}[6h])` needs 6h of history
 just to evaluate, and testing the 72-hour-reset hypothesis needed ~11
 consecutive days. `local-path` pins the pod to one node — it is single-replica
 and already pinned, so that costs nothing here.
+
+**Why 90d became 30d.** `local-path` on this node is `/srv/kubernetes/local-provisioner`
+on `kube-master`'s 29 GB SD card, and this TSDB had grown to **4.5 GB — the single
+largest consumer there**, on the node whose free space governs whether anything can be
+pulled at all. At ~50 MB/day, 30d costs ~1.5 GB and returns ~3 GB. The requirement above
+is bounded and much smaller: the longest window the Claude limits layer needs is ~11
+consecutive days, so 30d keeps roughly a 3× margin. Do not cut below ~15d without
+re-reading that constraint — and if more history is genuinely needed, the answer is to
+move this volume off the master's card, not to raise the number again.
 
 ## Resources — the CPU limit is a burst allowance, not a steady draw
 
