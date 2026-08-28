@@ -4,8 +4,7 @@
 running as a real web app in the browser, pointed at the **basic-memory note tree** so the
 vault can be read (and edited) from a phone or laptop without a desktop Obsidian install.
 Single replica on `kube-worker-3`, at `notes.whitediver.keenetic.link` behind the shared
-`mcp-basic-auth` htpasswd — currently held at
-[`replicas: 0`](#held-at-replicas-0--start-it-deliberately).
+`mcp-basic-auth` htpasswd.
 
 Ignis is a shim that reimplements the Electron APIs Obsidian uses; the image ships **no**
 Obsidian code — it downloads Obsidian from the official release on first start (see
@@ -89,20 +88,29 @@ not replaying Basic-Auth credentials on the `wss://` upgrade — that is the kno
 of this auth choice, and the fix is a session-cookie proxy (oauth2-proxy / Authelia), not a
 change to Ignis.
 
-## Held at `replicas: 0` — start it deliberately
+## It was not this app that took the node down (2026-08-28)
 
-The Application is committed with `replicas: 0`. `kube-master` went unresponsive minutes
-after the first sync (the router answered `502` for every cluster hostname while its own
-UI stayed up), and the first-start work described below is a plausible contributor: the
-`chown -R` walk hits the Samba server, which runs on `kube-master` — the CPU-saturated
-control-plane node — while the vault is 1.5 GB of many small files.
+Worth recording, because the timing framed it that way: minutes after this Application
+first synced, `kube-worker-3` stopped running anything and the router answered `502` for
+every cluster hostname. This app was held at `replicas: 0` while that was investigated.
 
-That is a hypothesis, not a diagnosis; the node has its own history of instability. The
-zero replica count exists so a recovering cluster does not immediately restart the walk
-while it is still settling. Raise it to `1` once the node is healthy, and watch
-`kube-master` CPU during the first start. If the walk is the problem, the fix is to keep
-the tree out of `chown -R`'s path: mount the vault elsewhere and leave a symlink in
-`/vaults` (upstream supports it, and `chown -R` does not follow symlinks).
+The cause was unrelated — a corrupt inode on the node's SD card inside
+`/var/lib/containerd` (`EXT4-fs error … inode #444422: iget: checksum invalid`). Files
+unpacked from the kube-proxy image were damaged, so its `iptables` died with SIGSEGV
+(even `iptables --version`), kube-proxy could not program the service VIP, flannel could
+not reach the API through it, `/run/flannel/subnet.env` was never written, and **no pod
+could get a sandbox on that node** — including the Argo CD controller, so GitOps itself
+stopped applying. The identical image ran fine on `kube-worker-1`, and other images ran
+fine on `kube-worker-3`, which is what isolated it to the unpacked layer.
+
+Repaired with a forced `fsck` at boot (four orphans went to `lost+found`) plus a
+re-pull of the kube-proxy image so its layer was unpacked onto the repaired filesystem.
+The card has `Lifetime writes: 1390 GB`; if this recurs, replace it rather than fsck it
+again.
+
+The first-start `chown -R` described below is still real work against the Samba server on
+`kube-master` — watch that node the first time this app starts, but it is not known to
+have caused anything.
 
 ## Startup is slow the first time
 
