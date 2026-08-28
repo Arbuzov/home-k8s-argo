@@ -15,6 +15,11 @@ spec:
           host: "192.168.99.1:22"
           existingSecret: keenetic-operator-creds
           defaultIngressIP: "192.168.99.1"
+        publish:
+          # Where the router proxies to. Deliberately NOT defaultIngressIP: names
+          # must resolve to the router so the request goes through its KeenDNS
+          # proxy, and the proxy then forwards here, to ingress-nginx.
+          upstreamIP: "192.168.99.44"
         nodeSelector:
           kubernetes.io/hostname: kube-master
   destination:

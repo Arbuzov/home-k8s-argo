@@ -1,8 +1,13 @@
 # keenetic-operator
 
 Syncs cluster Ingress hosts to `ip host` records on the Keenetic router over SSH, so
-`*.whitediver.keenetic.link` resolves inside the LAN without anyone editing the router
-by hand. Source: [Arbuzov/keenetic-operator](https://github.com/Arbuzov/keenetic-operator),
+`*.whitediver.keenetic.link` resolves inside the LAN, and to `ip http proxy` entries — the
+router's "Domain name -> Access to web applications" table — so the same hosts are reachable
+from the internet. Neither has to be edited on the router by hand any more.
+
+The second half is the one that fails quietly. KeenDNS resolves every subdomain of the zone
+to the router, so a host with a DNS record and no publication does not break: the router
+answers on that name with its own web interface instead of the service. Source: [Arbuzov/keenetic-operator](https://github.com/Arbuzov/keenetic-operator),
 chart at `arbuzov/networking/keenetic-operator` in home-k8s-helm.
 
 Picked up by the `networking` app-of-apps automatically — unlike `openconnect-gateway` and
@@ -31,6 +36,12 @@ land and the manager pod stays in `CreateContainerConfigError`.
   every Ingress in this cluster already reports that address in `status.loadBalancer`,
   so the operator normally reads it from there. It is set to the same value the
   Ingresses publish so that the fallback path cannot quietly disagree with them.
+- `publish.upstreamIP` — `192.168.99.44`, ingress-nginx. This is where the router
+  *forwards* a published request, and it is deliberately not `defaultIngressIP`: the name
+  has to resolve to the router (so the request enters its KeenDNS proxy and gets the
+  certificate), and only then does the proxy hand it to ingress-nginx. The two addresses
+  describe opposite ends of the same hop. Empty would keep the operator DNS-only, which is
+  what it did before chart 0.2.0.
 - `nodeSelector` — pinned to `kube-master` like the other singletons. Leader election
   means a second replica would be safe, but only one ever writes to the router, so
   there is nothing to gain from spreading it.
