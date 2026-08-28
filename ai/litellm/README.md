@@ -158,6 +158,24 @@ name, tokens, cost, key, timestamps — the per-tool stats we want) but redacts
 request/response **content**, so corp jira/confluence/gitlab tool payloads never
 land in the litellm Postgres.
 
+## Held at `replicaCount: 0` (2026-08-28) — the image no longer fits on the master
+
+`kube-master` ran out of ephemeral storage during the 2026-08-28 outage, and kubelet's
+image GC dropped the cached `litellm-database` image. It cannot be re-pulled there any
+more: the eviction threshold is `4535063527` bytes (~4.5 GB free) and the node was down
+to ~3.8 GB, so every pull attempt was evicted part-way, each leaving more partial content
+behind — free space fell while `containerd` stayed pegged, which starved the API server
+on the same node.
+
+`replicaCount: 0` is a circuit breaker, not a fix. Restore it to `1` **after** freeing
+several GB on `kube-master` — the pull needs headroom above the 4.5 GB threshold, not just
+up to it. The precedent is in the note above: freeing opds-shelf's 1.3 GB calibre image
+once brought the margin to ~5.2 GB. The durable answer is moving container storage off
+the master's SD card (`roles/master/tasks/usb-mount.yml` in local-cluster-ansible).
+
+While this is at zero, oathkeeper has no upstream, so every `/mcp/*` path except
+`/mcp/gitlab` returns 502 — see the blast-radius note under [Scheduling](#scheduling).
+
 ## Scheduling
 
 `affinity.nodeAffinity` **requires** litellm off `kube-worker-3` (`NotIn`),
