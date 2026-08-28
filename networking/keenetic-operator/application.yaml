@@ -11,6 +11,12 @@ spec:
     path: arbuzov/networking/keenetic-operator
     helm:
       values: |
+        # Held at zero: the operator writes `domain static <fqdn>` for
+        # publications, and the router then stops treating those names as
+        # KeenDNS web apps — every published host started answering with the
+        # router's own web panel instead of the service. Back to 1 once the
+        # operator emits `domain ndns` for names inside the KeenDNS zone.
+        replicaCount: 0
         keenetic:
           host: "192.168.99.1:22"
           existingSecret: keenetic-operator-creds
