@@ -20,6 +20,13 @@ spec:
           # must resolve to the router so the request goes through its KeenDNS
           # proxy, and the proxy then forwards here, to ingress-nginx.
           upstreamIP: "192.168.99.44"
+          # HTTPS, not HTTP. Several Ingresses on dev.* carry ssl-redirect, so a
+          # plain :80 upstream answers 308 -> https://dev..., which resolves back
+          # to the router, which proxies to :80 again: a redirect loop that takes
+          # out Argo CD, Grafana, Prometheus and every MCP server at once. The
+          # hand-made entry this replaced was HTTPS/443 for exactly that reason.
+          upstreamScheme: https
+          upstreamPort: 443
         nodeSelector:
           kubernetes.io/hostname: kube-master
   destination:
