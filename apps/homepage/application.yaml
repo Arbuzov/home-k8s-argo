@@ -123,6 +123,10 @@ spec:
                     icon: octoprint.png
                     description: 3D printer control
                     href: https://dev.whitediver.keenetic.link/octoprint/
+                - Obsidian:
+                    icon: obsidian.png
+                    description: Obsidian notes
+                    href: https://notes.whitediver.keenetic.link/
             - System:
                 - Grafana:
                     icon: grafana.png
