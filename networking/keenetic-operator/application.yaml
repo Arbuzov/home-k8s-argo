@@ -11,12 +11,10 @@ spec:
     path: arbuzov/networking/keenetic-operator
     helm:
       values: |
-        # Held at zero: the operator writes `domain static <fqdn>` for
-        # publications, and the router then stops treating those names as
-        # KeenDNS web apps — every published host started answering with the
-        # router's own web panel instead of the service. Back to 1 once the
-        # operator emits `domain ndns` for names inside the KeenDNS zone.
-        replicaCount: 0
+        # Back to 1: chart 0.3.0 adds publish.keenDNSZone, which makes the
+        # operator emit `domain ndns` (not `domain static`) for names inside
+        # the zone, fixing the router-panel-instead-of-service breakage.
+        replicaCount: 1
         keenetic:
           host: "192.168.99.1:22"
           existingSecret: keenetic-operator-creds
@@ -33,6 +31,9 @@ spec:
           # hand-made entry this replaced was HTTPS/443 for exactly that reason.
           upstreamScheme: https
           upstreamPort: 443
+          # Names in this zone get `domain ndns` (proper KeenDNS web-app
+          # publication); anything outside it falls back to `domain static`.
+          keenDNSZone: "whitediver.keenetic.link"
         nodeSelector:
           kubernetes.io/hostname: kube-master
   destination:
