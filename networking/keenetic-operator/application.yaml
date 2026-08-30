@@ -11,14 +11,15 @@ spec:
     path: arbuzov/networking/keenetic-operator
     helm:
       values: |
-        # Held at zero again. Bringing the controller up with keenDNSZone set
-        # did not repair the publications — it deleted nine of the eleven
-        # `ip http proxy` entries outright (dev, k8s, n8n, photos, tasks,
-        # books, litellm, otel, notes), leaving only `home` and a `homepage`
-        # still stuck on `domain static`. The `ip host` records survived, so
-        # every name kept resolving to the router with nothing behind it.
-        # The entries below were restored by hand; do not raise this to 1
-        # until the deletion path is understood and covered by a test.
+        # Held at zero. `domain static` does not just fail to claim the name:
+        # the entry it leaves behind answers for the bare zone, so
+        # `whitediver.keenetic.link` itself got proxied to ingress-nginx.
+        # Every request to the zone then failed upstream, nginx logged each
+        # one, and the router's own lockout policy banned the client for 15
+        # minutes at a time — taking the web panel down with it. The `homepage`
+        # entry has been switched to `domain ndns` and all eleven publications
+        # were rebuilt by hand. Raise this to 1 only once the operator is
+        # proven to emit `domain ndns` inside the zone.
         replicaCount: 0
         keenetic:
           host: "192.168.99.1:22"
