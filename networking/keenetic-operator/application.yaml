@@ -11,10 +11,15 @@ spec:
     path: arbuzov/networking/keenetic-operator
     helm:
       values: |
-        # Back to 1: chart 0.3.0 adds publish.keenDNSZone, which makes the
-        # operator emit `domain ndns` (not `domain static`) for names inside
-        # the zone, fixing the router-panel-instead-of-service breakage.
-        replicaCount: 1
+        # Held at zero again. Bringing the controller up with keenDNSZone set
+        # did not repair the publications — it deleted nine of the eleven
+        # `ip http proxy` entries outright (dev, k8s, n8n, photos, tasks,
+        # books, litellm, otel, notes), leaving only `home` and a `homepage`
+        # still stuck on `domain static`. The `ip host` records survived, so
+        # every name kept resolving to the router with nothing behind it.
+        # The entries below were restored by hand; do not raise this to 1
+        # until the deletion path is understood and covered by a test.
+        replicaCount: 0
         keenetic:
           host: "192.168.99.1:22"
           existingSecret: keenetic-operator-creds
