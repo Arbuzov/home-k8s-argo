@@ -15,6 +15,12 @@ spec:
       values: |
         image:
           repository: localstack/localstack
+        extraEnvVars:
+          - name: LOCALSTACK_AUTH_TOKEN
+            valueFrom:
+              secretKeyRef:
+                name: localstack
+                key: LOCALSTACK_AUTH_TOKEN
   destination:
     server: https://kubernetes.default.svc
     namespace: localstack
