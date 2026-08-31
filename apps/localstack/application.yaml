@@ -21,18 +21,22 @@ spec:
               secretKeyRef:
                 name: localstack
                 key: LOCALSTACK_AUTH_TOKEN
+        resources:
+          requests:
+            cpu: 250m
+            memory: 256Mi
         livenessProbe:
           initialDelaySeconds: 60
-          periodSeconds: 10
+          periodSeconds: 15
           timeoutSeconds: 5
-          failureThreshold: 6
+          failureThreshold: 36
           successThreshold: 1
 
         readinessProbe:
-          initialDelaySeconds: 30
-          periodSeconds: 10
+          initialDelaySeconds: 60
+          periodSeconds: 15
           timeoutSeconds: 5
-          failureThreshold: 6
+          failureThreshold: 36
           successThreshold: 1
   destination:
     server: https://kubernetes.default.svc

@@ -14,6 +14,37 @@ The chart's default image is `localstack/localstack-pro`, which requires a
 credentials, so the image is switched to the free community edition instead —
 no auth token, no Secret needed.
 
+## `extraEnvVars: LOCALSTACK_AUTH_TOKEN`
+
+Wired to the `localstack` Secret (`kubectl create secret generic localstack
+--from-literal=LOCALSTACK_AUTH_TOKEN=<token> -n localstack`). Not required to
+run the community image, but activates the freemium license tier (extra
+service coverage) once the token is present.
+
+## `resources.requests` and long probe tolerances
+
+Both workers are Raspberry Pi-class arm64 nodes with ~830Mi allocatable RAM
+total, shared across every pod on the node. On first deploy, LocalStack was
+stuck in `CrashLoopBackOff`: the chart's default liveness/readiness probes
+(10s initial delay, 5 failures × 10s ≈ 60s tolerance) killed the container
+mid-boot every time — a single internal init step
+(`_resolve_api_provider_specs`) alone took 25-27s, and even a first relaxed
+attempt (~120s tolerance) still wasn't enough under node contention.
+
+Fixed with two changes together:
+
+- `resources.requests: {cpu: 250m, memory: 256Mi}` — moves the pod off
+  `BestEffort` QoS so it isn't starved of CPU/memory by everything else
+  scheduled on the same Pi. No `limits` set, so a slow cold boot isn't at
+  risk of being OOM-killed while initializing.
+- `livenessProbe`/`readinessProbe` relaxed to a ~10 minute tolerance
+  (`initialDelaySeconds: 60`, `periodSeconds: 15`, `failureThreshold: 36`) —
+  generous headroom instead of guessing the exact boot time.
+
+The chart has no `startupProbe` field (checked `templates/deployment.yaml` in
+`localstack` 0.7.0 — only `livenessProbe`/`readinessProbe` are templated),
+so tuning those two is the only lever available.
+
 ## No ingress, no persistence
 
 Left at chart defaults: `service.type: NodePort` (edge service on node port
