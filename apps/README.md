@@ -12,7 +12,7 @@ everything under `apps/` automatically.
 | [`bootstrap.yaml`](bootstrap.yaml) | `Application` | The **app-of-apps** — deploys `project.yaml` + every child app |
 | `<service>/application.yaml` | `Application` | One app each (`project: apps`) |
 
-Services deployed: `homepage`, `vikunja`, `octoprint`. Kept in git but
+Services deployed: `homepage`, `vikunja`, `octoprint`, `localstack`. Kept in git but
 **disabled** via the `exclude` glob in `bootstrap.yaml`: `heimdall`, `openclaw`.
 Each service with out-of-band Secrets documents them in its own `README.md`.
 

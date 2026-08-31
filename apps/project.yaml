@@ -12,6 +12,7 @@ spec:
     - https://unknowniq.github.io/helm-charts/
     - ghcr.io/go-vikunja/helm-chart
     - https://arbuzov.github.io/octoprint
+    - https://helm.localstack.cloud
   destinations:
     - server: https://kubernetes.default.svc
       namespace: homepage
@@ -19,6 +20,8 @@ spec:
       namespace: vikunja
     - server: https://kubernetes.default.svc
       namespace: octoprint
+    - server: https://kubernetes.default.svc
+      namespace: localstack
     - server: https://kubernetes.default.svc
       namespace: argo-cd
   clusterResourceWhitelist:
