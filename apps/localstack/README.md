@@ -51,3 +51,22 @@ Left at chart defaults: `service.type: NodePort` (edge service on node port
 `31566`, the standard way to point an AWS SDK/CLI at an in-cluster
 LocalStack), and `persistence.enabled: false` — state resets on pod restart,
 which is normal for a throwaway test double.
+
+## `extraDeploy`: a second Service for the cluster's external IP
+
+`192.168.99.44` (`kube-master`'s own `wlan0` address — see
+`../../platform/nginx/README.md`) is how this cluster publishes services to
+the LAN, since there is no MetalLB or other LoadBalancer controller. The
+mechanism kube-proxy actually honors is `spec.externalIPs`, not
+`loadBalancerIP` — see `../../platform/argo-cd/README.md`.
+
+The `localstack` chart's own `templates/service.yaml` doesn't template
+`externalIPs` at all (checked `0.7.0`), so `service.type`/`service.loadBalancerIP`
+values alone can't get traffic to bind there. Instead of forking the chart's
+Service, a second plain `Service` named `localstack-external` is injected via
+the chart's Bitnami-style `extraDeploy` list (same escape hatch used for the
+`n8n` chart's `extraManifests`), selecting the same pod labels
+(`app.kubernetes.io/name/instance: localstack`) and re-exposing the edge port
+on `4566` — the LocalStack default AWS endpoint port — via `externalIPs:
+[192.168.99.44]`. So `awslocal --endpoint-url http://192.168.99.44:4566 ...`
+works from any LAN host, alongside the existing in-cluster/NodePort paths.

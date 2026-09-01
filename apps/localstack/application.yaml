@@ -38,6 +38,24 @@ spec:
           timeoutSeconds: 5
           failureThreshold: 36
           successThreshold: 1
+        extraDeploy:
+          - apiVersion: v1
+            kind: Service
+            metadata:
+              name: localstack-external
+              namespace: localstack
+            spec:
+              type: LoadBalancer
+              loadBalancerIP: "192.168.99.44"
+              externalIPs:
+                - 192.168.99.44
+              selector:
+                app.kubernetes.io/name: localstack
+                app.kubernetes.io/instance: localstack
+              ports:
+                - name: edge
+                  port: 4566
+                  targetPort: 4566
   destination:
     server: https://kubernetes.default.svc
     namespace: localstack
