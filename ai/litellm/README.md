@@ -465,6 +465,70 @@ and covers the worst case. A per-ingress annotation overrides the controller
 default regardless of any global value. (Streaming clients don't hit this — each
 chunk resets the read timer — but the council isn't one.)
 
+## Router retries and timeout — the "nemotron times out" report (2026-09-04)
+
+```yaml
+router_settings:
+  num_retries: 0
+  timeout: 280
+```
+
+Symptom as reported: `nvidia/nemotron-3-super-120b-a12b` "times out", supposedly
+only on long prompts. Measured from inside the `litellm` pod, that diagnosis was
+wrong on every count:
+
+| test (through the wg-vless egress) | result |
+| --- | --- |
+| 90 KB prompt, non-streaming | 200 in 3.0s |
+| streamed completion | 200, **392 KB** in 52s |
+| 3000-token completion, direct to NIM | 200 in 39s |
+| same through the proxy | 200 in 74s |
+| 120 KB prompt via the council's own client | 200 in 29s |
+
+So there is no 16 KB volumetric freeze (392 KB crossed the tunnel in one
+response) and no 60s wall — the ingress annotations above already handle that,
+and the council doesn't even use the ingress, it talks to a `127.0.0.1:4000`
+port-forward.
+
+What `LiteLLM_SpendLogs` actually shows for that model: 227 successes, **zero**
+failures worth the name, and a duration that tracks `completion_tokens`, not
+prompt size — the 897s worst case had a 1.5K-token prompt and a 7.7K-token
+completion. Weekly p95/max:
+
+| week | avg completion tok | max | p95 dur | max dur |
+| --- | --- | --- | --- | --- |
+| 2026-07-27 | 5802 | 27396 | 351s | 485s |
+| 2026-08-03 | 7957 | 24172 | 887s | 897s |
+| 2026-08-17 | 5832 | 32768 | 288s | 726s |
+| 2026-08-24 | 2818 | 9142 | 139s | 275s |
+| 2026-08-31 | 2990 | 6738 | **96s** | 180s |
+
+The model is simply a slow reasoning model that ran away to its 32768-token
+ceiling, at 9–80 tok/s on the free tier. Nothing timed out server-side; the
+*client* gave up at its 300s `AbortSignal`, which is why the proxy logs
+successes while the user sees "timeout". The drop after 2026-08-17 is the
+`litellm-council` plugin learning to cap `max_tokens` at what its deadline can
+pay for — that fix is client-side and already landed.
+
+What was still wrong here: with `num_retries` unset, LiteLLM falls through
+`num_retries → litellm.num_retries → openai.DEFAULT_MAX_RETRIES` and lands on
+**2**, so a slow call could be attempted three times, and with
+`litellm.request_timeout` at its 6000s default nothing bounded any of them. A
+call the client abandoned at 300s kept generating for another ten minutes and
+could be retried twice more — pure waste of a 40 RPM free tier, and the
+mechanism that produced the 897s tail in the first place.
+
+`timeout: 280` sits just under the council's 300s client deadline so the proxy
+owns the failure and records it, instead of the client aborting silently while
+the server grinds on. `num_retries: 0` because retrying a multi-minute reasoning
+completion helps nobody and a 429 retry on the free tier makes things worse.
+
+Both are `router_settings`, read at
+`proxy_server.py: router_settings = config.get("router_settings")` and applied
+to the Router — the per-model NIM entries live in the DB (written by
+`litellm-nim-sync`), so a router-level default is the only place to set this
+once for all of them.
+
 ## Smoke test
 
 ```sh

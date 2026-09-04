@@ -72,6 +72,9 @@ spec:
               store_model_in_db: true
             litellm_settings:
               turn_off_message_logging: true
+            router_settings:
+              num_retries: 0
+              timeout: 280
             mcp_servers:
               jira:
                 url: "http://mcp-atlassian-jira.mcp.svc.cluster.local:8000/mcp/jira"
