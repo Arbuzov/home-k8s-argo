@@ -10,7 +10,7 @@ spec:
   source:
     repoURL: ghcr.io/go-vikunja/helm-chart
     chart: vikunja
-    targetRevision: v2.0.2
+    targetRevision: 2.3.0
     helm:
       values: |-
         vikunja:
