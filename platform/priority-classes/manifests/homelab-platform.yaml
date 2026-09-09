@@ -1,0 +1,8 @@
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: homelab-platform
+value: 800000
+globalDefault: false
+preemptionPolicy: Never
+description: "Workloads whose loss is a household outage: VPN egress, ingress, GitOps."
