@@ -155,7 +155,10 @@ will practically never see it, but **a headless check (`curl`, an uptime probe,
 a smoke test) run right after a rollout will, and it looks exactly like a
 broken deploy.** It is not.
 
-Forcing it is one request: `curl -s https://homepage.whitediver.keenetic.link/api/revalidate`
+Forcing it is one request. Since the Google login (below), the public URL
+redirects a headless client to Google, so make the request from inside the pod.
+The `Host` header must pass `HOMEPAGE_ALLOWED_HOSTS`:
+`kubectl -n homepage exec deploy/homepage -- wget -qO- --header 'Host: homepage.whitediver.keenetic.link' http://127.0.0.1:3000/api/revalidate`
 → `{"revalidated":true}`. Do that before concluding a bump broke the config.
 Verified on the v2.3.0 bump: pre-revalidation the page was the skeleton;
 post-revalidation `initialSettings` carried `theme: dark`, `color: gray`,
@@ -169,9 +172,11 @@ App `v2.x` added two features that stay disabled here, both consciously:
   `HOMEPAGE_AUTH_SECRET` ≥32 chars, `HOMEPAGE_EXTERNAL_URL`, plus password or
   OIDC) — *not* by the chart's `config.auth` / `auth.yaml`, which upstream
   never reads; writing that block only drops an inert file into `/app/config`.
-  If auth is ever enabled, note that `custom.js` is **not** on the public
-  whitelist (only `/api/healthcheck` and `custom.css` are), so the click
-  tracker below would load for signed-in sessions only.
+  It stays off because login already happens at the ingress (see *Google
+  login* below). Built-in OIDC would also need a new redirect URI on the
+  Google client. If auth is ever enabled, note that `custom.js` is **not** on
+  the public whitelist (only `/api/healthcheck` and `custom.css` are), so the
+  click tracker below would load for signed-in sessions only.
 - **`/api/mcp`** (`HOMEPAGE_MCP_ENABLED` + a ≥32-char `HOMEPAGE_MCP_TOKEN`),
   off by default. It must stay off on an internet-reachable ingress: it grants
   read access to every configured service credential and, with writes, control
@@ -201,6 +206,18 @@ Widget error panels are also terser in v2: `sanitizeErrorURL` now returns only
 `<hostname> (see logs for details)`. Status, message and the upstream response
 body still show on the tile, but the failing URL does not — use
 `kubectl logs deploy/homepage -n homepage`, which still logs it in full.
+
+## Google login
+
+The ingress sits behind the shared Google oauth2-proxy in namespace `mcp`
+(`nginx.ingress.kubernetes.io/auth-url` + `auth-signin`). Only the addresses
+on that proxy's allow-list get in. The login round-trip goes through
+`notes.whitediver.keenetic.link/oauth2/…` and lands back here via an absolute
+`rd=`. See [`mcp/oauth2-proxy/README.md`](../../mcp/oauth2-proxy/README.md)
+for why one callback host serves every subdomain. The whole page is gated,
+`custom.js` included, so the click tracker runs for every visit, since every
+visit is signed in. Server-side widget calls (Argo CD, Kubernetes) never pass
+through the ingress and are unaffected.
 
 ## Concrete steps for this repo
 

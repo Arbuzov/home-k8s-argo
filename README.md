@@ -225,6 +225,7 @@ service's `README.md` has the concrete command):
 | `mcp/gitlab`            | `mcp-gitlab-credentials` (PAT), `mcp-gitlab-stateless`, `mcp-corp-config` (shared); held back — applied push-based out-of-band, merged with the live `hostAliases` (see `mcp/gitlab/README.md`) |
 | `mcp/graphiti`          | `graphiti-neo4j-auth`, `graphiti-mcp-secrets` (Neo4j + OpenAI)                   |
 | `mcp/mcpo`              | `mcpo-secrets` (`config.json` incl. Home Assistant LLAT)                         |
+| `mcp/oauth2-proxy`      | `oauth2-proxy` (Google OAuth `client-id`/`client-secret` — Grafana's client — plus `cookie-secret`); gates `notes.*` and `homepage.*` |
 | `media/photoprism`      | `photoprism-basic-auth` (htpasswd), `photoprism-oidc` (OIDC client + admin password) |
 | `media/opds-shelf`      | `opds-shelf-basic-auth` (htpasswd for `/opds`) — Google login is Calibre-Web native OAuth in `app.db`, not a Secret |
 | `mcp/grafana`           | `mcp-grafana-token` (Grafana service-account token) |

@@ -13,39 +13,22 @@ spec:
     targetRevision: 10.7.0
     helm:
       values: |
-        # Google-логин для notes.*. Oathkeeper рядом эту роль занять не может:
-        # он проверяет уже готовую сессию, а завести её — то есть увести
-        # браузер на Google и обработать callback — некому.
         config:
-          # client-id / client-secret / cookie-secret. Секрет заведён вне git
-          # (репозиторий публичный); client_secret — тот же, что у Grafana.
           existingSecret: oauth2-proxy
 
         extraArgs:
           provider: google
           redirect-url: https://notes.whitediver.keenetic.link/oauth2/callback
-          # Отдаём 401 вместо редиректа на Google, когда запрос пришёл от
-          # nginx auth_request: редирект там всё равно некому выполнить, а
-          # 401 nginx превращает в auth-signin для браузера.
           reverse-proxy: "true"
           set-xauthrequest: "true"
           cookie-secure: "true"
-          cookie-domain: notes.whitediver.keenetic.link
-          whitelist-domain: notes.whitediver.keenetic.link
-          # email-domain=* обязателен вместе со списком почт: иначе
-          # oauth2-proxy сначала режет по домену и до списка не доходит.
+          cookie-domain: .whitediver.keenetic.link
+          whitelist-domain: .whitediver.keenetic.link
           email-domain: "*"
 
-        # Пускаем по явному списку, а не по домену: новый аккаунт в
-        # whitediver.com сам по себе доступа к заметкам не получает.
         authenticatedEmailsFile:
           enabled: true
           persistence: configmap
-          # Именно restricted_access. У чарта есть похожее поле
-          # restrictedUserAccessKey — это имя ключа, а не содержимое; на
-          # опечатке ConfigMap просто не рендерится, под навсегда остаётся в
-          # ContainerCreating с FailedMount, и ingress отвечает 500, потому что
-          # nginx некуда слать auth_request.
           restricted_access: |-
             info@whitediver.com
 
@@ -57,8 +40,6 @@ spec:
           hosts:
             - notes.whitediver.keenetic.link
           annotations:
-            # Тот же набор, что у ingress'а ignis: TLS терминирует роутер,
-            # редиректить на https изнутри незачем.
             nginx.ingress.kubernetes.io/ssl-redirect: "false"
 
         resources:
