@@ -105,6 +105,13 @@ sibling `<p class="service-description">`, and `.services-group` /
 `.bookmark-group-name` inside the `Disclosure.Button`. A major version is
 exactly where this contract would break, so re-run this check on the next one.
 
+Verified live on v2.3.0 too, not just in source: with `navigator.sendBeacon`
+stubbed in the browser, a click on the first service tile emitted
+`label=Grafana&group=System` and on the first bookmark `label=RBC&group=News` —
+no `unknown` / `ungrouped`, and the service label was the name alone rather
+than name+description, which confirms the `.service-name` firstChild branch
+still applies. All 19 tiles carried `data-name`.
+
 Related objects, provisioned imperatively and **not** in this repo:
 InfluxDB database `homepage` (RP `one_year`, 365d), n8n workflow
 `Homepage Click Tracker` (`24HSyffBxzdQ9C8S`), Grafana datasource
@@ -131,6 +138,28 @@ missing.
 
 > ⚠️ The chart's `env` list only honours `valueFrom` when the entry has
 > no `value:` field, so the secret-backed entries deliberately omit it.
+
+## First load after a rollout serves a stale skeleton
+
+Homepage renders the dashboard with `getStaticProps`, so the page in the image
+is a **build-time prerender** (`/app/.next/server/pages/en.html`) baked with
+upstream's demo config. The real config is picked up by on-demand ISR: the
+client calls `/api/revalidate` on mount, Next regenerates the page, and every
+later request gets the real one.
+
+That means the very first fetch after a fresh pod — before any browser has
+loaded it — returns the skeleton: `My First Group` / `My First Service` /
+`Homepage is awesome`, and `__NEXT_DATA__.props.pageProps.initialSettings` is
+`{}`. A browser self-heals this within a second of the first visit, so a human
+will practically never see it, but **a headless check (`curl`, an uptime probe,
+a smoke test) run right after a rollout will, and it looks exactly like a
+broken deploy.** It is not.
+
+Forcing it is one request: `curl -s https://homepage.whitediver.keenetic.link/api/revalidate`
+→ `{"revalidated":true}`. Do that before concluding a bump broke the config.
+Verified on the v2.3.0 bump: pre-revalidation the page was the skeleton;
+post-revalidation `initialSettings` carried `theme: dark`, `color: gray`,
+`target: _self` and the full layout.
 
 ## v2 surfaces deliberately left off
 
