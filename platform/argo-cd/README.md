@@ -86,6 +86,30 @@ on the ~1 GB Pi workers. So "placed on any node" applies to every component
 *except* the controller, and a `Pending` controller means both 8 GB nodes are
 full, not that the scheduler is misbehaving.
 
+**The repo-server is temporarily kept off `kube-worker-3`** (hard `NotIn`
+node affinity). That node's SD card silently flips bits in unpacked image
+layers: on 2026-09-12 the same `argocd:v3.4.4` digest had a different
+`/usr/local/bin/helm` sha256 there than on `kube-master`, and every `helm`
+invocation died with `fatal error: slice bounds out of range`. Every
+Application rendering a git-hosted Helm chart (the `home-k8s-helm` ones) went
+`sync=Unknown` with that error. ext4 checksums only metadata, so these flips
+produce no read errors and a read-back sweep does not catch them — only a hash
+comparison against another node does. Setting `repoServer.affinity` also
+replaces the chart's soft pod-anti-affinity preset, which is irrelevant at one
+replica. Remove the block once worker-3's root is on new media.
+
+The repo-server renders its own Application, so a change here cannot land
+while the repo-server's own `helm` is broken, which was exactly the situation
+that motivated this block. (The damaged files were later repaired in place on
+the node, so it landed normally.) If that happens again, mirror the affinity
+onto the live Deployment once. A rolling update keeps the old pod until the new
+one is Ready, and Argo then sees the same affinity in git:
+
+```sh
+kubectl -n argo-cd patch deploy argo-cd-argocd-repo-server --type=merge -p \
+  '{"spec":{"template":{"spec":{"affinity":{"nodeAffinity":{"requiredDuringSchedulingIgnoredDuringExecution":{"nodeSelectorTerms":[{"matchExpressions":[{"key":"kubernetes.io/hostname","operator":"NotIn","values":["kube-worker-3"]}]}]}}}}}}}'
+```
+
 ## Server, ingress and HPA
 
 - `server.extraArgs`: `--insecure --rootpath=/argo-cd --basehref=/argo-cd` —

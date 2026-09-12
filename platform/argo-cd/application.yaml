@@ -232,6 +232,15 @@ spec:
             requests:
               cpu: 150m
               memory: 256Mi
+          affinity:
+            nodeAffinity:
+              requiredDuringSchedulingIgnoredDuringExecution:
+                nodeSelectorTerms:
+                  - matchExpressions:
+                      - key: kubernetes.io/hostname
+                        operator: NotIn
+                        values:
+                          - kube-worker-3
           livenessProbe:
             initialDelaySeconds: 30
             periodSeconds: 30
