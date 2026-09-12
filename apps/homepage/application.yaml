@@ -9,7 +9,7 @@ spec:
   project: apps
   source:
     repoURL: https://unknowniq.github.io/helm-charts/
-    targetRevision: 1.8.4
+    targetRevision: 1.8.8
     helm:
       values: |
         env:
@@ -41,7 +41,7 @@ spec:
                 name: homepage-bookmarks
                 key: HOMEPAGE_VAR_WORK_GRAFANA_URL
         image:
-          tag: v1.13.2
+          tag: v2.3.0
         config:
           settings:
             theme: dark
