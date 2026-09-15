@@ -391,7 +391,8 @@ triggered by rewriting the hard `nodeSelector` as the equivalent `nodeAffinity I
 [kube-worker-3]`. The constraint is unchanged, but the pod spec differs.
 `podAntiAffinityType` is the default `preferred`, so two instances can share the node.
 
-The old `Retain` PV keeps `/var/lib/litellm-pg` on the SD as a rollback copy.
+The old class and PV (`db-cnpg/storage.yaml`) were removed from git the same day.
+Argo pruned them, and `Retain` left `/var/lib/litellm-pg` on the SD for a manual `rm`.
 Pre-move counts: 25 virtual keys, 2 users, 85 models; `LiteLLM_SpendLogs` 18421
 and growing. All matched on `litellm-pg-2` after the switchover. LiteLLM logged
 about a second of `FATAL: the database system is shutting down` while the old

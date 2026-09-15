@@ -56,7 +56,7 @@ Two different volumes are involved, and it is worth keeping them apart:
 - **The database** lives on StorageClass **`local-ssd`** since 2026-09-15: the
   USB SATA SSD on kube-worker-3 (see [`platform/local-path`](../../platform/local-path/README.md)).
   Until then it was on the static `no-provisioner` class **`grafana-pg-local`**
-  ([`db/storage.yaml`](db/storage.yaml)), with PV `grafana-pg-local-1` at
+  (`db/storage.yaml`, removed 2026-09-15), with PV `grafana-pg-local-1` at
   `/var/lib/grafana-pg` on **`kube-master`**, `Retain`. That arrangement existed
   only because the cluster's `local-path` class was unusable (exfat/tmpfs).
 - **The move** used the same CNPG-native procedure as vikunja
@@ -65,7 +65,10 @@ Two different volumes are involved, and it is worth keeping them apart:
   switchover`. CNPG clones a replica onto the SSD and hands it the primary role.
   Scale back to `instances: 1` only after `status.currentPrimary` is the SSD
   instance. The old `Retain` PV keeps `/var/lib/grafana-pg` on kube-master as a
-  rollback copy. `db/storage.yaml` stays until the new home has soaked.
+  rollback copy until 2026-09-15. Then `db/storage.yaml` was removed: Argo pruned
+  the class and PV, and the `Retain` PV left the directory on disk for a manual
+  `rm`. The two-node affinity stays. It is harmless because the `local-ssd` PV
+  already pins the instance to worker-3.
   Pre-move counts: 26 dashboards, 5 datasources, 7 alert rules, 3 users. They matched
   on `grafana-pg-2` after the switchover. Grafana logged about 5 s of
   `connection refused` during it and did not restart.

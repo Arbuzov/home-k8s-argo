@@ -116,6 +116,8 @@ the ext4 root disk**, the operator-native equivalent of the hostPath trick:
 - `/var/lib/n8n-pg` on **kube-master**, pre-created `chown 26:26`, `chmod 700`.
 - StorageClass `n8n-pg-local` (`no-provisioner`, `WaitForFirstConsumer`,
   `Retain`) + a matching `local` PV `n8n-pg-local-1` pinned to kube-master.
+  Both were removed from git (`db/storage.yaml`) on 2026-09-15, after the move to
+  `local-ssd` below. `Retain` left the directory on disk for a manual `rm`.
 - `Cluster` `n8n-pg`: 1 instance, image `postgresql:15.18` (matches the
   source major), `storageClass: n8n-pg-local`, `enableSuperuserAccess: true`.
 - Password reuse: Secret **`n8n-pg-app`** (`kubernetes.io/basic-auth`,

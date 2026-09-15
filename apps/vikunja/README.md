@@ -135,7 +135,11 @@ Done 2026-09-15:
 The old static PV `vikunja-pg-local-1` is `Retain`. After the switchover
 `vikunja-pg-1` ran as a streaming replica, so `/var/lib/vikunja-pg` on
 kube-master holds a copy that is current as of the scale-down: a rollback net.
-`db/storage.yaml` and the two-node affinity stay until the new home has soaked.
+`db/storage.yaml` (the static class + PV) was removed the same day. Argo
+pruned the objects; the `Retain` PV left `/var/lib/vikunja-pg` on disk for a
+manual `rm`. The two-node affinity is left in place: it is harmless because the
+`local-ssd` PV already pins the instance to worker-3, and tightening it would
+cost a primary restart.
 Tightening the affinity to worker-3 only restarts the primary once; the
 `local-ssd` PV already pins it there.
 
