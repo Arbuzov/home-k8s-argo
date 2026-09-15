@@ -126,9 +126,18 @@ The move uses CNPG itself — no dump/restore, no app change:
    Scale-down removes a replica. If the switchover had not happened, that
    replica would be the SSD copy.
 
-The old static PV `vikunja-pg-local-1` is `Retain`. Its data stays in
-`/var/lib/vikunja-pg` on kube-master as a rollback net. `db/storage.yaml`
-stays in git until the new home has soaked.
+Done 2026-09-15:
+- `pg_basebackup` onto the SSD took seconds (39 MB).
+- CNPG switched the primary to `vikunja-pg-2`, and counts matched the pre-move
+  dump (140 tasks, 5 projects, 2 users).
+- The Vikunja pod restarted once when the switchover dropped its connections.
+
+The old static PV `vikunja-pg-local-1` is `Retain`. After the switchover
+`vikunja-pg-1` ran as a streaming replica, so `/var/lib/vikunja-pg` on
+kube-master holds a copy that is current as of the scale-down: a rollback net.
+`db/storage.yaml` and the two-node affinity stay until the new home has soaked.
+Tightening the affinity to worker-3 only restarts the primary once; the
+`local-ssd` PV already pins it there.
 
 Pre-move dump: `db-premigrate-2026-09-15-1319.sql.gz` in the backup PVC
 (42 tables, 140 tasks).
