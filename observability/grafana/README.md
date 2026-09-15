@@ -66,7 +66,9 @@ Two different volumes are involved, and it is worth keeping them apart:
   Scale back to `instances: 1` only after `status.currentPrimary` is the SSD
   instance. The old `Retain` PV keeps `/var/lib/grafana-pg` on kube-master as a
   rollback copy. `db/storage.yaml` stays until the new home has soaked.
-  Pre-move counts: 26 dashboards, 5 datasources, 7 alert rules, 3 users.
+  Pre-move counts: 26 dashboards, 5 datasources, 7 alert rules, 3 users. They matched
+  on `grafana-pg-2` after the switchover. Grafana logged about 5 s of
+  `connection refused` during it and did not restart.
 - **Grafana's own PVC is no longer mounted** (`persistence.enabled: false`,
   2026-08-28). It was `existingClaim: grafana-local` — a 2 GB `local-path` volume
   on `kube-master`, created out-of-band and pre-seeded from a backup of the old
