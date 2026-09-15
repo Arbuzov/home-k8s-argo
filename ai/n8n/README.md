@@ -137,7 +137,9 @@ worker-3's SSD*:
 The n8n pods themselves already run on kube-worker-3, so the DB moves next to
 its clients. The old `Retain` PV keeps `/var/lib/n8n-pg` on kube-master as a
 rollback copy. Pre-move counts: 22 workflows, 17 credentials, 1 user;
-`execution_entity` 11949 rows and growing.
+`execution_entity` 11949 rows and growing. After the switchover `n8n-pg-2`
+matched: 22 / 17 / 1, and executions had kept coming in (12074) while it
+happened. The n8n pods logged DB errors only during the switchover and did not restart.
 
 Out-of-band prerequisites (not chart-rendered — apply before the CNPG DB
 comes up; CNPG CRDs must already be installed, see `platform/cnpg-operator/`):
