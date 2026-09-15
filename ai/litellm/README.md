@@ -371,11 +371,29 @@ endpoint moved — so rollback is reverting that one value; the old
 `litellm-postgres` Deployment + its `hostPath` data are kept intact until the
 CNPG DB is trusted.
 
-Same storage story as n8n (see `ai/n8n/README.md`): CNPG runs Postgres as
-**uid 26** and the cluster `local-path` class is unusable (exfat/tmpfs), so the
-DB uses a **static `local` PV on the ext4 root disk** — `/var/lib/litellm-pg` on
+Storage until 2026-09-15 followed n8n (see `ai/n8n/README.md`): CNPG runs Postgres as
+**uid 26** and the cluster `local-path` class was unusable (exfat/tmpfs), so the
+DB used a **static `local` PV on the ext4 root disk** — `/var/lib/litellm-pg` on
 **kube-worker-3** (where litellm serving + the old DB already live), pre-created
 `chown 26:26 chmod 700`, StorageClass `litellm-pg-local` + PV `litellm-pg-local-1`.
+
+**Moved to the SSD on the same node (2026-09-15).** `storage.storageClass:
+local-ssd` is the USB SATA SSD on kube-worker-3 (see
+[`platform/local-path`](../../platform/local-path/README.md)). The procedure is
+the CNPG-native one from [`apps/vikunja/README.md`](../../apps/vikunja/README.md)
+→ *Moved to worker-3's SSD*: `instances: 2` on the new class plus
+`primaryUpdateMethod: switchover`, then back to 1 once `status.currentPrimary`
+is the SSD instance.
+
+One difference from vikunja/grafana: both instances live on kube-worker-3, so
+there was no node to add. The rolling update that carries the switchover is
+triggered by rewriting the hard `nodeSelector` as the equivalent `nodeAffinity In
+[kube-worker-3]`. The constraint is unchanged, but the pod spec differs.
+`podAntiAffinityType` is the default `preferred`, so two instances can share the node.
+
+The old `Retain` PV keeps `/var/lib/litellm-pg` on the SD as a rollback copy.
+Pre-move counts: 25 virtual keys, 2 users, 85 models; `LiteLLM_SpendLogs` 18421
+and growing.
 `Cluster` `litellm-pg`: 1 instance, image `postgresql:15.18`,
 `enableSuperuserAccess: true`. Password reuse: Secret **`litellm-pg-app`**
 (`kubernetes.io/basic-auth`, `username=litellm` + the existing `litellm-db`
