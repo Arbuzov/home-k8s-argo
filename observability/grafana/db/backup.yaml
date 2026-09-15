@@ -38,23 +38,30 @@ spec:
               image: postgres:15
               imagePullPolicy: IfNotPresent
               env:
+                - name: PGUSER
+                  valueFrom:
+                    secretKeyRef:
+                      name: grafana-pg-superuser
+                      key: username
                 - name: PGPASSWORD
                   valueFrom:
                     secretKeyRef:
-                      name: grafana-pg-app
+                      name: grafana-pg-superuser
                       key: password
               command:
-                - sh
+                - bash
                 - -c
                 - |
-                  set -e
+                  set -euo pipefail
                   ts=$(date +%F)
                   i=0
-                  until pg_isready -h grafana-pg-rw -U grafana -d grafana; do
+                  until pg_isready -h grafana-pg-rw -d grafana; do
                     i=$((i+1)); [ $i -ge 60 ] && { echo "db never ready"; exit 1; }
                     echo "waiting for db ($i)"; sleep 5
                   done
-                  pg_dump -h grafana-pg-rw -U grafana -d grafana | gzip -c > /backup/db-$ts.sql.gz
+                  pg_dump -h grafana-pg-rw -d grafana | gzip -c > /backup/db-$ts.sql.gz.tmp
+                  zcat /backup/db-$ts.sql.gz.tmp | tail -n 10 | grep -q 'PostgreSQL database dump complete'
+                  mv /backup/db-$ts.sql.gz.tmp /backup/db-$ts.sql.gz
                   find /backup -name 'db-*.sql.gz' -mtime +14 -delete
                   ls -la /backup
               volumeMounts:

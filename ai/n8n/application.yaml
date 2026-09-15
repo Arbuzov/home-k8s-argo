@@ -423,23 +423,30 @@ spec:
                           image: postgres:15
                           imagePullPolicy: IfNotPresent
                           env:
+                            - name: PGUSER
+                              valueFrom:
+                                secretKeyRef:
+                                  name: n8n-pg-superuser
+                                  key: username
                             - name: PGPASSWORD
                               valueFrom:
                                 secretKeyRef:
-                                  name: postgres-n8n
-                                  key: POSTGRES_PASSWORD
+                                  name: n8n-pg-superuser
+                                  key: password
                           command:
-                            - sh
+                            - bash
                             - -c
                             - |
-                              set -e
+                              set -euo pipefail
                               ts=$(date +%F)
                               i=0
-                              until pg_isready -h n8n-pg-rw -U n8n -d n8n; do
+                              until pg_isready -h n8n-pg-rw -d n8n; do
                                 i=$((i+1)); [ $i -ge 60 ] && { echo "db never ready"; exit 1; }
                                 echo "waiting for db ($i)"; sleep 5
                               done
-                              pg_dump -h n8n-pg-rw -U n8n -d n8n | gzip -c > /backup/db-$ts.sql.gz
+                              pg_dump -h n8n-pg-rw -d n8n | gzip -c > /backup/db-$ts.sql.gz.tmp
+                              zcat /backup/db-$ts.sql.gz.tmp | tail -n 10 | grep -q 'PostgreSQL database dump complete'
+                              mv /backup/db-$ts.sql.gz.tmp /backup/db-$ts.sql.gz
                               find /backup -name 'db-*.sql.gz' -mtime +14 -delete
                               ls -la /backup
                           volumeMounts:

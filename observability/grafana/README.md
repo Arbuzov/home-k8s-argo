@@ -79,7 +79,12 @@ Backups go to a separate PVC on **`smb-pgbackup`**
 ([`db/backup.yaml`](db/backup.yaml)): a nightly 03:30 `pg_dump` into the shared
 `postgres-backups/` tree, same arrangement as `ai/litellm` and `ai/n8n`. That
 StorageClass is defined in `ai/n8n` (first mover), so this is a cross-app
-dependency — n8n has to be deployed for the backup PVC to bind.
+dependency — n8n has to be deployed for the backup PVC to bind. Since 2026-09-15
+the dump runs as the CNPG superuser (`grafana-pg-superuser`) under
+`bash -o pipefail`, and replaces the day's file only after the `dump complete`
+footer is found. The old `sh -e` pipeline exited 0 on a failed `pg_dump`, which
+silently emptied vikunja's backups for five weeks. See
+[`apps/vikunja/README.md`](../../apps/vikunja/README.md) → *Nightly dump was silently empty*.
 
 `initChownData` stays **disabled** and `deploymentStrategy: Recreate` stays set:
 the volume is RWO, so two pods cannot mount it during a rollout.

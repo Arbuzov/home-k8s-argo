@@ -446,6 +446,12 @@ is defined in `ai/n8n/` (first mover) — a cross-app dependency, so this needs
 n8n deployed too. Trigger now: `kubectl -n litellm create job
 --from=cronjob/litellm-db-backup litellm-db-backup-now`.
 
+Since 2026-09-15 the job dumps as the CNPG superuser (`litellm-pg-superuser`)
+under `bash -o pipefail`, and replaces the day's file only after the
+`dump complete` footer is found. The old `sh -e` pipeline exited 0 on a failed
+`pg_dump`, which silently emptied vikunja's backups for five weeks. See
+[`apps/vikunja/README.md`](../../apps/vikunja/README.md) → *Nightly dump was silently empty*.
+
 ## Ingress timeouts — slow reasoning models
 
 The ingress carries two annotations:

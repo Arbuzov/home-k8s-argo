@@ -189,7 +189,11 @@ retry/wait because Postgres on CIFS can be mid-restart. The `n8n-backup`
 `enableServiceLinks: false` — its own `N8N_PORT` config clashes with the
 legacy service-link env k8s would otherwise inject for the `n8n` Service. The
 `n8n-db-backup` job is pinned to kube-master (Postgres + the `postgres:15`
-image are local there).
+image are local there). Since 2026-09-15 it dumps as the CNPG superuser
+(`n8n-pg-superuser`) under `bash -o pipefail`, and replaces the day's file only
+after the `dump complete` footer is found. The old `sh -e` pipeline exited 0 on a
+failed `pg_dump`, which silently emptied vikunja's backups for five weeks. See
+[`apps/vikunja/README.md`](../../apps/vikunja/README.md) → *Nightly dump was silently empty*.
 
 | Job | Time | Tool | Covers | Restore |
 |-----|------|------|--------|---------|
