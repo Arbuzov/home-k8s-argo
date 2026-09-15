@@ -123,6 +123,22 @@ the ext4 root disk**, the operator-native equivalent of the hostPath trick:
   `<cluster>-app`-named secret, so the `n8n` role keeps the same password and
   the host flip needs no credential change.
 
+**Moved to worker-3's SSD (2026-09-15).** `storage.storageClass: local-ssd` is
+the USB SATA SSD on kube-worker-3 (see
+[`platform/local-path`](../../platform/local-path/README.md)); the reasons above
+for avoiding `local-path` no longer apply there. The procedure is the CNPG-native
+one from [`apps/vikunja/README.md`](../../apps/vikunja/README.md) → *Moved to
+worker-3's SSD*:
+1. `instances: 2` on the new class, with affinity widened from the hard
+   `nodeSelector: kube-master` to `In [kube-master, kube-worker-3]`.
+2. `primaryUpdateMethod: switchover`, so CNPG promotes the SSD replica.
+3. Back to one instance, but only once `status.currentPrimary` is the SSD instance.
+
+The n8n pods themselves already run on kube-worker-3, so the DB moves next to
+its clients. The old `Retain` PV keeps `/var/lib/n8n-pg` on kube-master as a
+rollback copy. Pre-move counts: 22 workflows, 17 credentials, 1 user;
+`execution_entity` 11949 rows and growing.
+
 Out-of-band prerequisites (not chart-rendered — apply before the CNPG DB
 comes up; CNPG CRDs must already be installed, see `platform/cnpg-operator/`):
 
