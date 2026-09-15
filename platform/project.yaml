@@ -27,6 +27,8 @@ spec:
       namespace: cnpg-system
     - server: https://kubernetes.default.svc
       namespace: nginx
+    - server: https://kubernetes.default.svc
+      namespace: local-path-storage
   clusterResourceWhitelist:
     - group: '*'
       kind: '*'

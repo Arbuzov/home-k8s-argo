@@ -13,7 +13,9 @@ services under `platform/` automatically.
 | `<service>/application.yaml` | `Application` | One app each (`project: platform`) |
 
 Services deployed: `argo-cd`, `arc-operator`, `cnpg-operator`, `nginx`,
-`oathkeeper`, `priority-classes` (cluster-scoped objects, not a workload).
+`oathkeeper`, `priority-classes` (cluster-scoped objects, not a workload),
+`local-path` (the provisioner's config + the `local-ssd` class, not the
+provisioner itself).
 Kept in git but **disabled**: `kubernetes-dashboard` and
 `metrics-server`, both via the `exclude` glob in `bootstrap.yaml`. Each service
 with out-of-band Secrets documents them in its own `README.md`.
