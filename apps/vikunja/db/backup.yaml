@@ -38,23 +38,30 @@ spec:
               image: postgres:15
               imagePullPolicy: IfNotPresent
               env:
+                - name: PGUSER
+                  valueFrom:
+                    secretKeyRef:
+                      name: vikunja-pg-superuser
+                      key: username
                 - name: PGPASSWORD
                   valueFrom:
                     secretKeyRef:
-                      name: vikunja-db
+                      name: vikunja-pg-superuser
                       key: password
               command:
-                - sh
+                - bash
                 - -c
                 - |
-                  set -e
+                  set -euo pipefail
                   ts=$(date +%F)
                   i=0
-                  until pg_isready -h vikunja-pg-rw -U vikunja -d vikunja; do
+                  until pg_isready -h vikunja-pg-rw -d vikunja; do
                     i=$((i+1)); [ $i -ge 60 ] && { echo "db never ready"; exit 1; }
                     echo "waiting for db ($i)"; sleep 5
                   done
-                  pg_dump -h vikunja-pg-rw -U vikunja -d vikunja | gzip -c > /backup/db-$ts.sql.gz
+                  pg_dump -h vikunja-pg-rw -d vikunja | gzip -c > /backup/db-$ts.sql.gz.tmp
+                  zcat /backup/db-$ts.sql.gz.tmp | tail -n 10 | grep -q 'PostgreSQL database dump complete'
+                  mv /backup/db-$ts.sql.gz.tmp /backup/db-$ts.sql.gz
                   find /backup -name 'db-*.sql.gz' -mtime +14 -delete
                   ls -la /backup
               volumeMounts:

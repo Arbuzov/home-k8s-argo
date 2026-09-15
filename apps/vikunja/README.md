@@ -66,10 +66,11 @@ risk the warning above called out. `vikunja.env` now sets
 rollback = revert the env to `sqlite`/`/db/vikunja.db`. The `data` PVC
 (attachments) stays on `smb` — it's plain files, no SQLite fragility.
 
-Storage mirrors n8n/litellm: CNPG runs Postgres as **uid 26**, cluster
-`local-path` is unusable (exfat/tmpfs), so a **static `local` PV on the ext4
+Storage until 2026-09-15 mirrored n8n/litellm: CNPG runs Postgres as **uid 26**, cluster
+`local-path` was unusable (exfat/tmpfs), so a **static `local` PV on the ext4
 root disk** — `/var/lib/vikunja-pg` on **kube-master**, pre-`chown 26:26`,
-StorageClass `vikunja-pg-local` + PV `vikunja-pg-local-1`. `Cluster` `vikunja-pg`:
+StorageClass `vikunja-pg-local` + PV `vikunja-pg-local-1`. It now lives on
+kube-worker-3's USB SSD via the `local-ssd` class — see "Moved to worker-3's SSD" below. `Cluster` `vikunja-pg`:
 1 instance, `postgresql:15.18`, `enableSuperuserAccess`. Out-of-band (not git):
 Secret `vikunja-db` (password) + `vikunja-pg-app` (`<cluster>-app`, same
 password so the role adopts it), and the data-dir `chown`.
@@ -90,6 +91,47 @@ Argo Application [`vikunja-db`](application-db.yaml) with `ServerSideApply` (lik
 `n8n-db`/`litellm-db`). A nightly `pg_dump` CronJob ([`db/backup.yaml`](db/backup.yaml))
 backs up to the shared `postgres-backups/vikunja/`. Removing the old SQLite
 `database` PVC is the last follow-up, once the CNPG DB has soaked.
+
+### Nightly dump was silently empty, 2026-08-11 → 2026-09-15
+
+The August index fix below left `tasks_index_backup_20260811` owned by
+`postgres`. From then on `pg_dump` as `vikunja` died on
+`permission denied for table tasks_index_backup_20260811`. The script ran
+`pg_dump | gzip` under plain `sh -e`, which has no `pipefail`, so the job still
+exited 0 and wrote a **20-byte empty gzip** every night. `find -mtime +14` then
+deleted the last real dump. For five weeks there was no usable backup.
+
+The CronJob now:
+- dumps as the CNPG superuser (`vikunja-pg-superuser`), so tables created by a
+  superuser are included;
+- runs under `bash -o pipefail`, so a failing `pg_dump` fails the job;
+- writes to `.tmp` and renames only after the `dump complete` footer is found,
+  so a bad run can't replace the last good file.
+
+The footer check looks at the last 10 lines, not the last 3. Current `pg_dump`
+(the CVE-2025-8714 fix) appends `\unrestrict <key>` after the footer.
+
+### Moved to worker-3's SSD (2026-09-15)
+
+`storage.storageClass: local-ssd` puts PGDATA on the USB SATA SSD on
+kube-worker-3 (see [`platform/local-path`](../../platform/local-path/README.md)).
+The move uses CNPG itself — no dump/restore, no app change:
+1. `instances: 2` with the new class. CNPG clones a replica onto the SSD by
+   streaming replication; `local-ssd`'s `allowedTopologies` places it on worker-3.
+2. The affinity change (hard `nodeSelector: kube-master` → `In [kube-master,
+   kube-worker-3]`) forces a rolling update of the primary.
+   `primaryUpdateMethod: switchover` makes CNPG hand the primary role to the SSD
+   replica instead of restarting the old primary in place.
+3. `instances: 1`, **only after `status.currentPrimary` is the SSD instance.**
+   Scale-down removes a replica. If the switchover had not happened, that
+   replica would be the SSD copy.
+
+The old static PV `vikunja-pg-local-1` is `Retain`. Its data stays in
+`/var/lib/vikunja-pg` on kube-master as a rollback net. `db/storage.yaml`
+stays in git until the new home has soaked.
+
+Pre-move dump: `db-premigrate-2026-09-15-1319.sql.gz` in the backup PVC
+(42 tables, 140 tasks).
 
 ### Duplicate `tasks (project_id, index)` blocked the v2.5.0 migration (2026-08)
 
