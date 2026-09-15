@@ -53,12 +53,20 @@ The password is **not in git**: it comes from the `grafana-pg-app` Secret via
 
 Two different volumes are involved, and it is worth keeping them apart:
 
-- **The database** lives on StorageClass **`grafana-pg-local`** — a static
-  `no-provisioner` class defined in [`db/storage.yaml`](db/storage.yaml), with PV
-  `grafana-pg-local-1` at `/var/lib/grafana-pg` on **`kube-master`**,
-  `Retain`. Same pattern as `litellm-pg-local` and `vikunja-pg-local`, and for
-  the same reason: the cluster's own `local-path` class is unusable for this
-  (exfat/tmpfs). Its `nodeAffinity` is what pins the CNPG pod to `kube-master`.
+- **The database** lives on StorageClass **`local-ssd`** since 2026-09-15: the
+  USB SATA SSD on kube-worker-3 (see [`platform/local-path`](../../platform/local-path/README.md)).
+  Until then it was on the static `no-provisioner` class **`grafana-pg-local`**
+  ([`db/storage.yaml`](db/storage.yaml)), with PV `grafana-pg-local-1` at
+  `/var/lib/grafana-pg` on **`kube-master`**, `Retain`. That arrangement existed
+  only because the cluster's `local-path` class was unusable (exfat/tmpfs).
+- **The move** used the same CNPG-native procedure as vikunja
+  ([`apps/vikunja/README.md`](../../apps/vikunja/README.md) → *Moved to worker-3's SSD*):
+  `instances: 2` on `local-ssd`, a two-node affinity, and `primaryUpdateMethod:
+  switchover`. CNPG clones a replica onto the SSD and hands it the primary role.
+  Scale back to `instances: 1` only after `status.currentPrimary` is the SSD
+  instance. The old `Retain` PV keeps `/var/lib/grafana-pg` on kube-master as a
+  rollback copy. `db/storage.yaml` stays until the new home has soaked.
+  Pre-move counts: 26 dashboards, 5 datasources, 7 alert rules, 3 users.
 - **Grafana's own PVC is no longer mounted** (`persistence.enabled: false`,
   2026-08-28). It was `existingClaim: grafana-local` — a 2 GB `local-path` volume
   on `kube-master`, created out-of-band and pre-seeded from a backup of the old

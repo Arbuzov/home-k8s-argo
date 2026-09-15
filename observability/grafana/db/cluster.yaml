@@ -4,20 +4,28 @@ metadata:
   name: grafana-pg
   namespace: grafana
 spec:
-  instances: 1
+  instances: 2
   imageName: ghcr.io/cloudnative-pg/postgresql:15.18
   primaryUpdateStrategy: unsupervised
+  primaryUpdateMethod: switchover
   enableSuperuserAccess: true
   storage:
     size: 5Gi
-    storageClass: grafana-pg-local
+    storageClass: local-ssd
   bootstrap:
     initdb:
       database: grafana
       owner: grafana
   affinity:
-    nodeSelector:
-      kubernetes.io/hostname: kube-master
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+          - matchExpressions:
+              - key: kubernetes.io/hostname
+                operator: In
+                values:
+                  - kube-master
+                  - kube-worker-3
   resources:
     requests:
       cpu: 100m
