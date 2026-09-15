@@ -393,7 +393,10 @@ triggered by rewriting the hard `nodeSelector` as the equivalent `nodeAffinity I
 
 The old `Retain` PV keeps `/var/lib/litellm-pg` on the SD as a rollback copy.
 Pre-move counts: 25 virtual keys, 2 users, 85 models; `LiteLLM_SpendLogs` 18421
-and growing.
+and growing. All matched on `litellm-pg-2` after the switchover. LiteLLM logged
+about a second of `FATAL: the database system is shutting down` while the old
+primary stepped down, did not restart, and `/health/readiness` reports
+`db: connected`.
 `Cluster` `litellm-pg`: 1 instance, image `postgresql:15.18`,
 `enableSuperuserAccess: true`. Password reuse: Secret **`litellm-pg-app`**
 (`kubernetes.io/basic-auth`, `username=litellm` + the existing `litellm-db`
