@@ -22,7 +22,7 @@ spec:
           tag: 0.21.1-fork.1
         env:
           CONFLUENCE_SSL_VERIFY: 'false'
-          MCP_VERY_VERBOSE: true
+          MCP_VERY_VERBOSE: false
           MCP_LOGGING_STDOUT: true
           TRANSPORT: streamable-http
         envSecrets:

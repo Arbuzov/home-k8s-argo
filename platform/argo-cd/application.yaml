@@ -23,6 +23,7 @@ spec:
           install: false
         controller:
           replicaCount: 1
+          logLevel: warn
           resources:
             limits:
               cpu: 750m

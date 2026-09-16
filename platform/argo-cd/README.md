@@ -232,3 +232,15 @@ kubectl -n argo-cd set env deployment/argo-cd-argocd-repo-server ARGOCD_EXEC_TIM
 4. Bump `spec.source.targetRevision`, then `kubectl apply -f application.yaml`.
    Argo's automated sync rolls all components to the new app version. Watch the
    repo-server pull for egress timeouts (above).
+
+## `controller.logLevel: warn` (2026-09-16)
+
+At the default `info` the application controller narrates every reconcile of every
+Application — "Refreshing app status", "Comparing app state", "GetRepoObjs stats",
+"Reconciliation completed" — a few lines per app per two-minute refresh. Measured on
+kube-worker-3: ~0.5 KiB/s, ~40 MB/day of container log onto the node's SD card, which is
+the wear problem described in [`../local-path`](../local-path/README.md).
+
+`warn` keeps sync failures, degraded health and errors, and drops the running commentary.
+Set it back to `info` when debugging a sync that misbehaves — it is one value and a
+controller restart.

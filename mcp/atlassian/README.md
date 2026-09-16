@@ -93,3 +93,18 @@ out-of-band:
 htpasswd -cb auth <user> <password>
 kubectl -n mcp create secret generic mcp-basic-auth --from-file=auth
 ```
+
+## `MCP_VERY_VERBOSE: false` — it was the noisiest log on the cluster (2026-09-16)
+
+Both servers ran with `MCP_VERY_VERBOSE: true`, which logs the task scheduler at
+DEBUG (`docket.worker - Getting new deliveries` three times a second, forever, whether
+or not anyone is using the MCP server).
+
+On kube-worker-3 that was measured at ~1 KiB/s, ~90 MB/day of container log written
+straight to the node's SD card — the single largest continuous SD writer left after the
+Postgres clusters moved to the SSD (see
+[`platform/local-path`](../../platform/local-path/README.md)). Card wear on that node has
+already produced six silent-corruption incidents, so pure debug chatter is not worth it.
+
+`MCP_LOGGING_STDOUT` stays on: that is what makes the logs visible to `kubectl logs` at
+all. Flip `MCP_VERY_VERBOSE` back to `true` while actually debugging a request, then back.
