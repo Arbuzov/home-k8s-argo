@@ -23,7 +23,6 @@ spec:
           install: false
         controller:
           replicaCount: 1
-          logLevel: warn
           resources:
             limits:
               cpu: 750m
@@ -72,6 +71,7 @@ spec:
           secret:
             createSecret: false
           params:
+            controller.log.level: warn
             server.disable.auth: false
             server.dex.server: https://argo-cd-argocd-dex-server:5556
             server.dex.server.strict.tls: false

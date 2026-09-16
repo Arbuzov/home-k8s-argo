@@ -233,7 +233,7 @@ kubectl -n argo-cd set env deployment/argo-cd-argocd-repo-server ARGOCD_EXEC_TIM
    Argo's automated sync rolls all components to the new app version. Watch the
    repo-server pull for egress timeouts (above).
 
-## `controller.logLevel: warn` (2026-09-16)
+## `controller.log.level: warn` (2026-09-16)
 
 At the default `info` the application controller narrates every reconcile of every
 Application — "Refreshing app status", "Comparing app state", "GetRepoObjs stats",
@@ -244,3 +244,8 @@ the wear problem described in [`../local-path`](../local-path/README.md).
 `warn` keeps sync failures, degraded health and errors, and drops the running commentary.
 Set it back to `info` when debugging a sync that misbehaves — it is one value and a
 controller restart.
+
+It belongs in `configs.params` (the `argocd-cmd-params-cm` ConfigMap), **not** in a
+`controller.logLevel` value: this chart has no such key, so setting it there renders
+nothing and the controller keeps its default. Checked against the running StatefulSet
+args, which is the only reliable confirmation.

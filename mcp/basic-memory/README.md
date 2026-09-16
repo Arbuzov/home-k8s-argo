@@ -105,6 +105,16 @@ kube-worker-3 `local-path` now resolves to the USB SSD (see
 [`platform/local-path`](../../platform/local-path/README.md)), and the class is
 `Delete`, so the volume goes away with the claim.
 
+**Mount the volume one level above the config dir.** basic-memory calls
+`chmod 0700` on its config dir at startup, and the directory a `local-path` volume
+gives you is created by the provisioner's helper pod as `root` with mode `0777`.
+`chmod` by the container's uid 1000 on a root-owned directory is `EPERM`, so mounting
+the PVC straight at `~/.basic-memory` crashlooped the pod. Instead the volume is
+mounted at `/var/lib/basic-memory` and `BASIC_MEMORY_CONFIG_DIR` points one level
+deeper (`/var/lib/basic-memory/state`): basic-memory creates that directory itself,
+owns it, and may chmod it. The same trap applies to any image that chmods its own
+data directory.
+
 The index is derived data — it is rebuilt from the notes on the SMB volume. The first
 start after this change re-syncs for a few minutes; `config.json` is recreated from
 `BASIC_MEMORY_HOME` / `BASIC_MEMORY_DEFAULT_PROJECT`. During that window edits made

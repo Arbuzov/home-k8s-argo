@@ -42,6 +42,7 @@ spec:
                   - /mcp/basic-memory
                 env:
                   BASIC_MEMORY_HOME: /app/data
+                  BASIC_MEMORY_CONFIG_DIR: /var/lib/basic-memory/state
                   BASIC_MEMORY_DEFAULT_PROJECT: main
                   BASIC_MEMORY_SYNC_CHANGES: "true"
                   BASIC_MEMORY_LOG_LEVEL: INFO
@@ -134,7 +135,7 @@ spec:
             advancedMounts:
               basic-memory:
                 app:
-                  - path: /home/appuser/.basic-memory
+                  - path: /var/lib/basic-memory
 
         rawResources:
           smb:
