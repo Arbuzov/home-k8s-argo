@@ -91,3 +91,22 @@ namespace+name (`pvc-mcp-basic-memory-data-smb`), so the share folder — and
 thus the data — is independent of the class name; renaming the class does not
 orphan the notes. Only the markdown note tree lives here; the SQLite index is
 rebuilt off-volume on each start. `uid/gid=1000` matches the image's appuser.
+
+## The SQLite index lives on its own volume, not in the container (2026-09-16)
+
+`BASIC_MEMORY_HOME` (`/app/data`, the notes themselves) is the SMB volume above, but the
+search index is separate: basic-memory keeps `memory.db` in `$HOME/.basic-memory`
+(`/home/appuser/.basic-memory`), which was the **container's writable layer** — i.e. the
+node's SD card. Measured 2026-09-16: 86 MB of `memory.db` and ~750 MB written to the SD
+in 8 hours, because the whole index is rebuilt on every restart.
+
+The `index` persistence entry moves that directory onto a `local-path` PVC. On
+kube-worker-3 `local-path` now resolves to the USB SSD (see
+[`platform/local-path`](../../platform/local-path/README.md)), and the class is
+`Delete`, so the volume goes away with the claim.
+
+The index is derived data — it is rebuilt from the notes on the SMB volume. The first
+start after this change re-syncs for a few minutes; `config.json` is recreated from
+`BASIC_MEMORY_HOME` / `BASIC_MEMORY_DEFAULT_PROJECT`. During that window edits made
+through the MCP tools can fail to resolve a note by permalink and silently create a
+duplicate, so wait for the sync to finish before writing.

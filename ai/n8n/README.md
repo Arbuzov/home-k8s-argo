@@ -251,3 +251,25 @@ n8n import:credentials --input=/backup/credentials-YYYY-MM-DD.json
 # Full restore (users + everything) — into an EMPTY database:
 gunzip -c /backup/db-YYYY-MM-DD.sql.gz | psql -h n8n-pg-rw -U n8n -d n8n
 ```
+
+## `.n8n` and the build cache moved off the SD card (2026-09-16)
+
+`main` mounted `/home/node/.n8n` and `/home/node/.cache` as `emptyDir`, which is a
+directory under `/var/lib/kubelet` on the node's root disk — kube-worker-3's SD card.
+Measured 2026-09-16: 1.5 GB written there in 8 hours, most of it while the pod was
+crash-looping on the corrupt image (each restart rewrote the ~53 MB cache), plus a
+steady trickle from the event log in `.n8n`. That card is the one with six
+silent-corruption incidents, so this is wear worth avoiding.
+
+Both now use the `local-path` class, which on kube-worker-3 resolves to the USB SSD
+(see [`platform/local-path`](../../platform/local-path/README.md)):
+
+- `main.persistence` → `type: dynamic`, `storageClass: local-path`. A normal PVC, so
+  `.n8n` (and the binary-data dir) now also survives a restart instead of being rebuilt.
+- `n8n-cache` → a **generic ephemeral volume** with the same class. The PVC is created
+  with the pod and deleted with it, and `local-path` is `Delete`, so nothing is left
+  behind on the SSD. A cache has no reason to outlive its pod.
+
+`worker` and `webhook` keep their `emptyDir` — measured at ~0.1 MB since boot, not worth
+a volume each. Rollback is reverting this block; `.n8n` holds no irreplaceable state
+(the encryption key lives in the `n8n-secrets` Secret, the data in Postgres).

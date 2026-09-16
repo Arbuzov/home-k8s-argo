@@ -84,10 +84,6 @@ spec:
             className: nginx
             annotations:
               nginx.ingress.kubernetes.io/ssl-redirect: "false"
-              # Google-логин вместо общего пароля. auth-url идёт в сервис
-              # внутри кластера, а не на публичное имя: иначе каждая проверка
-              # уходила бы наружу через роутер и обратно. auth-signin —
-              # наоборот публичный, его выполняет браузер.
               nginx.ingress.kubernetes.io/auth-url: "http://oauth2-proxy.mcp.svc.cluster.local/oauth2/auth"
               nginx.ingress.kubernetes.io/auth-signin: "https://notes.whitediver.keenetic.link/oauth2/start?rd=$escaped_request_uri"
               nginx.ingress.kubernetes.io/auth-response-headers: "X-Auth-Request-User, X-Auth-Request-Email"
@@ -112,7 +108,7 @@ spec:
               ignis:
                 app:
                   - path: /vaults/basic-memory
-          state:
+          state-ssd:
             type: persistentVolumeClaim
             accessMode: ReadWriteOnce
             size: 2Gi

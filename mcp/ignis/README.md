@@ -144,3 +144,30 @@ under you and leaves no last-known-good. `0.8.10` was byte-identical to `latest`
 time of pinning (`sha256:e2f62cc8…`, multi-arch with a real `linux/arm64` manifest — every
 node here is a Pi). Each Ignis release pins the Obsidian version it was tested against, so
 upgrading the image also moves Obsidian; do it as an explicit commit.
+
+## `state` → `state-ssd`: the old claim was in RAM (2026-09-16)
+
+The `state` volume used the `local-path` class, and the PVC was created while that
+provisioner still sent kube-worker-3 to `DEFAULT_PATH_FOR_NON_LISTED_NODES` = `/tmp`.
+`/tmp` on that node is **tmpfs**: the volume lived in RAM (3.9 GB tmpfs), so Ignis lost
+its state on every reboot and paid for it with memory on an 8 GB node.
+
+`local-path` now maps kube-worker-3 to the USB SSD
+([`platform/local-path`](../../platform/local-path/README.md)). A PVC cannot change its
+StorageClass or path in place, so the persistence key is renamed: Argo creates
+`ignis-state-ssd` on the SSD and prunes `ignis-state`. The contents are a cache and a
+local copy of the vault, both rebuilt on start — nothing to migrate.
+
+## Why the two oauth2-proxy annotations point at different hosts
+
+Access is Google login through the shared `oauth2-proxy`, not a shared password.
+The two annotations deliberately use different addresses:
+
+- `auth-url` → `http://oauth2-proxy.mcp.svc.cluster.local/oauth2/auth`, the in-cluster
+  Service. nginx calls it on every request; sending that to the public name would push
+  each check out through the router and back.
+- `auth-signin` → the public `https://notes.whitediver.keenetic.link/oauth2/start`,
+  because the browser follows this one, not nginx.
+
+(This replaces the comment block that used to sit in `application.yaml`; manifests in
+this repo carry no comments.)

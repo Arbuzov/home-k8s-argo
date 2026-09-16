@@ -125,6 +125,16 @@ spec:
               basic-memory:
                 app:
                   - path: /app/data
+          index:
+            enabled: true
+            type: persistentVolumeClaim
+            accessMode: ReadWriteOnce
+            size: 2Gi
+            storageClass: local-path
+            advancedMounts:
+              basic-memory:
+                app:
+                  - path: /home/appuser/.basic-memory
 
         rawResources:
           smb:

@@ -175,9 +175,10 @@ spec:
             NODE_ENV:
               value: development
           persistence:
-            enabled: false
-            storageClass: "smb"
+            enabled: true
+            storageClass: local-path
             type: dynamic
+            size: 2Gi
           livenessProbe:
             httpGet:
               path: /healthz/readiness
@@ -208,7 +209,15 @@ spec:
                   name: n8n-cache
           extraVolumes:
             - name: n8n-cache
-              emptyDir: {}
+              ephemeral:
+                volumeClaimTemplate:
+                  spec:
+                    accessModes:
+                      - ReadWriteOnce
+                    storageClassName: local-path
+                    resources:
+                      requests:
+                        storage: 2Gi
         extraManifests:
           - apiVersion: apps/v1
             kind: Deployment
