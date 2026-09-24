@@ -16,8 +16,10 @@ spec:
         controllers:
           ignis:
             type: deployment
-            replicas: 1
+            replicas: 0
             strategy: Recreate
+            annotations:
+              argocd.argoproj.io/sync-options: Force=true,Replace=true
             pod:
               nodeSelector:
                 kubernetes.io/hostname: kube-worker-3
@@ -110,6 +112,7 @@ spec:
                   - path: /vaults/basic-memory
           state-ssd:
             type: persistentVolumeClaim
+            forceRename: ignis-state-ssd
             accessMode: ReadWriteOnce
             size: 2Gi
             storageClass: local-path

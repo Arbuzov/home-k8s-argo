@@ -55,3 +55,12 @@ bjw-s `app-template` chart (same pattern as `basic-memory`).
 - **litellm** — in-cluster, aggregated MCP gateway (also the public path via
   oathkeeper).
 - **Claude connector** — `dev.whitediver.keenetic.link/mcp/grafana` (basic-auth).
+
+## app-template 5: the Deployment is recreated once (2026-09-24)
+
+The chart's selector label changed and a Deployment selector is immutable, so
+the bump goes in two commits: `replicas: 0` plus a temporary
+`Force=true,Replace=true` sync option, then replicas restored and the option
+dropped together. This server holds no state; zero replicas is here only so
+that the second commit is a real spec change. Mechanism:
+[`../basic-memory`](../basic-memory/README.md#app-template-5-the-deployment-is-recreated-once-2026-09-24).

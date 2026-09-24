@@ -15,7 +15,9 @@ spec:
       values: |
         controllers:
           pigallery2:
-            replicas: 1
+            replicas: 0
+            annotations:
+              argocd.argoproj.io/sync-options: Force=true,Replace=true
             pod:
               nodeSelector:
                 kubernetes.io/hostname: kube-worker-3
@@ -63,6 +65,7 @@ spec:
         persistence:
           config:
             type: persistentVolumeClaim
+            forceRename: pigallery2-config
             accessMode: ReadWriteOnce
             size: 1Gi
             storageClass: smb
@@ -86,10 +89,10 @@ spec:
               - path: /app/data/tmp
         rawResources:
           pv:
-            apiVersion: v1
-            kind: PersistentVolume
-            nameOverride: photos
-            spec:
+            forceRename: pigallery2-photos
+            manifest:
+              apiVersion: v1
+              kind: PersistentVolume
               spec:
                 capacity:
                   storage: 200Gi
@@ -114,10 +117,10 @@ spec:
                   - serverino
                   - nobrl
           pvc:
-            apiVersion: v1
-            kind: PersistentVolumeClaim
-            nameOverride: photos
-            spec:
+            forceRename: pigallery2-photos
+            manifest:
+              apiVersion: v1
+              kind: PersistentVolumeClaim
               spec:
                 accessModes:
                   - ReadWriteMany
