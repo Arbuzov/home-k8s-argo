@@ -18,13 +18,11 @@ spec:
           prometheus.io/port: "9255"
           prometheus.io/path: /metrics
         stackdriver:
-          projectId: ""
           projectIds:
             - whitediver-vpn
           serviceAccountSecret: stackdriver-exporter-credentials
           serviceAccountSecretKey: credentials.json
           metrics:
-            typePrefixes: ""
             prefixes:
               - compute.googleapis.com/instance/network
               - compute.googleapis.com/instance/cpu

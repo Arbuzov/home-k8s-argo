@@ -215,11 +215,9 @@ Both are done and the exporter is verified running (`up{job="kubernetes-pods-slo
 and letting the app-of-apps own this Application is the obvious follow-up, left
 out of this change to keep it reviewable.
 
-`stackdriver.metrics.typePrefixes` is explicitly `""` and `projectId` is `""`:
-both are the chart's deprecated single-value options, and leaving them at their
-defaults (`compute.googleapis.com/instance/cpu` and the string `FALSE`) renders a
-second, conflicting set of CLI flags alongside the plural `prefixes` /
-`projectIds` ones.
+Chart 5.x removed the deprecated single-value `stackdriver.projectId` and
+`stackdriver.metrics.typePrefixes`; only the plural `projectIds` / `prefixes`
+are set.
 
 ## GCP spend — not here yet
 
