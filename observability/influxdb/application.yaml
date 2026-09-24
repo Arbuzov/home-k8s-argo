@@ -7,7 +7,7 @@ spec:
   project: default
   source:
     repoURL: https://helm.influxdata.com/
-    targetRevision: 4.12.5
+    targetRevision: 4.12.1
     chart: influxdb
     helm:
       values: |
@@ -19,23 +19,16 @@ spec:
           loadBalancerIP: "192.168.99.44"
           externalIPs:
             - 192.168.99.44
-        nodeAffinityPreset:
-          type: hard
-          key: kubernetes.io/hostname
-          values:
-          - kube-master
-        nodeSelector:
-          kubernetes.io/hostname: kube-master
         persistence:
           enabled: true
-          storageClass: "local-path"
+          existingClaim: influxdb-data-ssd
         resources:
           requests:
             memory: "256Mi"
             cpu: "100m"
           limits:
-            memory: "768Mi"
-            cpu: "300m"
+            memory: "2Gi"
+            cpu: "1"
         livenessProbe:
           path: "/ping"
           initialDelaySeconds: 600
@@ -61,14 +54,7 @@ spec:
   destination:
     server: https://kubernetes.default.svc
     namespace: influxdb
-  ignoreDifferences:
-    - group: apps
-      kind: StatefulSet
-      jsonPointers:
-        - /spec/volumeClaimTemplates
   syncPolicy:
-    automated:
-      selfHeal: true
     syncOptions:
       - CreateNamespace=true
       - ServerSideApply=true

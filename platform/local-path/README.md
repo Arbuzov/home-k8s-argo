@@ -12,7 +12,7 @@ This app only takes over its `local-path-config` ConfigMap and adds one class.
 | node | path | what backs it |
 | --- | --- | --- |
 | `DEFAULT_PATH_FOR_NON_LISTED_NODES` | `/tmp` | tmpfs / SD root — why other READMEs call `local-path` unusable |
-| `kube-master` | `/srv/kubernetes/local-provisioner` | master's SD root |
+| `kube-master` | `/srv/kubernetes/local-provisioner` | **not** the SD root: `/srv/kubernetes` → `/mnt/usb/kubernetes`, exFAT on a failing USB HDD (see below) |
 | `kube-worker-3` | `/mnt/ssd/local-path` | USB SATA SSD, **added 2026-09-15** |
 
 The first two entries are copied verbatim from the live ConfigMap. The only change is
@@ -24,6 +24,18 @@ the `kube-worker-3` line.
   there, which used to go to `/tmp`.
 - Argo now owns the **whole** ConfigMap. Keep all four keys (`config.json`,
   `helperPod.yaml`, `setup`, `teardown`). Dropping one breaks provisioning on every node.
+
+### kube-master's path is a dying disk
+
+`/srv/kubernetes` on kube-master has been a symlink to `/mnt/usb/kubernetes` since
+2023, so every `local-path` volume there sits on the exFAT partition of the
+2.5" USB "Backup" HDD, next to the SMB-CSI shares and the photoprism `hostPath`
+PVs. As of 2026-09-24 that disk is failing: SMART 25 pending sectors, 1.17 M
+load cycles, kernel `critical medium error`. It took InfluxDB down (moved to
+`local-ssd`, see [`../../observability/influxdb/README.md`](../../observability/influxdb/README.md)).
+Still on it: `prometheus-server`, `octoprint`, `octoprint-plugins`,
+`jellyfin-config`, `ncc/confd-data`. Do not create new `local-path` volumes on
+kube-master until the disk is replaced.
 
 ## `local-ssd` StorageClass (for Postgres)
 
