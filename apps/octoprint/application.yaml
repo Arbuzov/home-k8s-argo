@@ -9,7 +9,7 @@ spec:
   project: apps
   source:
     repoURL: https://arbuzov.github.io/octoprint
-    targetRevision: 0.3.6
+    targetRevision: 0.3.7
     helm:
       values: |
         image:

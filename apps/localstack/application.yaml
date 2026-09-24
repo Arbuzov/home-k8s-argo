@@ -9,7 +9,7 @@ spec:
   project: apps
   source:
     repoURL: https://helm.localstack.cloud
-    targetRevision: 0.7.0
+    targetRevision: 0.7.1
     chart: localstack
     helm:
       values: |
