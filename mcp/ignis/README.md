@@ -29,7 +29,7 @@ PVC, no PV and no `StorageClass` for the notes — all three stay owned by
 [`../basic-memory`](../basic-memory/README.md) (whose PVC also carries
 `helm.sh/resource-policy: keep`). Deleting or pruning the Ignis Application therefore
 cannot touch a single note; it only removes the Deployment, Service, Ingress and its own
-`ignis-state` cache PVC.
+`ignis-state-ssd` cache PVC.
 
 **Do not add a `storageClass`/`size` to `persistence.vault`.** That turns the reference
 into a provisioning request and would bind a *second*, empty volume over the mount point —
@@ -124,7 +124,7 @@ The entrypoint does three things before the server listens:
 Hence `startup.failureThreshold: 90` at a 10s period — 15 minutes of grace. Steps 2 and 3
 need outbound internet (GitHub releases, npm).
 
-`persistence.state` is a small `local-path` PVC holding `/app/data` (Ignis' own settings)
+`persistence.state-ssd` is a small `local-path` PVC holding `/app/data` (Ignis' own settings)
 and `/app/obsidian-app` (the extracted Obsidian) under two `subPath`s, so a restart skips
 step 2. It is node-local by design — the pod is pinned anyway — and holds nothing that
 cannot be rebuilt: losing it costs one slow start.
@@ -158,6 +158,11 @@ StorageClass or path in place, so the persistence key is renamed: Argo creates
 `ignis-state-ssd` on the SSD and prunes `ignis-state`. The contents are a cache and a
 local copy of the vault, both rebuilt on start — nothing to migrate.
 
+The claim name is pinned with `forceRename: ignis-state-ssd`. app-template 4+ drops the
+item key from the name when an app renders a single PVC (the vault is an `existingClaim`,
+so it does not count), and the claim would otherwise be renamed to plain `ignis` and
+start empty.
+
 ## Why the two oauth2-proxy annotations point at different hosts
 
 Access is Google login through the shared `oauth2-proxy`, not a shared password.
@@ -171,3 +176,13 @@ The two annotations deliberately use different addresses:
 
 (This replaces the comment block that used to sit in `application.yaml`; manifests in
 this repo carry no comments.)
+
+## app-template 5: the Deployment is recreated once (2026-09-24)
+
+The chart's selector label changed and a Deployment selector is immutable, so
+the bump goes in two commits: `replicas: 0` plus a temporary
+`Force=true,Replace=true` sync option, then replicas restored and the option
+dropped together. Zero replicas keeps the old and the new pod from writing the
+vault and `ignis-state-ssd` side by side — the forced delete does not wait for
+the old pod, and `strategy: Recreate` only orders pods within one Deployment.
+Mechanism: [`../basic-memory`](../basic-memory/README.md#app-template-5-the-deployment-is-recreated-once-2026-09-24).

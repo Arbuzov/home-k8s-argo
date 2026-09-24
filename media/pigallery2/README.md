@@ -45,8 +45,30 @@ Enabled via the `media` bootstrap `exclude` glob — see
 [`media/README.md`](../README.md) for the on/off switch, the cascade
 finalizer, and the `Retain` data-safety guarantees on config + photos.
 
+## Object names are pinned with `forceRename`
+
+`pigallery2-config` and the static `pigallery2-photos` PV/PVC carry an explicit
+`forceRename`. app-template 4+ has no `nameOverride` and appends the item key to
+the release name only when there is more than one item of that kind. Unpinned,
+the config claim (the only PVC the chart provisions; `photos` is an
+`existingClaim`) would become plain `pigallery2`: the app would start on an
+empty config, and `prune: true` would delete `pigallery2-config`, leaving the
+old config only as a `Released` PV (`smb` is `Retain`) to recover by hand.
+The photos names are referenced elsewhere too — the PVC by
+`persistence.photos.existingClaim`, the PV by the PVC's `volumeName`.
+
 ## Replaces photoprism on the same host
 
 The ingress declares `photos.whitediver.keenetic.link` — previously served by
 `media/photoprism`, now held back in the same bootstrap swap so the two
 ingresses never fight over the hostname at the same time.
+
+## app-template 5: the Deployment is recreated once (2026-09-24)
+
+The chart's selector label changed and a Deployment selector is immutable, so
+the bump goes in two commits: `replicas: 0` plus a temporary
+`Force=true,Replace=true` sync option, then replicas restored and the option
+dropped together. Zero replicas keeps two instances from opening the `hostPath`
+SQLite index and the SMB config at once — the forced delete does not wait for
+the old pod. Mechanism:
+[`mcp/basic-memory`](../../mcp/basic-memory/README.md#app-template-5-the-deployment-is-recreated-once-2026-09-24).

@@ -10,12 +10,15 @@ spec:
   source:
     repoURL: https://bjw-s-labs.github.io/helm-charts
     chart: app-template
-    targetRevision: 3.6.0
+    targetRevision: 5.2.1
     helm:
       values: |
         controllers:
           basic-memory:
             type: deployment
+            replicas: 0
+            annotations:
+              argocd.argoproj.io/sync-options: Force=true,Replace=true
             pod:
               nodeSelector:
                 kubernetes.io/hostname: kube-worker-3
@@ -120,7 +123,7 @@ spec:
             accessMode: ReadWriteOnce
             size: 5Gi
             storageClass: basic-memory-smb
-            nameOverride: data-smb
+            forceRename: basic-memory-data-smb
             retain: true
             advancedMounts:
               basic-memory:
@@ -139,9 +142,10 @@ spec:
 
         rawResources:
           smb:
-            apiVersion: storage.k8s.io/v1
-            kind: StorageClass
-            spec:
+            forceRename: basic-memory-smb
+            manifest:
+              apiVersion: storage.k8s.io/v1
+              kind: StorageClass
               provisioner: smb.csi.k8s.io
               reclaimPolicy: Retain
               volumeBindingMode: Immediate

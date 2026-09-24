@@ -89,3 +89,14 @@ pip'у некуда писать и контейнер не стартует в�
 - Дашборд: Grafana → AI Models → **Claude — Service Status** (`claude-status`)
 - Правила и алерты: `claude-observability/deploy/rules/claude.rules.yaml`
 - Исходники: `claude-observability`
+
+## app-template 5: Deployment пересоздаётся один раз (2026-09-24)
+
+В app-template 4+ поды выбираются по `app.kubernetes.io/controller` вместо
+`app.kubernetes.io/component`, а selector у Deployment неизменяем, поэтому
+бамп идёт двумя коммитами: `replicas: 0` плюс временная sync-опция
+`Force=true,Replace=true`, затем реплики возвращаются и опция снимается
+одновременно. Состояния у экспортера нет — ноль реплик нужен только затем,
+чтобы второй коммит был реальным изменением spec. Механизм — в
+[`mcp/basic-memory/README.md`](../../mcp/basic-memory/README.md#app-template-5-the-deployment-is-recreated-once-2026-09-24).
+Между двумя мержами метрик нет.

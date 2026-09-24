@@ -84,13 +84,19 @@ Lowering it further trades node headroom for slower indexing.
 ## SMB volume + StorageClass naming
 
 The data volume and its `StorageClass` are both managed by this one
-Application (no out-of-band files). app-template prefixes every object name
-with the release name, so the class is `basic-memory-smb` and the PVC is
-`basic-memory-data-smb`. The CSI `subDir` is derived from the PVC
-namespace+name (`pvc-mcp-basic-memory-data-smb`), so the share folder — and
-thus the data — is independent of the class name; renaming the class does not
-orphan the notes. Only the markdown note tree lives here; the SQLite index is
-rebuilt off-volume on each start. `uid/gid=1000` matches the image's appuser.
+Application (no out-of-band files). Both names are pinned with `forceRename`:
+the class is `basic-memory-smb` and the PVC is `basic-memory-data-smb`.
+app-template 4+ has no `nameOverride` and appends the item key to the release
+name only when there is more than one item of that kind, so unpinned the class
+(the only raw resource) would render as `basic-memory` and the PVC as
+`basic-memory-data`. Neither rename is harmless: a PVC's `storageClassName` is
+immutable, and [`../ignis`](../ignis/README.md) mounts `basic-memory-data-smb`
+by name.
+
+The CSI `subDir` is derived from the PVC namespace+name
+(`pvc-mcp-basic-memory-data-smb`), so the share folder is independent of the
+class name. Only the markdown note tree lives here; the SQLite index lives on
+the separate `index` volume below. `uid/gid=1000` matches the image's appuser.
 
 ## The SQLite index lives on its own volume, not in the container (2026-09-16)
 
@@ -120,3 +126,26 @@ start after this change re-syncs for a few minutes; `config.json` is recreated f
 `BASIC_MEMORY_HOME` / `BASIC_MEMORY_DEFAULT_PROJECT`. During that window edits made
 through the MCP tools can fail to resolve a note by permalink and silently create a
 duplicate, so wait for the sync to finish before writing.
+
+## app-template 5: the Deployment is recreated once (2026-09-24)
+
+app-template 4+ selects pods by `app.kubernetes.io/controller` instead of
+`app.kubernetes.io/component`, and a Deployment's `spec.selector` is immutable,
+so the 3.6.0 → 5.x bump cannot be applied in place. It goes in two commits:
+
+1. `replicas: 0` plus the controller annotation
+   `argocd.argoproj.io/sync-options: Force=true,Replace=true`. Argo deletes the
+   Deployment and creates it with the new selector. The delete does not wait
+   for the old pod, so at one replica the old and the new pod could briefly
+   share the volumes — which the chart's default `Recreate` strategy otherwise
+   prevents. At zero replicas there is no new pod to overlap.
+2. Once the old pod is gone: `replicas` back to the default and the annotation
+   dropped, in the same commit. Argo reads the option from the live object as
+   well, so this sync is one more forced replace — harmless at zero replicas —
+   and it leaves a Deployment without the annotation. Dropping the annotation
+   without a spec change is not enough: under server-side apply Argo's diff
+   ignores fields its own field manager does not own, so the removal may not
+   register, and the live annotation would turn every later sync into a
+   delete-and-recreate.
+
+The service is down between the two merges.
