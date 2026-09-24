@@ -8,7 +8,7 @@ spec:
   source:
     repoURL: https://k8s.ory.sh/helm/charts
     chart: oathkeeper
-    targetRevision: 0.62.1
+    targetRevision: 0.64.0
     helm:
       values: |
         maester:

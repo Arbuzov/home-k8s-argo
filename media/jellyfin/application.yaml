@@ -9,7 +9,7 @@ spec:
   project: media
   source:
     repoURL: https://jellyfin.github.io/jellyfin-helm
-    targetRevision: 2.3.0
+    targetRevision: 2.7.0
     helm:
       values: |-
         replicaCount: 1

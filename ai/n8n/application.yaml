@@ -11,7 +11,7 @@ spec:
       selfHeal: true
   source:
     repoURL: 8gears.container-registry.com/library
-    targetRevision: 2.0.1
+    targetRevision: 2.1.1
     helm:
       values: |
         image:
