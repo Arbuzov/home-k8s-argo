@@ -33,20 +33,20 @@ the Secret with no Prometheus restart.
 
 ## What's GitOps-managed vs push-based
 
-`keenetic-grafana-monitoring`, `grafana` and `cloud-billing/yace` are reconciled
-by the app-of-apps. `grafana` runs in `project: default` (its destination
-namespace isn't in the `observability` AppProject whitelist), but it still
-matches the `bootstrap.yaml` `include` glob so it's reconciled. `influxdb`,
-`prometheus` and `cloud-billing/stackdriver-exporter` are held back by the
-`bootstrap.yaml` `exclude` glob and stay **push-based** — apply each by hand:
+`keenetic-grafana-monitoring`, `grafana`, `prometheus` and `cloud-billing/yace`
+are reconciled by the app-of-apps. `grafana` and `prometheus` run in
+`project: default` (their destination namespaces aren't in the `observability`
+AppProject whitelist), but they still match the `bootstrap.yaml` `include` glob
+so they're reconciled. `influxdb` and `cloud-billing/stackdriver-exporter` are
+held back by the `bootstrap.yaml` `exclude` glob and stay **push-based** — apply
+each by hand:
 
 ```sh
 kubectl apply -f observability/influxdb/application.yaml
-kubectl apply -f observability/prometheus/application.yaml
 kubectl apply -f observability/cloud-billing/application-stackdriver-exporter.yaml
 ```
 
-`influxdb` and `prometheus` stay in `project: default`;
+`influxdb` stays in `project: default`;
 `cloud-billing/stackdriver-exporter` is in `project: observability` (its
 namespace is whitelisted) and is held back only until the GCP project exists —
 see its README.

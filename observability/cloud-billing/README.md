@@ -81,11 +81,9 @@ wants, and free to use. Plain `prometheus.io/scrape` would scrape at the 1m
 global interval: 5x the CloudWatch `GetMetricData` calls for data that only
 changes every 5 minutes (and every 6 hours for billing).
 
-The upside of annotations over `extraScrapeConfigs` is that
-`observability/prometheus/application.yaml` is **push-based** (held back by the
-`bootstrap.yaml` exclude glob) — adding a scrape job there would need a manual
-`kubectl apply` to take effect. Annotations are picked up by the running
-Prometheus with no change to that app at all.
+The upside of annotations over `extraScrapeConfigs` is that they keep the
+scrape wiring next to the exporter: the running Prometheus picks them up with no
+change to `observability/prometheus/application.yaml` at all.
 
 ## GCP DELTA metrics need `aggregateDeltas`
 

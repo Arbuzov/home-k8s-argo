@@ -1,9 +1,9 @@
 # prometheus
 
 Prometheus, deployed as an Argo CD `Application` pulling the
-`prometheus-community/prometheus` chart with inline `helm.values`. Held back
-from the `observability` app-of-apps by its `exclude` glob, so it is applied
-push-based (`kubectl apply -f observability/prometheus/application.yaml`).
+`prometheus-community/prometheus` chart with inline `helm.values`. Reconciled by
+the `observability` app-of-apps (it matches the `bootstrap.yaml` `include`
+glob), so a merge to `main` is enough — no manual `kubectl apply`.
 
 This file holds the rationale that, by repo convention, must **not** live as
 comments inside `application.yaml` (see the root [`CLAUDE.md`](../../CLAUDE.md)).
