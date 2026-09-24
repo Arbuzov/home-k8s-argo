@@ -5,7 +5,7 @@ Application is **self-managing** — once Argo CD is bootstrapped, applying this
 manifest hands ownership of the install over to Argo CD, which then upgrades
 itself on every change to `spec.source.targetRevision` or the inline values.
 
-Current target: chart **`9.5.22`** (Argo CD **`v3.4.4`**), repo
+Current target: chart **`10.9.2`** (Argo CD **`v3.5.3`**), repo
 `https://argoproj.github.io/argo-helm`.
 
 `application.yaml` is kept **comment-free by convention** — every rationale
@@ -229,9 +229,31 @@ kubectl -n argo-cd set env deployment/argo-cd-argocd-repo-server ARGOCD_EXEC_TIM
    (and additive CRD deltas) change; a clean render also validates the values
    against the new schema.
 3. Apply the new CRDs out-of-band (see *CRDs are NOT managed by Argo*).
-4. Bump `spec.source.targetRevision`, then `kubectl apply -f application.yaml`.
-   Argo's automated sync rolls all components to the new app version. Watch the
-   repo-server pull for egress timeouts (above).
+4. Bump `spec.source.targetRevision` and merge. The `platform` app-of-apps
+   delivers the updated Application, and Argo's automated sync rolls all
+   components to the new app version. Watch the repo-server pull for egress
+   timeouts (above).
+5. On a minor Argo CD bump, also read the upstream
+   `docs/operator-manual/upgrading/<from>-<to>.md` for the new version.
+
+## Chart 10 / Argo CD 3.5 (2026-09-24)
+
+- **Helm 4 in the repo-server.** Argo CD 3.5 renders every Helm source with
+  Helm 4.2 instead of 3.19. Before the bump, every live Helm Application was
+  rendered with both binaries: 30 of 34 came out identical. In
+  `mcp-atlassian-jira`, `mcp-atlassian-confluence` and `n8n` (its `n8n-worker`
+  Deployment) only a `checksum/*` pod annotation differs, so those Deployments
+  roll once after the upgrade. In `influxdb` only three blank lines in
+  `influxdb.conf` differ; the pod template does not change.
+- **NetworkPolicies.** Chart 10 sets `global.networkPolicy.create: true`. With
+  our values it renders six policies: server, application-controller,
+  notifications-controller, repo-server, Redis and Dex. The
+  applicationset-controller gets none. Flannel does not enforce NetworkPolicy,
+  so on this cluster they have no effect. Review them before switching to a
+  CNI that enforces them. With enforcement, `argocd-server` stays open, both
+  controllers accept only their metrics port, repo-server and Dex accept their
+  service ports only from other Argo CD components (metrics from anywhere),
+  and Redis accepts only other Argo CD components.
 
 ## `controller.log.level: warn` (2026-09-16)
 
