@@ -16,9 +16,6 @@ spec:
         controllers:
           grafana-mcp:
             type: deployment
-            replicas: 0
-            annotations:
-              argocd.argoproj.io/sync-options: Force=true,Replace=true
             pod:
               nodeSelector:
                 kubernetes.io/hostname: kube-worker-3

@@ -16,9 +16,7 @@ spec:
         controllers:
           claude-status:
             type: deployment
-            replicas: 0
-            annotations:
-              argocd.argoproj.io/sync-options: Force=true,Replace=true
+            replicas: 1
             pod:
               nodeSelector:
                 kubernetes.io/hostname: kube-master
