@@ -13,7 +13,7 @@ spec:
       - CreateNamespace=true
   sources:
     - repoURL: ghcr.io/berriai
-      targetRevision: 1.103.2
+      targetRevision: 1.104.0
       chart: litellm-helm
       helm:
         values: |
