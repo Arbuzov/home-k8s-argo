@@ -32,10 +32,10 @@ spec:
               usernameKey: username
               passwordKey: password
           migrationJob:
-            enabled: false
+            enabled: true
             resources:
               requests:
-                memory: "256Mi"
+                memory: "1536Mi"
                 cpu: "250m"
               limits:
                 memory: "2560Mi"
@@ -55,9 +55,6 @@ spec:
             GITHUB_COPILOT_ACCESS_TOKEN_FILE: "/etc/copilot/access-token"
             HTTPS_PROXY: "http://wg-vless-gateway-proxy.vpn.svc.cluster.local:1080"
             NO_PROXY: "localhost,127.0.0.1,.svc.cluster.local,.cluster.local,litellm,litellm-pg-rw,api.githubcopilot.com,api.github.com"
-          extraEnvVars:
-            - name: DISABLE_SCHEMA_UPDATE
-              value: "true"
           environmentSecrets:
             - litellm-env-secret
           proxy_config:

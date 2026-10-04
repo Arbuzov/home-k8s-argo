@@ -43,8 +43,8 @@ every key in `litellm-env-secret` as a pod env var (`environmentSecrets`).
 (pointed at the `litellm-postgres` Deployment in [`db/`](db/)). The `-database`
 image variant activates the DB-backed code paths — admin UI, virtual/team keys,
 budgets, and request logging — that `db.useExisting` wires up. Schema changes
-are applied by hand, not by the chart's Job; see
-[Migrations](#migrations-are-manual--the-chart-job-cannot-finish-here) below.
+are applied by the chart's migration Job, run as an Argo CD `PreSync` hook; see
+[Migrations](#migrations-run-as-an-argo-cd-presync-hook) below.
 
 > **History / don't-revert notes**
 >
@@ -60,56 +60,109 @@ are applied by hand, not by the chart's Job; see
 >   brought the margin to ~5.2 GB.
 > - `envVars.CHECKPOINT_DISABLE: "1"` (+ `PRISMA_HIDE_UPDATE_MESSAGE`): the
 >   Prisma CLI's telemetry/update-check hangs ~60s with no reachable
->   `checkpoint.prisma.io`, which would otherwise eat the whole hardcoded
->   migration timeout.
+>   `checkpoint.prisma.io`, which would otherwise eat a whole 60 s Prisma command
+>   timeout. `envVars` reach the migration Job too, so it is covered there.
 
-### Migrations are manual — the chart Job cannot finish here
+### Migrations run as an Argo CD `PreSync` hook
 
-`migrationJob.enabled: false`, and `DISABLE_SCHEMA_UPDATE: "true"` is pinned
-**by hand** because of it: the chart only injects that variable while the Job
-is enabled, so turning the Job off would otherwise hand schema updates back to
-the proxy's own startup path — the one place with even less time budget (its
-`startupProbe` already needs the full 15 min documented below).
+`migrationJob.enabled: true` with `hooks.argocd.enabled: true`. On every sync of
+this app the chart's `litellm-migrations` Job runs first, with the image of the
+version being deployed, and applies whatever is pending with
+`prisma migrate deploy`. A Renovate bump therefore migrates the DB before the
+new proxy pod starts.
 
-It goes in `extraEnvVars`, not `envVars`, and that is deliberate. The chart
-renders `envVars` (sorted), then `extraEnvVars`, then its own
-`DISABLE_SCHEMA_UPDATE` when the Job is enabled. `extraEnvVars` is therefore
-the slot that reproduces the exact position the chart's own injection used —
-`env` is an ordered list, so putting it anywhere else reorders the container
-env, changes the pod template, and forces a rollout. With `strategy.type:
-Recreate` and the slow boot below, that is a real outage for a no-op change.
-Verified: rendered this way the pod template is byte-identical to the live one,
-so disabling the Job restarts nothing.
+The proxy itself never migrates on boot. Whenever the Job is enabled the chart
+appends `DISABLE_SCHEMA_UPDATE=true` as the proxy's last env entry — the exact
+slot the hand-pinned `extraEnvVars` copy used to occupy, so removing that copy
+and enabling the Job left the pod template unchanged. Verified by rendering
+both: every managed object identical, the hook Job the only addition, so the
+switch restarted nothing.
 
-The Job is off because on this hardware it can never succeed. Measured
-2026-08-11 in the running proxy pod (2-CPU limit): a cold
-`python -m prisma migrate status` takes **83 s wall / 65 s user** — CPU-bound
-single-threaded Node startup, not the network and not Postgres. Every timeout
-in `litellm_proxy_extras` is a hardcoded `timeout=60`; there is no env knob.
-So every attempt times out, and after its retries the script logs
+**Why this was manual until 2026-10-04, and why that stopped holding.** The Job
+was off because it could never succeed here: every Prisma call in
+`litellm_proxy_extras` had a hardcoded 60 s timeout, a cold
+`prisma migrate status` took 83 s on kube-master (measured 2026-08-11), and the
+script then logged `Database migration failed but continuing startup` and
+**exited 0** — the Job reported `Complete` without having migrated anything.
+Checked against litellm 1.104.0 (`litellm-proxy-extras` 0.4.102.post1), none of
+that is true any more:
 
-```text
-Database migration failed but continuing startup.
-LiteLLM: Setup complete. Skipping server startup as requested.
-```
+- `prisma migrate deploy` runs under its own budget,
+  `LITELLM_PRISMA_MIGRATE_DEPLOY_TIMEOUT` (default 600 s), and so does the
+  toolchain bootstrap, `LITELLM_PRISMA_BOOTSTRAP_TIMEOUT` (600 s). The 60 s
+  `LITELLM_PRISMA_COMMAND_TIMEOUT` is left for the recovery and baselining
+  commands (`migrate resolve`, `migrate diff`), which a normal run never calls.
+- The image bakes the Prisma CLI and engines under `/opt/prisma` with
+  `PRISMA_OFFLINE_MODE=true`; nothing is downloaded or installed on first use.
+- `prisma_migration.py` passes `--enforce_prisma_migration_check` by default: a
+  failed migration exits non-zero, fails the hook, and fails the sync visibly.
+- The Job template applies the top-level `affinity`, so it inherits the
+  `NotIn kube-worker-3` rule (see [Scheduling](#scheduling)).
 
-and **exits 0**. The Job reported `Complete` every single time while never
-having migrated anything. More CPU does not help — the 83 s figure was already
-measured against a 2-core limit, and the work is single-threaded.
+What the manual step cost: the Renovate bumps 1.102.1 → 1.103.1 → 1.103.2 →
+1.104.0 (2026-09-30 … 10-04) were merged without it, and the schema fell behind
+by up to 18 migrations (1.102.1 ships 171, 1.104.0 ships 189, all additive
+`IF NOT EXISTS` DDL). The proxy kept serving but logged
+`column "total_response_time_ms" of relation "LiteLLM_DailyTeamSpend" does not
+exist` (the daily spend rollups were re-queued on every flush and never
+written) and `` The column `LiteLLM_UserTable.password_reset_required` does not
+exist `` (budget lookups uncached). `litellm-nim-sync` has not succeeded since the
+1.103.1 deploy (last success 2026-09-30 18:00 UTC, the deploy at 20:13), which
+kept the app `Degraded`.
 
-To apply a schema change after a version bump, run it by hand with no timeout
-(~85 s). **Run it from `litellm_proxy_extras`, not from `/app`** — that is where
-the migrations actually live:
+`migrationJob.resources.requests.memory: 1536Mi`, limit `2560Mi`. The limit
+dates from 2026-07-11, when the Job was OOM-killed at a 1536Mi limit; the
+request is that observed size, and it also settles placement — worker-1 and
+worker-2 have ~817Mi allocatable, so the Job fits only on kube-master (worker-3
+is excluded by affinity), which already has the proxy image cached.
+
+Keep `hooks.argocd.enabled: true` (also the chart default). With the hook off
+the Job is an ordinary **managed** resource carrying the chart's
+`ttlSecondsAfterFinished: 120`: the TTL controller deletes it two minutes after
+it completes, `selfHeal` sees it missing and recreates it, and it runs again —
+a permanent loop that pins the app at `Progressing` (observed 2026-08-11: Job
+UID `d99d5fe0` → `a749f829` in 14 minutes). As a hook it is outside the
+steady-state desired set, so its TTL deletion is not drift (verified then: the
+hook Job was TTL-deleted and stayed gone).
+
+What to expect from it:
+
+- **A change that touches only the hook does not trigger a sync.** Hooks are
+  not part of the diff, so the app stays `Synced` and automated sync does
+  nothing. Enabling the Job was such a change: it needs one manual **Sync** of
+  `litellm` in the Argo CD UI after the push to apply what is pending; from then
+  on every version bump changes the Deployment and syncs (and migrates) by
+  itself.
+- **The Job pod is briefly an endpoint of `svc/litellm`.** The chart gives it
+  the proxy's `app.kubernetes.io/name`/`instance` labels, so the Service selects
+  it while it runs (a few minutes per sync), and it does not listen on `:4000`.
+  Some requests get `connection refused` in that window — through oathkeeper,
+  a 502 on the MCP paths.
+- **A failed migration fails the sync and leaves the running pod alone.** Read
+  `kubectl -n litellm logs job/litellm-migrations` (gone two minutes after it
+  finishes). A ledger row that started but never finished (Prisma `P3009`) is
+  only resolved automatically when its SQL demonstrably committed; otherwise
+  check what the migration did, `prisma migrate resolve --rolled-back <name>`
+  (or `--applied`) from the directory below, and sync again.
+- `litellm-proxy-extras` 0.4.100.post1 / 0.4.102.post1 turned two
+  `LiteLLM_SpendLogs` index migrations into `SELECT 1;` — upstream now leaves
+  `LiteLLM_SpendLogs_api_key_startTime_idx` and
+  `LiteLLM_SpendLogs_litellm_call_id_idx` to the operator to build with
+  `CREATE INDEX CONCURRENTLY`. The migrations no longer create them.
+
+**Manual check, and the fallback if the Job cannot run.** Run Prisma from
+`litellm_proxy_extras`, not from `/app` — that is where the migrations live:
 
 ```sh
 kubectl exec -n litellm deploy/litellm -- sh -c \
   'cd /app/litellm-proxy-extras/litellm_proxy_extras && \
-   python -m prisma migrate deploy --schema=schema.prisma'
+   python -m prisma migrate status --schema=schema.prisma'
 ```
 
-`… migrate status --schema=schema.prisma` is the read-only check — it prints
-`141 migrations found` plus either `Database schema is up to date!` or the list
-of pending ones (and exits 1 when any are pending).
+`status` is read-only: it prints the number of migrations found (189 in 1.104.0)
+plus either `Database schema is up to date!` or the pending list, and exits 1
+when any are pending. `migrate deploy` in its place applies them (2026-09-24:
+30 migrations in 16 s).
 
 > **`cd /app` gives a false all-clear — don't use it.** `/app/schema.prisma`
 > ships with no `prisma/migrations` directory next to it, so from there the CLI
@@ -120,26 +173,6 @@ of pending ones (and exits 1 when any are pending).
 > migrations** (MCP OAuth client table, `key_type`, savings/compression spend,
 > daily tool spend, spend-log index). The proxy runs fine in that state until
 > something touches a missing column, so the false all-clear is silent.
-
-#### If the Job is ever re-enabled, keep `hooks.argocd.enabled: true`
-
-The chart default is `true`; it was `false` here on the reasoning that there is
-no bundled Postgres to wait on, so a sync need not be gated on a hook. That
-reasoning holds, but the side effect does not: with the hook off, the Job is an
-ordinary **managed** resource carrying the chart's
-`ttlSecondsAfterFinished: 120`. The TTL controller deletes it two minutes after
-it completes, `syncPolicy.automated.selfHeal` sees the resource missing and
-recreates it, and it runs again — a permanent ~2-minute loop burning Pi CPU and
-pinning the Application at `Progressing` (observed 2026-08-11: Job UID
-`d99d5fe0` → `a749f829` in 14 minutes).
-
-As a `PreSync` hook the Job leaves the *steady-state* desired set, which is
-what breaks the loop: its TTL deletion is no longer drift, so self-heal has
-nothing to recreate (verified — the hook Job was TTL-deleted and stayed gone).
-It still belongs to Argo during a sync, so a failed hook fails the sync, and
-self-heal syncs re-run it. That last part is why the Job is off rather than
-merely hooked: a guaranteed-to-time-out migration would block every sync of
-this app for ~12 minutes.
 
 ## Admin UI & Google SSO
 
@@ -210,10 +243,11 @@ The exclusion is by hostname, not by a page-size label — cheapest thing that
 works while worker-3 is the only 16K-page node. If a second one appears, label
 the nodes (e.g. `pagesize=4k`) and match on that instead.
 
-The schema-migration Job cannot be steered the same way: `litellm-helm` exposes
-no `migrationJob.affinity` / `nodeSelector`, so it can still land on worker-3 and
-fail there (seen 2026-08-10, `BackoffLimitExceeded`). Re-running it usually lands
-elsewhere; the durable fix would be a taint on worker-3, not values.
+The migration Job follows the same rule. `litellm-helm` has no
+`migrationJob.affinity`, but its Job template applies the top-level `affinity`
+(checked in charts 1.90.0 and 1.104.0). It landed on worker-3 on 2026-08-10
+(`BackoffLimitExceeded`) because the inherited rule was then still the soft
+preference *for* worker-3.
 
 ### CPU limit must allow a burst at boot
 
