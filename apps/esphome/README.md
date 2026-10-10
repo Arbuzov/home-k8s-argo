@@ -49,9 +49,10 @@ firmware build:
 
 - `/tmp` — compiler and PlatformIO temp files.
 - `/.cache` — ccache. The pod runs as uid 10099, which has no passwd entry, so
-  `HOME=/` and ccache defaults to `/.cache/ccache`. Without this mount every
-  object fails with `ccache: error: Read-only file system`. The chart has no
-  `env`, so `CCACHE_DIR` cannot be pointed elsewhere.
+  `HOME=/`, and ESPHome keeps its compiler cache in
+  `$HOME/.cache/esphome/platformio-ccache`. Without this mount every object fails
+  with `ccache: error: Read-only file system`. The chart has no `env`, so
+  `CCACHE_DIR` cannot be pointed elsewhere.
 
 Checked 2026-10-10 with a throwaway ESP8266 build inside the pod: it failed on
 ccache alone, and passed once ccache had a writable directory.
