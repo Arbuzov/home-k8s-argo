@@ -13,6 +13,7 @@ spec:
     - ghcr.io/go-vikunja/helm-chart
     - https://arbuzov.github.io/octoprint
     - https://helm.localstack.cloud
+    - https://charts.jeffresc.dev
   destinations:
     - server: https://kubernetes.default.svc
       namespace: homepage
@@ -22,6 +23,8 @@ spec:
       namespace: octoprint
     - server: https://kubernetes.default.svc
       namespace: localstack
+    - server: https://kubernetes.default.svc
+      namespace: esphome
     - server: https://kubernetes.default.svc
       namespace: argo-cd
   clusterResourceWhitelist:

@@ -1,0 +1,55 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: esphome
+  namespace: argo-cd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: apps
+  source:
+    repoURL: https://charts.jeffresc.dev
+    chart: esphome
+    targetRevision: 0.2.2
+    helm:
+      values: |
+        image:
+          tag: 2026.9.1
+        nodeSelector:
+          kubernetes.io/hostname: kube-worker-3
+        resources:
+          requests:
+            cpu: 50m
+            memory: 256Mi
+        persistence:
+          enabled: true
+          storageClass: local-ssd
+          size: 10Gi
+        volumes:
+          - name: tmp
+            emptyDir: {}
+        volumeMounts:
+          - name: tmp
+            mountPath: /tmp
+        ingress:
+          enabled: true
+          className: nginx
+          annotations:
+            nginx.ingress.kubernetes.io/auth-url: "http://oauth2-proxy.mcp.svc.cluster.local/oauth2/auth"
+            nginx.ingress.kubernetes.io/auth-signin: "https://notes.whitediver.keenetic.link/oauth2/start?rd=https://$host$escaped_request_uri"
+            nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+            nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+          hosts:
+            - host: esphome.whitediver.keenetic.link
+              paths:
+                - path: /
+                  pathType: Prefix
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: esphome
+  syncPolicy:
+    automated:
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
