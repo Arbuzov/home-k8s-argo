@@ -28,9 +28,14 @@ spec:
         volumes:
           - name: tmp
             emptyDir: {}
+          - name: cache
+            emptyDir:
+              sizeLimit: 2Gi
         volumeMounts:
           - name: tmp
             mountPath: /tmp
+          - name: cache
+            mountPath: /.cache
         ingress:
           enabled: true
           className: nginx
