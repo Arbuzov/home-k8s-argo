@@ -86,16 +86,16 @@ it sits behind `mcp/oauth2-proxy` with the same two annotations as
 [`../../mcp/oauth2-proxy/README.md`](../../mcp/oauth2-proxy/README.md) — no
 Google Console change needed for a new host).
 
-### Publishing on the router is manual for now
+### Published on the router by keenetic-operator
 
-`networking/keenetic-operator` is held at zero replicas (see its
-`application.yaml`), so nothing creates the router-side entries for this host.
-Until an `ip http proxy esphome` entry exists, the name answers with the
-router's own web panel (`<title>KeeneticOS Web Panel</title>`, HTTP 200), not
-with this app. Mirror the hand-made entries the other hosts use: `domain ndns`,
-upstream `https 192.168.99.44 443`, with `preserve-host` (the Ingress matches on
-`Host`). The CLI sequence is in the
-[keenetic-operator README](https://github.com/Arbuzov/keenetic-operator#publishing-a-web-app).
+`networking/keenetic-operator` creates both router-side entries for this host
+from the Ingress: `ip host esphome.whitediver.keenetic.link 192.168.99.1` and
+`ip http proxy esphome` (`domain ndns`, upstream `https 192.168.99.44 443`).
+The publication is `public`, so the oauth2-proxy gate above is the only thing
+in front of the dashboard. If the name ever answers with the router's own web
+panel (`<title>KeeneticOS Web Panel</title>`, HTTP 200) instead of a redirect to
+Google login, the publication is missing — check
+`kubectl -n esphome get keeneticwebapp`.
 
 `proxy-read-timeout`/`proxy-send-timeout: 3600`: compile and log output stream
 over a WebSocket that can stay quiet for minutes while the toolchain downloads or
