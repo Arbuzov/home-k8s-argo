@@ -11,34 +11,14 @@ spec:
     path: arbuzov/networking/keenetic-operator
     helm:
       values: |
-        # Held at zero. `domain static` does not just fail to claim the name:
-        # the entry it leaves behind answers for the bare zone, so
-        # `whitediver.keenetic.link` itself got proxied to ingress-nginx.
-        # Every request to the zone then failed upstream, nginx logged each
-        # one, and the router's own lockout policy banned the client for 15
-        # minutes at a time — taking the web panel down with it. The `homepage`
-        # entry has been switched to `domain ndns` and all eleven publications
-        # were rebuilt by hand. Raise this to 1 only once the operator is
-        # proven to emit `domain ndns` inside the zone.
-        replicaCount: 0
         keenetic:
           host: "192.168.99.1:22"
           existingSecret: keenetic-operator-creds
           defaultIngressIP: "192.168.99.1"
         publish:
-          # Where the router proxies to. Deliberately NOT defaultIngressIP: names
-          # must resolve to the router so the request goes through its KeenDNS
-          # proxy, and the proxy then forwards here, to ingress-nginx.
           upstreamIP: "192.168.99.44"
-          # HTTPS, not HTTP. Several Ingresses on dev.* carry ssl-redirect, so a
-          # plain :80 upstream answers 308 -> https://dev..., which resolves back
-          # to the router, which proxies to :80 again: a redirect loop that takes
-          # out Argo CD, Grafana, Prometheus and every MCP server at once. The
-          # hand-made entry this replaced was HTTPS/443 for exactly that reason.
           upstreamScheme: https
           upstreamPort: 443
-          # Names in this zone get `domain ndns` (proper KeenDNS web-app
-          # publication); anything outside it falls back to `domain static`.
           keenDNSZone: "whitediver.keenetic.link"
         nodeSelector:
           kubernetes.io/hostname: kube-master

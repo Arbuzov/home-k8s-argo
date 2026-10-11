@@ -42,9 +42,45 @@ land and the manager pod stays in `CreateContainerConfigError`.
   certificate), and only then does the proxy hand it to ingress-nginx. The two addresses
   describe opposite ends of the same hop. Empty would keep the operator DNS-only, which is
   what it did before chart 0.2.0.
+- `publish.upstreamScheme: https`, `publish.upstreamPort: 443` — the fallback when the
+  operator cannot derive the scheme from an Ingress's TLS. Several Ingresses on `dev.*`
+  carry ssl-redirect, so a plain `:80` upstream answers 308 → `https://dev...`, which
+  resolves back to the router, which proxies to `:80` again: a redirect loop that takes
+  out Argo CD, Grafana, Prometheus and every MCP server at once.
+- `publish.keenDNSZone` — `whitediver.keenetic.link`. Hosts one label below it are
+  published with `domain ndns`, the only form that claims a name in KeenDNS. Without it
+  the operator writes `domain static whitediver.keenetic.link`, and inside the router's
+  own zone that entry does not just fail to publish — it answers for the bare zone. On
+  2026-08-30 `whitediver.keenetic.link` itself got proxied to ingress-nginx, every
+  request failed upstream, and the router's lockout policy (`ip http lockout-policy 5 15 3`)
+  kept banning the client for 15 minutes at a time, taking the web panel down with it.
+- `replicaCount` is not set: the chart default, 1. It was held at 0 from 2026-08-30 to
+  2026-10-12 — see the next section for why the zone alone did not fix it.
 - `nodeSelector` — pinned to `kube-master` like the other singletons. Leader election
   means a second replica would be safe, but only one ever writes to the router, so
   there is nothing to gain from spreading it.
+
+## CRDs are applied by hand
+
+Argo CD excludes `CustomResourceDefinition` globally (`resource.exclusions` in
+`argocd-cm`), so this Application never installs or updates the chart's `crds/`. After
+every chart bump, compare and apply them from a home-k8s-helm checkout:
+
+```sh
+kubectl --context kubernetes-local diff  -f arbuzov/networking/keenetic-operator/crds/
+kubectl --context kubernetes-local apply -f arbuzov/networking/keenetic-operator/crds/
+```
+
+Skipping this fails silently, and here destructively. Chart 0.3.0 added
+`KeeneticWebApp.spec.ndns`, but the cluster kept the CRD applied on 2026-08-28. The API
+server drops an unknown field with nothing but a warning, so `keenDNSZone` had no effect:
+the operator still saw `ndns=false` and kept the entries on `domain static` — the reason
+the controller sat at zero replicas for six weeks.
+
+When the CRD was updated (2026-10-12), the existing `KeeneticWebApp` objects were patched
+to `spec.ndns: true` before scaling back up. The operator computes the same value, but on
+startup the WebApp controller could otherwise reconcile an object's old spec before the
+Ingress controller rewrote it, and push `domain static` to the router for a few seconds.
 
 `keenetic.hostKey` is deliberately left unset: host-key verification is off, which is
 acceptable on this LAN. Pin it with
