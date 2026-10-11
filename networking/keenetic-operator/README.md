@@ -71,11 +71,14 @@ kubectl --context kubernetes-local diff  -f arbuzov/networking/keenetic-operator
 kubectl --context kubernetes-local apply -f arbuzov/networking/keenetic-operator/crds/
 ```
 
-Skipping this fails silently, and here destructively. Chart 0.3.0 added
-`KeeneticWebApp.spec.ndns`, but the cluster kept the CRD applied on 2026-08-28. The API
-server drops an unknown field with nothing but a warning, so `keenDNSZone` had no effect:
-the operator still saw `ndns=false` and kept the entries on `domain static` — the reason
-the controller sat at zero replicas for six weeks.
+Skipping this fails silently. Chart 0.3.0 added `KeeneticWebApp.spec.ndns`, but the
+cluster kept the CRD applied on 2026-08-28. The API server drops an unknown field with
+nothing but a warning, so setting `keenDNSZone` on 2026-08-30 could not have fixed
+anything: with that CRD the operator still sees `ndns=false` and writes `domain static`,
+which inside the zone answers for the bare zone. Since chart 0.3.1 (image `sha-41652b3`)
+the operator refuses that form instead — a stale CRD shows up as `ApplyFailed` on the
+`KeeneticWebApp`s and the router is left alone, but nothing gets published until the CRD
+is applied.
 
 When the CRD was updated (2026-10-12), the existing `KeeneticWebApp` objects were patched
 to `spec.ndns: true` before scaling back up. The operator computes the same value, but on
