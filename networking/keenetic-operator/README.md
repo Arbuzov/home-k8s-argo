@@ -99,7 +99,7 @@ Nothing here configures that address — it comes from `status.loadBalancer` on 
 Ingress, which ingress-nginx fills from `--publish-status-address`. Change it there, not
 here, or the two will fight.
 
-## `ip host` entries are (name, address) pairs — changing an address leaves the old one
+## `ip host` entries are (name, address) pairs
 
 The router keys a static record on the pair, not on the name:
 
@@ -111,21 +111,12 @@ ip host probe.invalid 10.99.99.1
 ip host probe.invalid 10.99.99.2
 ```
 
-Both survive, and the name then resolves round-robin between them. The operator does not
-account for this: `EnsureHost` compares the (host, address) pair, sees the new address is
-absent and writes it, but never removes the record carrying the *previous* address —
-`spec.address` has no `status.appliedAddress` counterpart to clean up from. So a
-migration like `192.168.99.44` → `192.168.99.1` needs the stale halves deleted by hand,
-once:
-
-```text
-no ip host <name> 192.168.99.44     # per name
-system configuration save
-```
-
-Until that is done, every second lookup lands on the old address — which for this
-migration means an intermittent certificate warning rather than a clean failure, so
-verify with `show running-config` that exactly one record per name is left.
+Both survive, and the name then resolves round-robin between them. Since
+keenetic-operator#21 (image `sha-feb24aa`) `EnsureHost` converges each name onto exactly
+one address and deletes every other address it finds for that name, so a changed
+`spec.address` cleans up after itself. The flip side: the operator owns the whole name,
+not just its own line — a record added by hand for a managed name with a different
+address is removed on the next reconcile.
 
 ## Blast radius
 
