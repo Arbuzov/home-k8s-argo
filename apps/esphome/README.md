@@ -101,19 +101,28 @@ Google login, the publication is missing — check
 over a WebSocket that can stay quiet for minutes while the toolchain downloads or
 the linker runs; nginx's default 60 s would cut it.
 
-## LAN port: `http://192.168.99.44:6052` (`lan/service.yaml`)
+## LAN ports: `192.168.99.44:6052` and `:6055` (`lan/service.yaml`)
+
+- `6052`: the HTTP dashboard.
+- `6055`: the remote-build **peer-link** (Noise over WebSocket). Another Device
+  Builder that offloads builds to this one dials this port, **not** 6052, so
+  enter `192.168.99.44:6055` as its build server. The port is
+  `DEFAULT_REMOTE_BUILD_PORT` in `esphome_device_builder/constants.py`. It is
+  bound only while remote build is enabled in Settings; the chart does not
+  declare it as a container port, so the Service targets it by number.
 
 The chart's Service takes only `type` and `port` and has no `extraDeploy`, so a
 second Service, `esphome-lan`, comes from `lan/` as a second Application source.
 It uses the same pattern as `influxdb` and `localstack-external`: there is no LB
 controller, so `externalIPs: [192.168.99.44]` (kube-master) makes kube-proxy
-forward `:6052` to the pod on worker-3. `type: LoadBalancer` is there only so
+forward both ports to the pod on worker-3. `type: LoadBalancer` is there only so
 the Service health check in `platform/argo-cd` reports it Healthy.
 
 ⚠️ This port bypasses oauth2-proxy. The dashboard has no login, so anyone on
 the LAN can read `secrets.yaml` and flash devices through it. That is acceptable
 only because 192.168.99.44 is not forwarded from the internet; never publish
-`:6052` on the router.
+`:6052` on the router. `:6055` is protected by Noise and a pairing pin, not by
+the network.
 
 ## Devices on the LAN: no mDNS from the pod
 

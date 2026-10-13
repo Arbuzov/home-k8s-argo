@@ -15,3 +15,6 @@ spec:
     - name: http
       port: 6052
       targetPort: http
+    - name: peer-link
+      port: 6055
+      targetPort: 6055
