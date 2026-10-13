@@ -101,6 +101,20 @@ Google login, the publication is missing — check
 over a WebSocket that can stay quiet for minutes while the toolchain downloads or
 the linker runs; nginx's default 60 s would cut it.
 
+## LAN port: `http://192.168.99.44:6052` (`lan/service.yaml`)
+
+The chart's Service takes only `type` and `port` and has no `extraDeploy`, so a
+second Service, `esphome-lan`, comes from `lan/` as a second Application source.
+It uses the same pattern as `influxdb` and `localstack-external`: there is no LB
+controller, so `externalIPs: [192.168.99.44]` (kube-master) makes kube-proxy
+forward `:6052` to the pod on worker-3. `type: LoadBalancer` is there only so
+the Service health check in `platform/argo-cd` reports it Healthy.
+
+⚠️ This port bypasses oauth2-proxy. The dashboard has no login, so anyone on
+the LAN can read `secrets.yaml` and flash devices through it. That is acceptable
+only because 192.168.99.44 is not forwarded from the internet; never publish
+`:6052` on the router.
+
 ## Devices on the LAN: no mDNS from the pod
 
 The pod runs on the pod network, not `hostNetwork` (the chart has no switch for

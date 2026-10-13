@@ -7,48 +7,51 @@ metadata:
     - resources-finalizer.argocd.argoproj.io
 spec:
   project: apps
-  source:
-    repoURL: https://charts.jeffresc.dev
-    chart: esphome
-    targetRevision: 0.2.2
-    helm:
-      values: |
-        image:
-          tag: 2026.9.1
-        nodeSelector:
-          kubernetes.io/hostname: kube-worker-3
-        resources:
-          requests:
-            cpu: 50m
-            memory: 256Mi
-        persistence:
-          enabled: true
-          storageClass: local-ssd
-          size: 10Gi
-        volumes:
-          - name: tmp
-            emptyDir: {}
-          - name: cache
-            emptyDir:
-              sizeLimit: 2Gi
-        volumeMounts:
-          - name: tmp
-            mountPath: /tmp
-          - name: cache
-            mountPath: /.cache
-        ingress:
-          enabled: true
-          className: nginx
-          annotations:
-            nginx.ingress.kubernetes.io/auth-url: "http://oauth2-proxy.mcp.svc.cluster.local/oauth2/auth"
-            nginx.ingress.kubernetes.io/auth-signin: "https://notes.whitediver.keenetic.link/oauth2/start?rd=https://$host$escaped_request_uri"
-            nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
-            nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
-          hosts:
-            - host: esphome.whitediver.keenetic.link
-              paths:
-                - path: /
-                  pathType: Prefix
+  sources:
+    - repoURL: https://charts.jeffresc.dev
+      chart: esphome
+      targetRevision: 0.2.2
+      helm:
+        values: |
+          image:
+            tag: 2026.9.1
+          nodeSelector:
+            kubernetes.io/hostname: kube-worker-3
+          resources:
+            requests:
+              cpu: 50m
+              memory: 256Mi
+          persistence:
+            enabled: true
+            storageClass: local-ssd
+            size: 10Gi
+          volumes:
+            - name: tmp
+              emptyDir: {}
+            - name: cache
+              emptyDir:
+                sizeLimit: 2Gi
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            - name: cache
+              mountPath: /.cache
+          ingress:
+            enabled: true
+            className: nginx
+            annotations:
+              nginx.ingress.kubernetes.io/auth-url: "http://oauth2-proxy.mcp.svc.cluster.local/oauth2/auth"
+              nginx.ingress.kubernetes.io/auth-signin: "https://notes.whitediver.keenetic.link/oauth2/start?rd=https://$host$escaped_request_uri"
+              nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+              nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+            hosts:
+              - host: esphome.whitediver.keenetic.link
+                paths:
+                  - path: /
+                    pathType: Prefix
+    - repoURL: https://github.com/Arbuzov/home-k8s-argo.git
+      targetRevision: main
+      path: apps/esphome/lan
   destination:
     server: https://kubernetes.default.svc
     namespace: esphome
