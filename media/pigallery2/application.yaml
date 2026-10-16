@@ -82,7 +82,9 @@ spec:
               - path: /app/data/images
                 readOnly: true
           tmp:
-            type: emptyDir
+            type: hostPath
+            hostPath: /mnt/ssd/pigallery2-tmp
+            hostPathType: DirectoryOrCreate
             globalMounts:
               - path: /app/data/tmp
         rawResources:

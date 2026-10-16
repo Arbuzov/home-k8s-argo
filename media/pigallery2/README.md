@@ -45,6 +45,17 @@ Enabled via the `media` bootstrap `exclude` glob — see
 [`media/README.md`](../README.md) for the on/off switch, the cascade
 finalizer, and the `Retain` data-safety guarantees on config + photos.
 
+## Thumbnail cache on worker-3's USB SSD
+
+`tmp` (`/app/data/tmp`: thumbnails, converted photos/videos) is
+`hostPath: /mnt/ssd/pigallery2-tmp` on the USB SATA SSD, not an `emptyDir`:
+an `emptyDir` threw every generated thumbnail away on each pod restart, so
+every folder was slow again on its first view. Same `nodeSelector` coupling as
+`db`. It is derived data: if `/mnt/ssd` is not mounted, the pod either waits
+(`chattr +i` on the mountpoint) or caches on the SD card — no data loss either
+way. Disk and mount details:
+[`platform/local-path`](../../platform/local-path/README.md#node-side-kube-worker-3--precondition-not-managed-here-or-in-ansible).
+
 ## Object names are pinned with `forceRename`
 
 `pigallery2-config` and the static `pigallery2-photos` PV/PVC carry an explicit
