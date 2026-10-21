@@ -15,7 +15,7 @@ spec:
       values: |
         controllers:
           pigallery2:
-            replicas: 1
+            replicas: 0
             pod:
               nodeSelector:
                 kubernetes.io/hostname: kube-worker-3

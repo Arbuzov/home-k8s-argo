@@ -83,3 +83,22 @@ dropped together. Zero replicas keeps two instances from opening the `hostPath`
 SQLite index and the SMB config at once — the forced delete does not wait for
 the old pod. Mechanism:
 [`mcp/basic-memory`](../../mcp/basic-memory/README.md#app-template-5-the-deployment-is-recreated-once-2026-09-24).
+
+## Held at `replicas: 0` until the master's HDD is replaced (2026-10-21)
+
+The photos share lives on `kube-master`'s USB HDD (`/mnt/usb/kubernetes/nfs/pictures`,
+`/dev/sda4`, exFAT) — the same disk behind every SMB-CSI volume in the cluster, and it is
+failing: SMART `Current_Pending_Sector` 38, 45k power-on hours. A photo-converting job's
+`ffprobe` hit one unreadable sector near the end of
+`2019/2019-10-20/HERO7 BLACK 1/GH013758.MP4` (LBA 107797896, inside the file per FIBMAP)
+and sat in `D` state while the read was retried every ~2 s. Each retry stalled the disk
+queue for all SMB clients: other apps' `soft` mounts returned `EAGAIN` on plain directory
+reads, basic-memory's MCP `initialize` took 59 s, and litellm listed 0 tools for it.
+
+The sector was rewritten with zeros (`dd if=/dev/zero of=/dev/sda bs=4096
+seek=13474737 count=1 oflag=direct`), so that video now has 4 KiB of zeros near its end.
+Pending went 38 → 37 with no reallocation — the sector took the write in place and may
+fail again. The other 37 pending sectors are still somewhere on the disk, and a library
+scan or conversion pass reads the whole 200Gi share, which on this disk is a surface scan
+that will find them one stall at a time. Bring the app back once the photos sit on a
+healthy disk; the `hostPath` index and the SSD thumbnail cache survive the pause.
