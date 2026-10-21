@@ -149,3 +149,19 @@ so the 3.6.0 → 5.x bump cannot be applied in place. It goes in two commits:
    delete-and-recreate.
 
 The service is down between the two merges.
+
+## Held at `replicas: 0` while the master's USB HDD fails (2026-10-21)
+
+The SMB share behind `basic-memory-data-smb` lives on `kube-master`'s USB HDD
+(`/dev/sda4`, exFAT, `/mnt/usb`), which now has unreadable sectors: `critical medium
+error, dev sda, sector 107797896` every ~2 s, SMART `Current_Pending_Sector` 38. The smbd
+session stuck on that sector belongs to `kube-worker-3` and held
+`pvc-mcp-basic-memory-data-smb/claude` open. Each retry stalls the disk queue for every
+SMB-CSI volume, so directory reads on `/app/data` came back `EAGAIN` from the `soft`
+mount at random, MCP `initialize` took 59 s, and litellm's tool listing timed out and
+returned 0 tools. Stopping [`../ignis`](../ignis/README.md) first did not stop the reads
+(34 errors/min two minutes later), so the remaining reader on the node is this app.
+
+Zero replicas keeps both claims (the data PV is `Retain` either way). Back up the notes
+on the master from the local disk, not through the share, and bring this back only after
+the disk is replaced or the bad sectors are dealt with.
