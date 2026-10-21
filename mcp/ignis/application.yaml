@@ -16,7 +16,7 @@ spec:
         controllers:
           ignis:
             type: deployment
-            replicas: 0
+            replicas: 1
             strategy: Recreate
             pod:
               nodeSelector:

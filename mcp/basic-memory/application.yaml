@@ -16,7 +16,6 @@ spec:
         controllers:
           basic-memory:
             type: deployment
-            replicas: 0
             pod:
               nodeSelector:
                 kubernetes.io/hostname: kube-worker-3
