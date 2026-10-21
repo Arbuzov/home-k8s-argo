@@ -186,3 +186,18 @@ dropped together. Zero replicas keeps the old and the new pod from writing the
 vault and `ignis-state-ssd` side by side — the forced delete does not wait for
 the old pod, and `strategy: Recreate` only orders pods within one Deployment.
 Mechanism: [`../basic-memory`](../basic-memory/README.md#app-template-5-the-deployment-is-recreated-once-2026-09-24).
+
+## Held at `replicas: 0` while the master's USB HDD fails (2026-10-21)
+
+The SMB share behind the vault lives on `kube-master`'s USB HDD (`/dev/sda4`, exFAT,
+`/mnt/usb`), and that disk now has unreadable sectors: `critical medium error, dev sda,
+sector 107797896` every ~2 s, SMART `Current_Pending_Sector` 38. The smbd session stuck on
+that sector belongs to `kube-worker-3` and holds `pvc-mcp-basic-memory-data-smb/claude`
+open — the vault this app shares with basic-memory. Every retry stalls the disk queue for
+all 19 SMB-CSI volumes (basic-memory's MCP `initialize` took 59 s, so litellm listed 0 tools).
+
+Scaled to zero instead of disabling: pruning the Application would delete
+`ignis-state-ssd` (`local-path`, reclaim `Delete`). It is only a cache, but zero replicas
+keeps it and is reversible with one line. Do not bring the app back until the disk is
+replaced or the bad sectors are dealt with — its entrypoint `chown -R` walks the whole
+vault on every start.
