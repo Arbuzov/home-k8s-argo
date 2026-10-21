@@ -102,3 +102,8 @@ fail again. The other 37 pending sectors are still somewhere on the disk, and a 
 scan or conversion pass reads the whole 200Gi share, which on this disk is a surface scan
 that will find them one stall at a time. Bring the app back once the photos sit on a
 healthy disk; the `hostPath` index and the SSD thumbnail cache survive the pause.
+
+Excluding the bad folders is not enough. `Indexing.excludeFolderList` in `config.json`
+(on the `pigallery2-config` PVC, not in GitOps) has listed `2019/2019-10-20` and
+`2019/2019-10-21` since 2026-10-20, and the converting job opened `GH013758.MP4` anyway: the
+exclusion only stops indexing, while the jobs walk media that is already in the DB.
