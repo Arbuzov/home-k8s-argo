@@ -8,7 +8,8 @@
     {
       "matchManagers": ["argocd"],
       "matchUpdateTypes": ["minor", "patch"],
-      "groupName": "helm charts (non-major)"
+      "groupName": "argo app updates (non-major)",
+      "groupSlug": "argo-app-updates-non-major"
     }
   ]
 }
