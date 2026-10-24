@@ -462,13 +462,80 @@ whose id is no longer in the freshly-fetched catalog. NVIDIA drops an end-of-lif
 model from `/models` (verified: a `410 Gone` model is absent from the catalog) but
 litellm keeps the DB registration, so without pruning the council keeps calling a
 dead id that 410s — the "models time out / glitch" symptom (a `mistral-large-3`
-EOL on 2026-07-23 was the first case). Scope guards: only models with
-`litellm_params.model == "nvidia_nim/<id>"` (never the `nvidia_nim/*` wildcard or
-`github_copilot/*`), and a `PRUNE_CAP` (15) — if more than that look stale the
-catalog probably came back short, so it skips rather than mass-delete good models
-(the catalog fetch raises on failure, so a failed fetch aborts before any delete).
+EOL on 2026-07-23 was the first case). Scope guards: only **DB** rows
+(`model_info.db_model` true in `/model/info`) with
+`litellm_params.model == "nvidia_nim/<id>"` — never the `nvidia_nim/*` wildcard,
+its config-backed expansions, or `github_copilot/*` — and a
+`PRUNE_CAP = max(15, catalog // 4)`: if more than that look stale the catalog
+probably came back short, so it skips rather than mass-delete good models. A
+failed catalog fetch is logged and skips add + prune for that run; it does not
+fail the Job.
 The `litellm-council` plugin's `/litellm-council:doctor` command is the client-side
 backstop for the same rot.
+
+The `db_model` guard was added 2026-10-24. The wildcard expands into three
+config-backed rerank entries taken from LiteLLM's own cost map
+(`nvidia_nim/nvidia/nv-rerankqa-mistral-4b-v3`,
+`nvidia_nim/nvidia/llama-3_2-nv-rerankqa-1b-v2`,
+`nvidia_nim/ranking/nvidia/llama-3.2-nv-rerankqa-1b-v2`). They are not in
+NVIDIA's `/models`, so every run picked them as stale, and `/model/delete`
+answered `400` because they are not DB rows: three `FAIL prune` lines per run,
+nothing actually wrong.
+
+### Price, rpm and token limits on the NIM models
+
+Since 2026-10-24 the same Job also writes price, `rpm` and (where known) token
+limits onto every NIM model it manages: on `/model/new` for new ids, and as a
+diff-only `PATCH /model/{id}/update` for rows that already exist. A row already
+carrying the target values is not written, so a steady-state run issues no
+PATCH.
+
+**NVIDIA has no API for any of this** (checked 2026-10-24): `/v1/models`
+returns only `id`/`object`/`created`/`owned_by` (`created` is the same constant
+on every entry), and chat responses carry no `x-ratelimit-*` headers — only
+`Nvcf-Reqid` / `Nvcf-Status`. So the values are set by policy, not read:
+
+| Field | Where | Value | Source |
+| --- | --- | --- | --- |
+| `input_cost_per_token`, `output_cost_per_token` | `litellm_params` | `0.0` | the hosted API is free, no per-token billing |
+| `rpm` | `litellm_params` | `NIM_RPM` env, `35` | undocumented free tier, ~40 RPM, varies with model and load |
+| `max_input_tokens`, `max_output_tokens` | `model_info` | per model | `featured-models.json`, only the few models listed there |
+
+Notes on each:
+
+- **Price on `litellm_params`, not `model_info`.** In 1.106.2 a PATCH silently
+  drops `*_cost_per_token` from `model_info` (`without_server_derived_pricing`
+  treats it as display pricing echoed from the cost map); a deployment's own
+  price belongs on `litellm_params`, and LiteLLM mirrors it into `model_info`.
+  Before this, LiteLLM's cost map knew only the three rerank ids above, so chat
+  calls had no price at all and were logged with `spend = 0` by default. The
+  number does not change; it is now explicit.
+- **`rpm` is metadata until enforcement is on.** Without
+  `router_settings.optional_pre_call_checks: [enforce_model_rate_limits]` the
+  router only uses `rpm` to pick between deployments of one model group, and
+  each NIM group has exactly one. Enforcement is deliberately **not** enabled:
+  peak NIM traffic through this proxy was 28 requests in one minute
+  (2026-08-19), 3 requests in the 30 days to 2026-10-24, and no NIM `429` on
+  record; enabling it changes `proxy_config`, which restarts the proxy
+  (`Recreate`, a boot of up to 15 min, MCP `502` meanwhile — see above). Turn it
+  on when NIM `429`s show up or one model gets near 30 req/min. It is also not
+  known whether NVIDIA counts the limit per model or per key; if per key, a
+  per-deployment `rpm` cannot protect it, and a virtual key's `rpm_limit` on the
+  key the council uses is the right tool.
+- **Token limits come from an undocumented asset**,
+  `https://assets.ngc.nvidia.com/products/api-catalog/featured-models.json`
+  (4 models on 2026-10-24, `context` + `max-output`). It spells ids differently
+  from the catalog (`z-ai/glm-5-3` vs `z-ai/glm-5.3`), so ids are matched after
+  mapping `.` and `_` to `-`. Best-effort: when it is unreachable, token limits
+  are left as they are; price and `rpm` do not depend on it. Everything not
+  listed there keeps no token limits rather than a guessed one.
+- **A `model_info` PATCH also lands in the proxy's in-memory cost map**, keyed
+  by `litellm_params.model`. It outlives deleting and re-adding the model, and
+  `/model/info` keeps showing it until the proxy restarts, even though the DB row
+  no longer has it. Do not experiment with made-up values on a live model.
+- **The catalog lists ids this account cannot call.** `google/gemma-3-4b-it` is
+  in `/models` but answers `404 Function '…': Not found for account`
+  (2026-10-24). The Job registers such ids anyway; it does not probe them.
 
 `ttlSecondsAfterFinished: 86400` on the job template: failed sync jobs linger
 (`failedJobsHistoryLimit: 3`) and Argo CD aggregates child-Job health, so a

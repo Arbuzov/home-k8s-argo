@@ -35,17 +35,21 @@ spec:
                     secretKeyRef:
                       name: litellm-env-secret
                       key: NVIDIA_NIM_API_BASE
+                - name: NIM_RPM
+                  value: "35"
                 - name: HTTPS_PROXY
                   value: "http://wg-vless-gateway-proxy.vpn.svc.cluster.local:1080"
               command: ["python3", "-c"]
               args:
                 - |
-                  import json, os, urllib.request as u
+                  import json, os, re, urllib.request as u
 
                   LL = "http://litellm:4000"
                   KEY = os.environ["LITELLM_MASTER_KEY"]
                   NIM_KEY = os.environ["NVIDIA_NIM_API_KEY"]
                   NIM_BASE = os.environ["NVIDIA_NIM_API_BASE"].rstrip("/")
+                  NIM_RPM = int(os.environ.get("NIM_RPM", "35"))
+                  FEATURED_URL = "https://assets.ngc.nvidia.com/products/api-catalog/featured-models.json"
 
                   # GitHub Copilot: explicit models registered by name (no wildcard). Auth is via
                   # the access-token mounted into the litellm pod, so no credentials are needed here.
@@ -58,23 +62,68 @@ spec:
                       "gpt-5.4",
                   ]
 
-                  def get(url, tok):
-                      req = u.Request(url, headers={"Authorization": "Bearer " + tok})
-                      return json.load(u.urlopen(req, timeout=30))
+                  def get(url, tok=None):
+                      headers = {"Authorization": "Bearer " + tok} if tok else {}
+                      return json.load(u.urlopen(u.Request(url, headers=headers), timeout=30))
 
-                  def add(model_name, params):
-                      body = json.dumps({"model_name": model_name, "litellm_params": params}).encode()
-                      req = u.Request(LL + "/model/new", data=body, method="POST",
+                  def send(path, body, method="POST"):
+                      req = u.Request(LL + path, data=json.dumps(body).encode(), method=method,
                                       headers={"Authorization": "Bearer " + KEY,
                                                "Content-Type": "application/json"})
                       u.urlopen(req, timeout=30)
+
+                  def add(model_name, params, model_info=None):
+                      body = {"model_name": model_name, "litellm_params": params}
+                      if model_info:
+                          body["model_info"] = model_info
+                      send("/model/new", body)
+
+                  def update(model_id, params, model_info):
+                      # PATCH merges into the stored row: api_key/api_base stay as they are.
+                      body = {}
+                      if params:
+                          body["litellm_params"] = params
+                      if model_info:
+                          body["model_info"] = model_info
+                      send("/model/%s/update" % model_id, body, "PATCH")
 
                   def delete(model_id):
-                      body = json.dumps({"id": model_id}).encode()
-                      req = u.Request(LL + "/model/delete", data=body, method="POST",
-                                      headers={"Authorization": "Bearer " + KEY,
-                                               "Content-Type": "application/json"})
-                      u.urlopen(req, timeout=30)
+                      send("/model/delete", {"id": model_id})
+
+                  # NVIDIA publishes no pricing or rate-limit API: /models carries only
+                  # id/object/created/owned_by and responses carry no x-ratelimit-* headers.
+                  # Context / max-output exist only for the handful of "featured" models, in an
+                  # undocumented catalog asset that spells ids differently (z-ai/glm-5-3 vs the
+                  # catalog's z-ai/glm-5.3) - hence norm(). Best-effort: if it is unreachable the
+                  # token limits are left as they are; price and rpm do not depend on it.
+                  def norm(mid):
+                      return re.sub(r"[._]", "-", mid.lower())
+
+                  try:
+                      featured = {norm(f["model"]): f for f in get(FEATURED_URL)["featured-models"]}
+                  except Exception as e:
+                      print("featured-models unavailable, token limits left as is:", e)
+                      featured = {}
+
+                  def nim_limits(mid):
+                      # Price lives on litellm_params: a PATCH silently drops *_cost_per_token
+                      # from model_info as "display pricing derived from the cost map".
+                      params = {"rpm": NIM_RPM, "input_cost_per_token": 0.0, "output_cost_per_token": 0.0}
+                      info = {}
+                      f = featured.get(norm(mid))
+                      if f and f.get("context"):
+                          info["max_input_tokens"] = int(f["context"])
+                      if f and f.get("max-output"):
+                          info["max_output_tokens"] = int(f["max-output"])
+                      return params, info
+
+                  def is_managed_nim(m):
+                      # Only DB rows this job owns. The nvidia_nim/* wildcard in the config expands
+                      # into config-backed entries (db_model false) that /model/delete and
+                      # /model/{id}/update reject with 400 - never touch those.
+                      pm = (m.get("litellm_params") or {}).get("model") or ""
+                      return ((m.get("model_info") or {}).get("db_model") is True
+                              and pm.startswith("nvidia_nim/") and pm != "nvidia_nim/*")
 
                   info = get(LL + "/model/info", KEY)["data"]
                   existing = {m["model_name"] for m in info}
@@ -92,8 +141,10 @@ spec:
                   for mid in (catalog or []):
                       if mid in existing:
                           continue
+                      params, minfo = nim_limits(mid)
                       try:
-                          add(mid, {"model": "nvidia_nim/" + mid, "api_key": NIM_KEY, "api_base": NIM_BASE})
+                          add(mid, dict({"model": "nvidia_nim/" + mid, "api_key": NIM_KEY,
+                                         "api_base": NIM_BASE}, **params), minfo)
                           added += 1
                           print("added nim", mid)
                       except Exception as e:
@@ -114,10 +165,10 @@ spec:
                   # Prune: delete NIM models the catalog no longer lists (end-of-life / pulled).
                   # NVIDIA drops an EOL model from /models but litellm keeps the DB registration, so
                   # the council keeps calling a dead id that 410s ("times out / glitches"). Scope: only
-                  # models we manage (litellm_params.model == "nvidia_nim/<id>") - never the wildcard
-                  # or github_copilot/*. Safety cap: if more than PRUNE_CAP look stale the catalog
-                  # probably came back short, so skip rather than mass-delete good models. And when
-                  # the fetch failed outright (catalog is None) the loop below sees no candidates,
+                  # DB models we manage (is_managed_nim) - never the wildcard, its config-backed
+                  # expansions or github_copilot/*. Safety cap: if more than PRUNE_CAP look stale the
+                  # catalog probably came back short, so skip rather than mass-delete good models. And
+                  # when the fetch failed outright (catalog is None) the loop below sees no candidates,
                   # so a failed catalog can never be read as "everything is EOL, delete it all".
                   # Scale the cap with the catalog instead of a flat 15: the 451 outage left a
                   # 24-model backlog that a flat 15 refused to touch forever, while the guard
@@ -129,12 +180,12 @@ spec:
                   catalog_set = set(catalog_full)
                   stale = []
                   for m in (info if catalog is not None else []):
-                      pm = (m.get("litellm_params") or {}).get("model") or ""
-                      if not pm.startswith("nvidia_nim/") or pm == "nvidia_nim/*":
+                      if not is_managed_nim(m):
                           continue
-                      if pm[len("nvidia_nim/"):] not in catalog_set:
+                      if m["litellm_params"]["model"][len("nvidia_nim/"):] not in catalog_set:
                           stale.append(m)
                   removed = 0
+                  pruned_ids = set()
                   if len(stale) > PRUNE_CAP:
                       print("SKIP prune: %d models look stale (> cap %d) - catalog likely short this run"
                             % (len(stale), PRUNE_CAP))
@@ -146,10 +197,36 @@ spec:
                           try:
                               delete(mid)
                               removed += 1
+                              pruned_ids.add(mid)
                               print("pruned", m["model_name"])
                           except Exception as e:
                               print("FAIL prune", m["model_name"], e)
 
-                  print("done: %d added, %d pruned, %d existing, %d nim catalog, %d copilot"
-                        % (added, removed, len(existing),
-                           -1 if catalog is None else len(catalog), len(COPILOT)))
+                  # Price / rpm / token limits on models registered before (or by an older version
+                  # of) this job. Diff-only: a row already carrying the target values is not
+                  # written, so a steady-state run issues no PATCH at all. Runs even when the
+                  # catalog fetch failed - none of these values come from the catalog.
+                  updated = 0
+                  for m in info:
+                      if not is_managed_nim(m):
+                          continue
+                      mi_cur = m.get("model_info") or {}
+                      lp_cur = m["litellm_params"]
+                      if mi_cur.get("id") in pruned_ids:
+                          continue
+                      params, minfo = nim_limits(lp_cur["model"][len("nvidia_nim/"):])
+                      lp_diff = {k: v for k, v in params.items() if lp_cur.get(k) != v}
+                      mi_diff = {k: v for k, v in minfo.items() if mi_cur.get(k) != v}
+                      if not lp_diff and not mi_diff:
+                          continue
+                      try:
+                          update(mi_cur["id"], lp_diff, mi_diff)
+                          updated += 1
+                          print("updated nim", m["model_name"], sorted(list(lp_diff) + list(mi_diff)))
+                      except Exception as e:
+                          print("FAIL update", m["model_name"], e)
+
+                  print("done: %d added, %d updated, %d pruned, %d existing, %d nim catalog, "
+                        "%d featured, %d copilot"
+                        % (added, updated, removed, len(existing),
+                           -1 if catalog is None else len(catalog), len(featured), len(COPILOT)))
