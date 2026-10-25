@@ -181,8 +181,8 @@ Google SSO reuses the cluster's shared Google OAuth client (`GOOGLE_CLIENT_ID` /
 `GOOGLE_CLIENT_SECRET` in `litellm-env-secret`, the same client as
 argo-cd/grafana/vikunja/photoprism); `ALLOWED_EMAIL_DOMAINS: whitediver.com`
 gates sign-in and `PROXY_ADMIN_ID` (the owner's Google SSO user id) grants
-`proxy_admin`. `UI_USERNAME`/`UI_PASSWORD` still work as a fallback at
-`/fallback/login`.
+`proxy_admin`. `AUTO_REDIRECT_UI_LOGIN_TO_SSO: "true"` makes the `/ui` login
+page bounce straight to Google instead of showing the username/password form.
 
 ## Request logging is redacted
 
