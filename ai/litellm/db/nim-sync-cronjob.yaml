@@ -185,7 +185,6 @@ spec:
                       if m["litellm_params"]["model"][len("nvidia_nim/"):] not in catalog_set:
                           stale.append(m)
                   removed = 0
-                  pruned_ids = set()
                   if len(stale) > PRUNE_CAP:
                       print("SKIP prune: %d models look stale (> cap %d) - catalog likely short this run"
                             % (len(stale), PRUNE_CAP))
@@ -197,24 +196,45 @@ spec:
                           try:
                               delete(mid)
                               removed += 1
-                              pruned_ids.add(mid)
                               print("pruned", m["model_name"])
                           except Exception as e:
                               print("FAIL prune", m["model_name"], e)
 
+                  # GitHub Copilot is paid for by subscription, not per token, but LiteLLM's cost map
+                  # (1.106.2) prices github_copilot/* at the upstream vendor's API rates - cache and
+                  # >272k tiers included - so every call would log made-up spend. Zero every
+                  # per-token price the cost map shows for the row: read from model_info (where
+                  # /model/info displays cost-map pricing), compared against litellm_params (where
+                  # the override lives), so a zeroed row produces no diff on the next run.
+                  def is_managed_copilot(m):
+                      pm = (m.get("litellm_params") or {}).get("model") or ""
+                      return ((m.get("model_info") or {}).get("db_model") is True
+                              and pm.startswith("github_copilot/"))
+
+                  def copilot_zero(m):
+                      return {k: 0.0 for k, v in (m.get("model_info") or {}).items()
+                              if "cost" in k and isinstance(v, (int, float))
+                              and not isinstance(v, bool) and v}
+
                   # Price / rpm / token limits on models registered before (or by an older version
                   # of) this job. Diff-only: a row already carrying the target values is not
                   # written, so a steady-state run issues no PATCH at all. Runs even when the
-                  # catalog fetch failed - none of these values come from the catalog.
+                  # catalog fetch failed - none of these values come from the catalog. /model/info
+                  # is read again so rows added or pruned above are seen as they are now: a new
+                  # model gets its values in this run, not three hours later.
+                  info = get(LL + "/model/info", KEY)["data"]
                   updated = 0
                   for m in info:
-                      if not is_managed_nim(m):
+                      if is_managed_nim(m):
+                          kind = "nim"
+                          params, minfo = nim_limits(m["litellm_params"]["model"][len("nvidia_nim/"):])
+                      elif is_managed_copilot(m):
+                          kind = "copilot"
+                          params, minfo = copilot_zero(m), {}
+                      else:
                           continue
                       mi_cur = m.get("model_info") or {}
                       lp_cur = m["litellm_params"]
-                      if mi_cur.get("id") in pruned_ids:
-                          continue
-                      params, minfo = nim_limits(lp_cur["model"][len("nvidia_nim/"):])
                       lp_diff = {k: v for k, v in params.items() if lp_cur.get(k) != v}
                       mi_diff = {k: v for k, v in minfo.items() if mi_cur.get(k) != v}
                       if not lp_diff and not mi_diff:
@@ -222,7 +242,7 @@ spec:
                       try:
                           update(mi_cur["id"], lp_diff, mi_diff)
                           updated += 1
-                          print("updated nim", m["model_name"], sorted(list(lp_diff) + list(mi_diff)))
+                          print("updated", kind, m["model_name"], sorted(list(lp_diff) + list(mi_diff)))
                       except Exception as e:
                           print("FAIL update", m["model_name"], e)
 

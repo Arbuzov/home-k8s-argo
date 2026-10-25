@@ -340,6 +340,9 @@ subscription. The full Copilot catalog also exposes gated ids (opus, gpt-5.5)
 and ids that answer with an empty response (gemini, kimi) — adding those back
 produces models that look registered and then fail at call time.
 
+Every Copilot row is priced at `0` by the same Job — see
+[Copilot models are priced at 0](#copilot-models-are-priced-at-0).
+
 ### Provider egress goes through the in-cluster VLESS gateway
 
 `HTTPS_PROXY: http://wg-vless-gateway-proxy.vpn.svc.cluster.local:1080`, plus a
@@ -536,6 +539,40 @@ Notes on each:
 - **The catalog lists ids this account cannot call.** `google/gemma-3-4b-it` is
   in `/models` but answers `404 Function '…': Not found for account`
   (2026-10-24). The Job registers such ids anyway; it does not probe them.
+
+### Copilot models are priced at 0
+
+Since 2026-10-25 the Job also zeroes the price of every `github_copilot/*` DB
+row. Copilot is paid for by subscription, but LiteLLM's cost map in 1.106.2
+prices these ids at the upstream vendor's API rates — `claude-sonnet-4.6` at
+$3 / $15 per M tokens plus cache read/write, `gpt-5.4` at $2.50 / $15 plus a
+higher tier above 272k tokens. Measured 2026-10-25: a 10 + 4 token call to
+`github_copilot/claude-haiku-4.5` logged `spend = 3e-05`; after the override
+the same call logged `0`.
+
+History is clean and needs no fix. All earlier Copilot rows in
+`LiteLLM_SpendLogs` (last one 2026-09-24) carry `spend = 0`, because the cost
+map entry they resolved to had no prices yet — the 2026-09-24 row's
+`model_map_information` shows the `github_copilot/gpt-5.4` entry with every
+price `null`. The prices arrived with a later chart bump, before any Copilot
+call had been made on it.
+
+How the override works:
+
+- **Which fields:** every numeric field with `cost` in its name that
+  `/model/info` shows non-zero in the row's `model_info` — that is where it
+  displays cost-map pricing — so cache and `*_above_272k_tokens` tiers are
+  zeroed too, and any price the cost map adds later is picked up by the next
+  run.
+- **Where:** on `litellm_params`, for the same reason as the NIM price (a PATCH
+  drops prices from `model_info`). LiteLLM mirrors the zeros into `model_info`.
+- **Idempotent:** the diff is taken against `litellm_params`, so a zeroed row
+  produces no PATCH even if some tier is not mirrored back.
+- **New rows:** the Job reads `/model/info` again before the update pass, so a
+  Copilot id added to `COPILOT` gets its zeros in the same run.
+- **Scope:** every DB row whose `litellm_params.model` starts with
+  `github_copilot/`, not only the ids in `COPILOT` — none of them is billed per
+  token.
 
 `ttlSecondsAfterFinished: 86400` on the job template: failed sync jobs linger
 (`failedJobsHistoryLimit: 3`) and Argo CD aggregates child-Job health, so a
