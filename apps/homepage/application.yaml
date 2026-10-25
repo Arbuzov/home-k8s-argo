@@ -41,7 +41,7 @@ spec:
                 name: homepage-bookmarks
                 key: HOMEPAGE_VAR_WORK_GRAFANA_URL
         image:
-          tag: v2.3.0
+          tag: v2.7.0
         config:
           settings:
             theme: dark
@@ -104,7 +104,7 @@ spec:
                     href: https://books.whitediver.keenetic.link
             - Home:
                 - LiteLLM:
-                    icon: https://avatars.githubusercontent.com/u/121462774?s=200&v=4
+                    icon: sh-litellm.svg
                     description: LLM proxy
                     href: https://litellm.whitediver.keenetic.link/ui
                 - n8n:

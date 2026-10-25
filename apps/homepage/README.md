@@ -17,9 +17,9 @@ The chart resolves the image as
 alone leaves the pod on the old image while the `app.kubernetes.io/version`
 label advertises the new one.
 
-The pin runs deliberately ahead of the chart: chart 1.8.8 was cut hours before
-app `v2.3.0` shipped, so its `appVersion` stops one release short for purely
-chronological reasons (the same shape as the previous 1.8.4 + `v1.13.2` pair).
+The pin runs deliberately ahead of the chart: chart 1.8.8 (still the latest)
+ships `appVersion` `v2.2.0`, while the app is pinned to `v2.7.0` (the same
+shape as the earlier 1.8.4 + `v1.13.2` pair).
 Keeping the tag explicit also makes rollback a one-line edit. Do **not** drop
 the `tag:` line to inherit `appVersion` — that leaves a bare `image:` key and
 the render fails with a nil-pointer (`ComparisonError` in Argo CD); set
