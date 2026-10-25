@@ -51,6 +51,7 @@ spec:
             PROXY_BASE_URL: "https://litellm.whitediver.keenetic.link"
             ALLOWED_EMAIL_DOMAINS: "whitediver.com"
             PROXY_ADMIN_ID: "113025592623482135602"
+            AUTO_REDIRECT_UI_LOGIN_TO_SSO: "true"
             GITHUB_COPILOT_TOKEN_DIR: "/tmp/github_copilot"
             GITHUB_COPILOT_ACCESS_TOKEN_FILE: "/etc/copilot/access-token"
             HTTPS_PROXY: "http://wg-vless-gateway-proxy.vpn.svc.cluster.local:1080"
