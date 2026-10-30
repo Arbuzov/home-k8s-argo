@@ -461,20 +461,72 @@ It relies on `general_settings.store_model_in_db: true` (set in
 "Set 'STORE_MODEL_IN_DB=True'".
 
 It also **prunes**: after adding, it `POST /model/delete`s any `nvidia_nim/<id>`
-whose id is no longer in the freshly-fetched catalog. NVIDIA drops an end-of-life
-model from `/models` (verified: a `410 Gone` model is absent from the catalog) but
-litellm keeps the DB registration, so without pruning the council keeps calling a
-dead id that 410s — the "models time out / glitch" symptom (a `mistral-large-3`
-EOL on 2026-07-23 was the first case). Scope guards: only **DB** rows
-(`model_info.db_model` true in `/model/info`) with
+that is gone — either no longer in the freshly-fetched catalog, or still listed but
+**dead when called**. Without pruning litellm keeps the DB registration and the
+council keeps calling a dead id — the "models time out / glitch" symptom (a
+`mistral-large-3` EOL on 2026-07-23 was the first case). Scope guards: only **DB**
+rows (`model_info.db_model` true in `/model/info`) with
 `litellm_params.model == "nvidia_nim/<id>"` — never the `nvidia_nim/*` wildcard,
-its config-backed expansions, or `github_copilot/*` — and a
-`PRUNE_CAP = max(15, catalog // 4)`: if more than that look stale the catalog
-probably came back short, so it skips rather than mass-delete good models. A
-failed catalog fetch is logged and skips add + prune for that run; it does not
-fail the Job.
+its config-backed expansions, or `github_copilot/*`. A failed catalog fetch is
+logged and skips add + prune for that run; it does not fail the Job.
 The `litellm-council` plugin's `/litellm-council:doctor` command is the client-side
 backstop for the same rot.
+
+### Liveness probe: the catalog is not a health signal
+
+Until 2026-10-30 the prune only diffed against `/models`, on the assumption that
+NVIDIA drops a dead model from the catalog (true for `mistral-large-3`, which went
+`410 Gone` and left `/models`). It is not the general case: on 2026-10-30 **54 of the
+85** catalog ids were dead when called — `yi-large`, `fuyu-8b`, `llama2-70b`, `dbrx`,
+`kimi-k2.6`, `nemotron-4-340b`, every `palmyra`, `nvclip`, `arctic-embed-l` … — while
+`/models` still listed them. The Job ran green every 3h with `0 pruned`, and it kept
+**re-adding** them too, since anything in the catalog it did not have counted as
+new — a manual delete lasted at most until the next run.
+
+So every catalog id is now called once per run, directly against NVIDIA with the
+Job's key, before anything is added or pruned:
+
+| Answer | Read as |
+| --- | --- |
+| `404` with `Function '<uuid>': Not found for account '…'`, or `410` | **dead** — not added, pruned if registered |
+| `404 page not found` (plain text) | route miss — try the next endpoint |
+| `2xx` | ok |
+| timeout, `429`, `5xx`, `400`, `401`/`403`, all endpoints a route miss | unknown — keep |
+
+The "Not found for account" body comes from NVCF after the id was resolved to a
+function, so it holds on any endpoint. A bare `404 page not found` is the gateway
+not having that route for the model — an embedding model asked for chat. That is
+why the probe walks `/chat/completions` → `/embeddings` → `/completions`: on chat
+alone 11 ids answered `page not found`, and four of them
+(`nemotron-3.5-embed-1b`/`-8b`, `nemotron-3-embed-1b`,
+`llama-nemotron-embed-vl-1b-v2`) are alive on `/embeddings`. The remaining
+answers are deliberately not "dead": the 2026-10-30 sweep had 7 timeouts at 45s
+(mostly new, busy flash models such as `glm-5.3-flash`) and two `500`s, and
+`nemotron-parse` answers `400` because it takes no text input — none of them is a
+dead model.
+
+Guards, one per kind of stale:
+
+- **Missing from the catalog**: `PRUNE_CAP = max(15, catalog // 4)` — if more than
+  that are missing, the catalog probably came back short, so that kind is skipped
+  rather than mass-deleting good models. It scales with the catalog rather than a
+  flat 15 because the 451 outage left a 24-model backlog that a flat 15 refused to
+  touch forever; the floor of 15 still blocks a mass delete if NVIDIA ever answers
+  with a handful.
+- **Dead by probe**: no cap — each one is a per-model 404 from NVIDIA, and the first
+  sweep had 54 at once, which any cap sized for a short catalog (21 at 85) would
+  have blocked forever. Instead that kind is skipped when **not a single** model
+  answered `2xx` in the run: then the account or NVIDIA is broken, not the models.
+
+A wrongly pruned model costs little: if it is alive on the next run it is still in
+the catalog, so it is re-added, and the `nvidia_nim/*` wildcard keeps it routable in
+between.
+
+Cost: one call per id, a few for embedding models, `PROBE_GAP_S` (2s) apart and
+`PROBE_TIMEOUT_S` (30s) each — roughly 5–8 minutes per run at ~15 requests/min.
+That stays under the ~40 RPM free tier even if NVIDIA counts per key rather than
+per model, and leaves room for real NIM traffic, which peaked at 28 requests in a
+minute (see the `rpm` note below).
 
 The `db_model` guard was added 2026-10-24. The wildcard expands into three
 config-backed rerank entries taken from LiteLLM's own cost map
