@@ -42,13 +42,16 @@ spec:
               command: ["python3", "-c"]
               args:
                 - |
-                  import json, os, re, urllib.request as u
+                  import json, os, re, time, urllib.request as u
+                  from urllib.error import HTTPError
 
                   LL = "http://litellm:4000"
                   KEY = os.environ["LITELLM_MASTER_KEY"]
                   NIM_KEY = os.environ["NVIDIA_NIM_API_KEY"]
                   NIM_BASE = os.environ["NVIDIA_NIM_API_BASE"].rstrip("/")
                   NIM_RPM = int(os.environ.get("NIM_RPM", "35"))
+                  PROBE_GAP = float(os.environ.get("PROBE_GAP_S", "2"))
+                  PROBE_TIMEOUT = float(os.environ.get("PROBE_TIMEOUT_S", "30"))
                   FEATURED_URL = "https://assets.ngc.nvidia.com/products/api-catalog/featured-models.json"
 
                   # GitHub Copilot: explicit models registered by name (no wildcard). Auth is via
@@ -138,8 +141,48 @@ spec:
                   except Exception as e:
                       print("NIM catalog unavailable, skipping NIM add + prune:", e)
                       catalog = None
+
+                  # Liveness. Being listed in /models says nothing about whether a model still
+                  # answers: NVIDIA keeps listing ids whose function is gone, and those 404 with
+                  # "Function '<uuid>': Not found for account". That body (or a 410) is the only
+                  # thing read as dead - it comes from NVCF after the id was resolved, so it holds
+                  # on any endpoint. A bare "404 page not found" is a route miss (an embedding
+                  # model asked for chat), so the next endpoint is tried. Anything else - timeout,
+                  # 429, 5xx, 400 - is "unknown" and keeps the model.
+                  PROBES = [("/chat/completions",
+                             {"messages": [{"role": "user", "content": "hi"}], "max_tokens": 1}),
+                            ("/embeddings", {"input": ["hi"], "input_type": "query"}),
+                            ("/completions", {"prompt": "hi", "max_tokens": 1})]
+
+                  def nim_post(path, body):
+                      req = u.Request(NIM_BASE + path, data=json.dumps(body).encode(),
+                                      headers={"Authorization": "Bearer " + NIM_KEY,
+                                               "Content-Type": "application/json"})
+                      try:
+                          with u.urlopen(req, timeout=PROBE_TIMEOUT) as r:
+                              return r.status, ""
+                      except HTTPError as e:
+                          return e.code, e.read(500).decode("utf-8", "replace")
+                      except Exception as e:
+                          return None, str(e)
+
+                  def probe(mid):
+                      for path, body in PROBES:
+                          time.sleep(PROBE_GAP)
+                          code, text = nim_post(path, dict(body, model=mid))
+                          if code == 410 or (code == 404 and "Not found for account" in text):
+                              return "dead"
+                          if code == 404:
+                              continue
+                          return "ok" if code is not None and code < 300 else "unknown"
+                      return "unknown"
+
+                  health = {mid: probe(mid) for mid in (catalog or [])}
+                  alive = sum(1 for s in health.values() if s == "ok")
+                  dead_ids = {mid for mid, s in health.items() if s == "dead"}
+
                   for mid in (catalog or []):
-                      if mid in existing:
+                      if mid in existing or mid in dead_ids:
                           continue
                       params, minfo = nim_limits(mid)
                       try:
@@ -162,43 +205,52 @@ spec:
                       except Exception as e:
                           print("FAIL copilot", mid, e)
 
-                  # Prune: delete NIM models the catalog no longer lists (end-of-life / pulled).
-                  # NVIDIA drops an EOL model from /models but litellm keeps the DB registration, so
-                  # the council keeps calling a dead id that 410s ("times out / glitches"). Scope: only
-                  # DB models we manage (is_managed_nim) - never the wildcard, its config-backed
-                  # expansions or github_copilot/*. Safety cap: if more than PRUNE_CAP look stale the
-                  # catalog probably came back short, so skip rather than mass-delete good models. And
-                  # when the fetch failed outright (catalog is None) the loop below sees no candidates,
-                  # so a failed catalog can never be read as "everything is EOL, delete it all".
-                  # Scale the cap with the catalog instead of a flat 15: the 451 outage left a
-                  # 24-model backlog that a flat 15 refused to touch forever, while the guard
-                  # that actually matters is "the catalog came back SHORT". At 102 models the
-                  # cap is 25; if NVIDIA ever answers with a handful, the floor of 15 still
-                  # blocks a mass delete.
+                  # Prune: delete NIM models that are gone - either the catalog no longer lists
+                  # them, or it still does but the probe above got an affirmative "dead". Scope:
+                  # only DB models we manage (is_managed_nim) - never the wildcard, its
+                  # config-backed expansions or github_copilot/*. When the fetch failed outright
+                  # (catalog is None) the loop below sees no candidates, so a failed catalog can
+                  # never be read as "everything is EOL, delete it all".
+                  # Each kind has its own guard. Missing from the catalog: if more than PRUNE_CAP
+                  # are, the catalog probably came back short, so skip rather than mass-delete
+                  # good models (scaled with the catalog, floor 15). Dead by probe: every one of
+                  # them is a per-model 404 from NVIDIA, so no count is suspicious on its own -
+                  # 54 of 85 were dead at once - but when not a single model answered, the
+                  # account or NVIDIA is the problem, not the models.
                   catalog_full = catalog or []
                   PRUNE_CAP = max(15, len(catalog_full) // 4)
                   catalog_set = set(catalog_full)
-                  stale = []
+                  gone, dead = [], []
                   for m in (info if catalog is not None else []):
                       if not is_managed_nim(m):
                           continue
-                      if m["litellm_params"]["model"][len("nvidia_nim/"):] not in catalog_set:
-                          stale.append(m)
-                  removed = 0
-                  if len(stale) > PRUNE_CAP:
-                      print("SKIP prune: %d models look stale (> cap %d) - catalog likely short this run"
-                            % (len(stale), PRUNE_CAP))
+                      nid = m["litellm_params"]["model"][len("nvidia_nim/"):]
+                      if nid not in catalog_set:
+                          gone.append(m)
+                      elif nid in dead_ids:
+                          dead.append(m)
+                  stale = []
+                  if len(gone) > PRUNE_CAP:
+                      print("SKIP prune: %d models left the catalog (> cap %d) - catalog likely short"
+                            " this run" % (len(gone), PRUNE_CAP))
                   else:
-                      for m in stale:
-                          mid = (m.get("model_info") or {}).get("id")
-                          if not mid:
-                              print("SKIP prune (no id)", m["model_name"]); continue
-                          try:
-                              delete(mid)
-                              removed += 1
-                              print("pruned", m["model_name"])
-                          except Exception as e:
-                              print("FAIL prune", m["model_name"], e)
+                      stale += gone
+                  if dead and not alive:
+                      print("SKIP prune: %d models probe dead but none answered - account or NVIDIA"
+                            " problem, not the models" % len(dead))
+                  else:
+                      stale += dead
+                  removed = 0
+                  for m in stale:
+                      mid = (m.get("model_info") or {}).get("id")
+                      if not mid:
+                          print("SKIP prune (no id)", m["model_name"]); continue
+                      try:
+                          delete(mid)
+                          removed += 1
+                          print("pruned", m["model_name"])
+                      except Exception as e:
+                          print("FAIL prune", m["model_name"], e)
 
                   # GitHub Copilot is paid for by subscription, not per token, but LiteLLM's cost map
                   # (1.106.2) prices github_copilot/* at the upstream vendor's API rates - cache and
@@ -246,7 +298,8 @@ spec:
                       except Exception as e:
                           print("FAIL update", m["model_name"], e)
 
-                  print("done: %d added, %d updated, %d pruned, %d existing, %d nim catalog, "
-                        "%d featured, %d copilot"
+                  print("done: %d added, %d updated, %d pruned, %d existing, %d nim catalog "
+                        "(%d ok, %d dead), %d featured, %d copilot"
                         % (added, updated, removed, len(existing),
-                           -1 if catalog is None else len(catalog), len(featured), len(COPILOT)))
+                           -1 if catalog is None else len(catalog), alive, len(dead_ids),
+                           len(featured), len(COPILOT)))
