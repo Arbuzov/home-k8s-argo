@@ -118,6 +118,8 @@ spec:
                           info["max_input_tokens"] = int(f["context"])
                       if f and f.get("max-output"):
                           info["max_output_tokens"] = int(f["max-output"])
+                      if mid in modes:
+                          info["mode"] = modes[mid]
                       return params, info
 
                   def is_managed_nim(m):
@@ -149,10 +151,15 @@ spec:
                   # "unknown": an existing row is kept, a new id is not added yet. PROBE_GAP
                   # sleeps before every request, so the sweep never exceeds 60/PROBE_GAP rpm
                   # however fast NVIDIA answers.
-                  PROBES = [("/chat/completions",
+                  # The endpoint that answered 2xx is also the model's purpose: it goes into
+                  # model_info.mode, which /v1/models shows, so clients can tell an embedder
+                  # from a chat model. A 400/422 says the function exists, not which endpoint
+                  # serves it, so it sets no mode.
+                  PROBES = [("/chat/completions", "chat",
                              {"messages": [{"role": "user", "content": "hi"}], "max_tokens": 1}),
-                            ("/embeddings", {"input": ["hi"], "input_type": "query"}),
-                            ("/completions", {"prompt": "hi", "max_tokens": 1})]
+                            ("/embeddings", "embedding", {"input": ["hi"], "input_type": "query"}),
+                            ("/completions", "completion", {"prompt": "hi", "max_tokens": 1})]
+                  modes = {}
 
                   def nim_post(path, body):
                       req = u.Request(NIM_BASE + path, data=json.dumps(body).encode(),
@@ -174,7 +181,7 @@ spec:
 
                   def probe(mid):
                       why = "no endpoint routes it"
-                      for path, body in PROBES:
+                      for path, mode, body in PROBES:
                           time.sleep(PROBE_GAP)
                           code, text = nim_post(path, dict(body, model=mid))
                           if code == 410 or (code == 404 and "Not found for account" in text):
@@ -182,6 +189,8 @@ spec:
                           if code == 404:
                               continue
                           if code is not None and (code < 300 or code in (400, 422)):
+                              if code < 300:
+                                  modes[mid] = mode
                               return "ok"
                           why = "%s %s %s" % (path, code, " ".join(text.split())[:120])
                           break

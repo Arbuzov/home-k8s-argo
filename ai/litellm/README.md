@@ -519,6 +519,20 @@ The DB snapshot the prune deletes from (`/model/info`) is read **after** the
 sweep, not before it, so a row changed in the UI during the minutes-long sweep is
 judged as it is now.
 
+The probe also records **what the model is for**. The endpoint that answered `2xx`
+(`chat`, `embedding` or `completion`) is written into `model_info.mode`, on
+`/model/new` and as a diff-only PATCH like the limits below. LiteLLM passes `mode`
+through to `/v1/models` (`{"id": "nvidia/nemotron-3-embed-1b", …, "mode":
+"embedding"}`), next to the `chat` that the cost map already gives Copilot and the
+`rerank` the config gives the three rerankers. So a client can filter out the
+embedders instead of trying to chat with them. `mode` is a label only: LiteLLM
+still passes a chat call to an embedder straight through to NVIDIA, which answers
+`404 page not found`. A `400`/`422` sets no mode, because it proves the function
+exists but not which endpoint serves it, so the two `nemotron-parse` rows stay
+unlabelled. A row whose probe came back unknown keeps the mode it had. Verified
+2026-10-30: a PATCH of `model_info.mode` persists and shows in both `/model/info`
+and `/v1/models`.
+
 Guards, one per kind of stale:
 
 - **Missing from the catalog**: `PRUNE_CAP = max(15, catalog // 4)` — if more than
