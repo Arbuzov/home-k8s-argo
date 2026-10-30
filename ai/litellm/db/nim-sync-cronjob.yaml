@@ -50,7 +50,7 @@ spec:
                   NIM_KEY = os.environ["NVIDIA_NIM_API_KEY"]
                   NIM_BASE = os.environ["NVIDIA_NIM_API_BASE"].rstrip("/")
                   NIM_RPM = int(os.environ.get("NIM_RPM", "35"))
-                  PROBE_GAP = float(os.environ.get("PROBE_GAP_S", "2"))
+                  PROBE_GAP = float(os.environ.get("PROBE_GAP_S", "4"))
                   PROBE_TIMEOUT = float(os.environ.get("PROBE_TIMEOUT_S", "30"))
                   FEATURED_URL = "https://assets.ngc.nvidia.com/products/api-catalog/featured-models.json"
 
@@ -128,10 +128,6 @@ spec:
                       return ((m.get("model_info") or {}).get("db_model") is True
                               and pm.startswith("nvidia_nim/") and pm != "nvidia_nim/*")
 
-                  info = get(LL + "/model/info", KEY)["data"]
-                  existing = {m["model_name"] for m in info}
-                  added = 0
-
                   # NVIDIA NIM: whole catalog, dynamically. A catalog fetch can fail for
                   # reasons that have nothing to do with the models (451 when egress leaves
                   # through a blocked IP, proxy down, NVIDIA outage) - that is not a reason
@@ -147,8 +143,12 @@ spec:
                   # "Function '<uuid>': Not found for account". That body (or a 410) is the only
                   # thing read as dead - it comes from NVCF after the id was resolved, so it holds
                   # on any endpoint. A bare "404 page not found" is a route miss (an embedding
-                  # model asked for chat), so the next endpoint is tried. Anything else - timeout,
-                  # 429, 5xx, 400 - is "unknown" and keeps the model.
+                  # model asked for chat), so the next endpoint is tried. A 2xx is ok, and so is a
+                  # 400/422: the model itself rejected the input (nemotron-parse takes no text),
+                  # so the function is there. Anything else - timeout, 429, 5xx, 401/403 - is
+                  # "unknown": an existing row is kept, a new id is not added yet. PROBE_GAP
+                  # sleeps before every request, so the sweep never exceeds 60/PROBE_GAP rpm
+                  # however fast NVIDIA answers.
                   PROBES = [("/chat/completions",
                              {"messages": [{"role": "user", "content": "hi"}], "max_tokens": 1}),
                             ("/embeddings", {"input": ["hi"], "input_type": "query"}),
@@ -162,11 +162,18 @@ spec:
                           with u.urlopen(req, timeout=PROBE_TIMEOUT) as r:
                               return r.status, ""
                       except HTTPError as e:
-                          return e.code, e.read(500).decode("utf-8", "replace")
+                          # The body read is a second network read: a stall here raises inside
+                          # this handler, where the clause below cannot catch it.
+                          try:
+                              text = e.read(500).decode("utf-8", "replace")
+                          except Exception as x:
+                              text = "body unreadable: %s" % x
+                          return e.code, text
                       except Exception as e:
                           return None, str(e)
 
                   def probe(mid):
+                      why = "no endpoint routes it"
                       for path, body in PROBES:
                           time.sleep(PROBE_GAP)
                           code, text = nim_post(path, dict(body, model=mid))
@@ -174,15 +181,28 @@ spec:
                               return "dead"
                           if code == 404:
                               continue
-                          return "ok" if code is not None and code < 300 else "unknown"
+                          if code is not None and (code < 300 or code in (400, 422)):
+                              return "ok"
+                          why = "%s %s %s" % (path, code, " ".join(text.split())[:120])
+                          break
+                      print("probe unknown", mid, "-", why)
                       return "unknown"
 
                   health = {mid: probe(mid) for mid in (catalog or [])}
                   alive = sum(1 for s in health.values() if s == "ok")
                   dead_ids = {mid for mid, s in health.items() if s == "dead"}
 
+                  # Read the DB only now: the sweep takes minutes, and the prune below deletes
+                  # by the ids in this snapshot.
+                  info = get(LL + "/model/info", KEY)["data"]
+                  existing = {m["model_name"] for m in info}
+                  added = 0
+
+                  # Only an id that answered is registered. A timeout, 429 or proxy blip must
+                  # not bring back a model pruned as dead; a new model that was merely busy is
+                  # added on the next run it answers, and the wildcard routes it meanwhile.
                   for mid in (catalog or []):
-                      if mid in existing or mid in dead_ids:
+                      if mid in existing or health[mid] != "ok":
                           continue
                       params, minfo = nim_limits(mid)
                       try:
@@ -299,7 +319,7 @@ spec:
                           print("FAIL update", m["model_name"], e)
 
                   print("done: %d added, %d updated, %d pruned, %d existing, %d nim catalog "
-                        "(%d ok, %d dead), %d featured, %d copilot"
+                        "(%d ok, %d dead, %d unknown), %d featured, %d copilot"
                         % (added, updated, removed, len(existing),
                            -1 if catalog is None else len(catalog), alive, len(dead_ids),
-                           len(featured), len(COPILOT)))
+                           len(health) - alive - len(dead_ids), len(featured), len(COPILOT)))
