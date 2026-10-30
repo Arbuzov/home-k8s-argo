@@ -490,8 +490,8 @@ Job's key, before anything is added or pruned:
 | --- | --- |
 | `404` with `Function '<uuid>': Not found for account '…'`, or `410` | **dead** — not added, pruned if registered |
 | `404 page not found` (plain text) | route miss — try the next endpoint |
-| `2xx` | ok |
-| timeout, `429`, `5xx`, `400`, `401`/`403`, all endpoints a route miss | unknown — keep |
+| `2xx`, or `400`/`422` | ok — added if new |
+| timeout, `429`, `5xx`, `401`/`403`, all endpoints a route miss | unknown — kept if registered, **not** added if new; logged as `probe unknown <id> - <reason>` |
 
 The "Not found for account" body comes from NVCF after the id was resolved to a
 function, so it holds on any endpoint. A bare `404 page not found` is the gateway
@@ -499,11 +499,25 @@ not having that route for the model — an embedding model asked for chat. That 
 why the probe walks `/chat/completions` → `/embeddings` → `/completions`: on chat
 alone 11 ids answered `page not found`, and four of them
 (`nemotron-3.5-embed-1b`/`-8b`, `nemotron-3-embed-1b`,
-`llama-nemotron-embed-vl-1b-v2`) are alive on `/embeddings`. The remaining
-answers are deliberately not "dead": the 2026-10-30 sweep had 7 timeouts at 45s
-(mostly new, busy flash models such as `glm-5.3-flash`) and two `500`s, and
-`nemotron-parse` answers `400` because it takes no text input — none of them is a
-dead model.
+`llama-nemotron-embed-vl-1b-v2`) are alive on `/embeddings`. A `400`/`422` counts
+as ok because the model itself rejected the input, so its function is there —
+`nemotron-parse` answers `400` since it takes no text. The remaining answers are
+deliberately not "dead": the 2026-10-30 sweep had 7 timeouts at 45s (mostly new,
+busy flash models such as `glm-5.3-flash`) and two `500`s, none of them a dead
+model.
+
+Unknown is asymmetric on purpose. Keeping a registered row costs nothing, but
+adding on unknown would let one timeout, `429` or proxy blip mid-sweep re-register
+every dead model it hit for the next 3h. So only an id that answered is added; a
+new model that was merely busy is added on the next run it answers, and the
+`nvidia_nim/*` wildcard routes it in between. The summary line counts all three
+(`(N ok, N dead, N unknown)`), so a sweep that is mostly unknown — NVIDIA or the
+egress proxy struggling — shows up in the Job log instead of passing as a clean
+run.
+
+The DB snapshot the prune deletes from (`/model/info`) is read **after** the
+sweep, not before it, so a row changed in the UI during the minutes-long sweep is
+judged as it is now.
 
 Guards, one per kind of stale:
 
@@ -516,17 +530,19 @@ Guards, one per kind of stale:
 - **Dead by probe**: no cap — each one is a per-model 404 from NVIDIA, and the first
   sweep had 54 at once, which any cap sized for a short catalog (21 at 85) would
   have blocked forever. Instead that kind is skipped when **not a single** model
-  answered `2xx` in the run: then the account or NVIDIA is broken, not the models.
+  answered ok in the run: then the account or NVIDIA is broken, not the models.
 
 A wrongly pruned model costs little: if it is alive on the next run it is still in
 the catalog, so it is re-added, and the `nvidia_nim/*` wildcard keeps it routable in
 between.
 
-Cost: one call per id, a few for embedding models, `PROBE_GAP_S` (2s) apart and
-`PROBE_TIMEOUT_S` (30s) each — roughly 5–8 minutes per run at ~15 requests/min.
-That stays under the ~40 RPM free tier even if NVIDIA counts per key rather than
-per model, and leaves room for real NIM traffic, which peaked at 28 requests in a
-minute (see the `rpm` note below).
+Cost: one call per id, a few for embedding models (~100 calls at 85 ids), with a
+`PROBE_GAP_S` (4s) sleep **before every** request and a `PROBE_TIMEOUT_S` (30s)
+cap on each — roughly 8–12 minutes per run. Because the sleep precedes each
+request, the sweep cannot exceed 60 / 4 = **15 requests/min** however fast NVIDIA
+answers; a 2s gap would have allowed 30 with instant 404s, which on top of the
+28-in-a-minute peak of real NIM traffic (see the `rpm` note below) is past the
+~40 RPM free tier if NVIDIA counts per key. At 15 the two together stay under it.
 
 The `db_model` guard was added 2026-10-24. The wildcard expands into three
 config-backed rerank entries taken from LiteLLM's own cost map
