@@ -9,7 +9,7 @@ spec:
   project: apps
   source:
     repoURL: https://unknowniq.github.io/helm-charts/
-    targetRevision: 1.8.8
+    targetRevision: 1.8.9
     helm:
       values: |
         env:
