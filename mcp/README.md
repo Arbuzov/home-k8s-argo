@@ -13,6 +13,7 @@ everything under `mcp/` automatically.
 | [`bootstrap.yaml`](bootstrap.yaml) | `Application` | The **app-of-apps** — deploys `project.yaml` + every child app |
 | `<service>/application*.yaml` | `Application` | One MCP server each (`project: mcp`) |
 | [`basic-memory/applicationset.yaml`](basic-memory/applicationset.yaml) | `ApplicationSet` + `StorageClass` | One basic-memory Application per family member (see its [`README`](basic-memory/README.md)) |
+| [`ignis/applicationset.yaml`](ignis/applicationset.yaml) | `ApplicationSet` | One Ignis per family member, over that member's note volume (see its [`README`](ignis/README.md)) |
 
 Services: `atlassian` (Jira + Confluence), `basic-memory`, `gitlab`, `grafana`,
 `graphiti`, `homeassistant`, `kubernetes`, `mcpo`. Each has its own `README.md`

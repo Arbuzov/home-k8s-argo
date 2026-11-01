@@ -3,15 +3,56 @@
 [Ignis](https://github.com/Nystik-gh/ignis) (`docker.io/nobbe/ignis:0.8.10`) — Obsidian
 running as a real web app in the browser, pointed at the **basic-memory note tree** so the
 vault can be read (and edited) from a phone or laptop without a desktop Obsidian install.
-Single replica on `kube-worker-3`, at `notes.whitediver.keenetic.link` behind the shared
-`mcp-basic-auth` htpasswd.
+Deployed as an `ApplicationSet` (`applicationset.yaml`): one Ignis per family member, each
+over that member's [basic-memory](../basic-memory/README.md) note volume. The original
+instance is `ignis`: a single replica on `kube-worker-3` at `notes.whitediver.keenetic.link`,
+behind Google login through the shared [`oauth2-proxy`](../oauth2-proxy/).
 
 Ignis is a shim that reimplements the Electron APIs Obsidian uses; the image ships **no**
 Obsidian code — it downloads Obsidian from the official release on first start (see
 [Startup is slow the first time](#startup-is-slow-the-first-time)).
 
 This file holds the rationale that, by repo convention, must **not** live as comments
-inside `application.yaml` (see the root [`CLAUDE.md`](../../CLAUDE.md)).
+inside `applicationset.yaml` (see the root [`CLAUDE.md`](../../CLAUDE.md)).
+
+## One Ignis per list element
+
+Each element sets three fields explicitly, so the link to a basic-memory instance is visible
+rather than derived:
+
+| field | original instance | used for |
+| --- | --- | --- |
+| `name` | `ignis` | Application, release, Deployment, Service, Ingress; cache PVC `<name>-state-ssd` |
+| `vault` | `basic-memory-data-smb` | `existingClaim` of the note volume; must be the `<basic-memory name>-data-smb` of the same member |
+| `host` | `notes.whitediver.keenetic.link` | Ingress host and `WS_ORIGINS` |
+
+**Never rename `name` of an existing element.** The cache PVC would start empty (one slow
+start), and the old Application would be orphaned rather than deleted: the ApplicationSet runs
+with `preserveResourcesOnDeletion: true`, as basic-memory does. The vault is unaffected
+either way, because it is only referenced.
+
+### Adding a family member
+
+Do this after the member's basic-memory element exists, because its PVC must already be there:
+
+1. Add an element, for example `{name: ignis-<member>, vault: basic-memory-<member>-data-smb,
+   host: notes-<member>.whitediver.keenetic.link}`.
+2. Add the host to the router's `ip http proxy` table (see [below](#notes-needs-a-router-entry--the-ingress-alone-is-not-enough)).
+3. Add the member's Google account to `restricted_access` in
+   [`oauth2-proxy`](../oauth2-proxy/application.yaml), or the login is refused.
+
+**Read this before step 3.** The `restricted_access` allowlist is global. An email added
+there can open **every** Ignis instance, and also `homepage` and `esphome`, because all of
+them use the same `/oauth2/auth` check. Per-instance restriction through the
+`?allowed_emails=` query of `/oauth2/auth` is not available: the ingress-nginx v1.12
+annotation validator (`URLWithNginxVariableRegex`) rejects both `@` and `%` in `auth-url`,
+so an email cannot be written there. A private instance needs its own oauth2-proxy, for
+example a sidecar in that Ignis pod with its own authenticated-emails list, cookie name and
+registered Google redirect URI.
+
+Every pair of instances for one member must share a node: the note PVC is `ReadWriteOnce`
+(see [the node pin](#why-the-node-pin-has-to-match-basic-memorys)). Each pair requests about
+1.3 GiB on `kube-worker-3` (basic-memory 1 GiB, Ignis 256 MiB).
 
 ## Why it lives under `mcp/`, though it is not an MCP server
 
@@ -24,7 +65,8 @@ non-server member of this group.
 
 ## The vault volume is *referenced*, never provisioned here
 
-`persistence.vault` is `existingClaim: basic-memory-data-smb`. This Application creates no
+`persistence.vault` is `existingClaim: <vault>` (`basic-memory-data-smb` for the original
+instance). This Application creates no
 PVC, no PV and no `StorageClass` for the notes — all three stay owned by
 [`../basic-memory`](../basic-memory/README.md) (whose PVC also carries
 `helm.sh/resource-policy: keep`). Deleting or pruning the Ignis Application therefore
@@ -70,9 +112,9 @@ Application first syncs — see [`../../platform/nginx/README.md`](../../platfor
 The LAN DNS half is automatic: `networking/keenetic-operator` syncs every Ingress host to
 an `ip host` record on the router.
 
-`WS_ORIGINS` is pinned to `https://notes.whitediver.keenetic.link` so the WebSocket
-endpoint accepts that origin only. Change the host and this value together, or live sync
-stops connecting.
+`WS_ORIGINS` is pinned to `https://<host>`, so the WebSocket endpoint accepts that origin
+only. The template derives both values from the element's `host`, so they cannot drift
+apart.
 
 ## Secure context, and the Basic-Auth caveat
 
@@ -81,12 +123,10 @@ over **HTTPS** (the router's Let's Encrypt certificate) — not by hitting the n
 directly. `ssl-redirect: "false"` matches the rest of the cluster: TLS is terminated at the
 router and the hop to nginx is plain HTTP.
 
-Ignis ships **no** authentication of its own; `mcp-basic-auth` (the same htpasswd the other
-`mcp` ingresses use) is the only thing between the internet and a read-write vault. If the
-live-sync WebSocket ever fails to connect while the page itself loads, suspect the browser
-not replaying Basic-Auth credentials on the `wss://` upgrade — that is the known weak spot
-of this auth choice, and the fix is a session-cookie proxy (oauth2-proxy / Authelia), not a
-change to Ignis.
+Ignis ships **no** authentication of its own. The oauth2-proxy session cookie is the only
+thing between the internet and a read-write vault. It replaced the earlier `mcp-basic-auth`
+htpasswd, whose weak spot was browsers not replaying Basic-Auth credentials on the `wss://`
+upgrade.
 
 ## It was not this app that took the node down (2026-08-28)
 
@@ -172,10 +212,25 @@ The two annotations deliberately use different addresses:
   Service. nginx calls it on every request; sending that to the public name would push
   each check out through the router and back.
 - `auth-signin` → the public `https://notes.whitediver.keenetic.link/oauth2/start`,
-  because the browser follows this one, not nginx.
+  because the browser follows this one, not nginx. It is the same for every instance:
+  `notes.` is the only host where oauth2-proxy serves `/oauth2` and has a registered
+  callback. `rd=https://$host$escaped_request_uri` carries the instance's own host, so a
+  login started at `notes-<member>.` returns there rather than to `notes.`. This is the
+  same form `homepage` and `esphome` use. The session is valid on every host because of
+  `cookie-domain: .whitediver.keenetic.link`. Before the ApplicationSet this was
+  `rd=$escaped_request_uri` (path only), which was enough while `notes.` was the only host.
 
 (This replaces the comment block that used to sit in `application.yaml`; manifests in
 this repo carry no comments.)
+
+## Migration from a plain Application (2026-11-01)
+
+Same two commits as [basic-memory](../basic-memory/README.md#migration-from-a-plain-application-2026-11-01):
+first `Prune=false` and no finalizer on the live Application, then the swap to
+`applicationset.yaml`, which the ApplicationSet controller adopts in place. Here the risk
+was smaller, because the vault is only referenced and a cascade would have deleted just
+the workload and the cache PVC. The only rendered difference was the `auth-signin` `rd`
+above, an Ingress annotation, so the pod did not restart.
 
 ## app-template 5: the Deployment is recreated once (2026-09-24)
 

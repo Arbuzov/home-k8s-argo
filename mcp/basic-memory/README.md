@@ -46,6 +46,8 @@ notes would seem to be gone.
    Without it the ingress routes to an alias litellm does not know.
 3. Optionally, add a `blackbox-mcp` target in
    [`observability/prometheus`](../../observability/prometheus/application.yaml).
+4. For a browser UI, add the member's [Ignis](../ignis/README.md#adding-a-family-member)
+   element with `vault: basic-memory-<member>-data-smb`.
 
 **Do not add an Oathkeeper rule.** The existing `mcp-basic-memory` rule matches
 `/mcp/basic_memory<.*>`, so it already covers `/mcp/basic_memory_<member>`. A
