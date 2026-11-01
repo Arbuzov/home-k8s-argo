@@ -26,6 +26,9 @@ spec:
           ingress:
             enabled: true
             ingressClassName: nginx
+            annotations:
+              nginx.ingress.kubernetes.io/auth-url: "http://oauth2-proxy.mcp.svc.cluster.local/oauth2/auth"
+              nginx.ingress.kubernetes.io/auth-signin: "https://notes.whitediver.keenetic.link/oauth2/start?rd=https://$host$escaped_request_uri"
             hosts: ['dev.whitediver.keenetic.link', '']
             path: /prometheus
             tls:

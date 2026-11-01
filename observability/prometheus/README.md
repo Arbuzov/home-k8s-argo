@@ -8,6 +8,28 @@ glob), so a merge to `main` is enough — no manual `kubectl apply`.
 This file holds the rationale that, by repo convention, must **not** live as
 comments inside `application.yaml` (see the root [`CLAUDE.md`](../../CLAUDE.md)).
 
+## Ingress — behind oauth2-proxy (Google login)
+
+Prometheus has no authentication of its own, and `dev.whitediver.keenetic.link`
+is published to the internet by the router. Until 2026-11-01 the Ingress had no
+auth annotation, so anyone could read every metric and target through
+`/prometheus/api/v1/…`. The `auth-url` / `auth-signin` pair now sends it through
+[`../../mcp/oauth2-proxy`](../../mcp/oauth2-proxy/README.md), the same Google
+login and email allow-list as `homepage` and `notes`.
+
+Nothing in the cluster reads Prometheus through the Ingress, so nothing breaks:
+the Grafana datasource uses
+`http://prometheus-server.prometheus.svc.cluster.local/prometheus`, and the
+ingress-nginx access log for the 24 hours before the change had no
+`/prometheus` client except a manual curl. Any new consumer must use the
+in-cluster Service, not the public URL.
+
+The host-less `''` entry in `hosts` gets the same annotations, because they
+apply to the whole Ingress. In a browser, a bare-IP request
+(`http://192.168.99.44/prometheus`) cannot complete the login: the cookie is
+scoped to `.whitediver.keenetic.link` and `rd=` must point inside that domain.
+That is acceptable, because nothing uses that path.
+
 ## Storage — `persistentVolume` is on, and must stay on
 
 8Gi on `local-path` with `retention: 30d` (**was `90d` until 2026-08-28**). It used to be

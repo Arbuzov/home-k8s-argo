@@ -1,7 +1,8 @@
 # oauth2-proxy
 
 Google login in front of hosts that ship no authentication of their own. It
-currently protects `notes.*` (`mcp/ignis`) and `homepage.*` (`apps/homepage`).
+currently protects `notes.*` (`mcp/ignis`), `homepage.*` (`apps/homepage`),
+`esphome.*` (`apps/esphome`) and `dev.*/prometheus` (`observability/prometheus`).
 nginx asks this proxy about every request through `auth_request` and sends the
 browser to Google when there is no session.
 
