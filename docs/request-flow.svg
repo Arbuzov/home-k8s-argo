@@ -1,0 +1,204 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1012" viewBox="0 0 1600 1012" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="11.5">
+  <title>Входящие запросы: роутер → ingress-nginx → приложения</title>
+  <style>
+    .t { fill: #1f2933; }
+    .m { fill: #52606d; }
+    .b { font-weight: 600; }
+    .h { font-size: 13px; font-weight: 700; }
+    .box { fill: #f5f7fa; stroke: #7b8794; stroke-width: 1.2; }
+    .router { fill: #e3f2fd; stroke: #1565c0; stroke-width: 1.5; }
+    .nginx { fill: #eceff1; stroke: #37474f; stroke-width: 1.5; }
+    .ln { fill: none; stroke-width: 2; }
+    .g { stroke: #2e7d32; } .gf { fill: #2e7d32; } .gbg { fill: #eef7ee; stroke: #2e7d32; }
+    .a { stroke: #b26a00; } .af { fill: #b26a00; } .abg { fill: #fff6e5; stroke: #b26a00; }
+    .p { stroke: #6a3d9a; } .pf { fill: #6a3d9a; } .pbg { fill: #f4eefa; stroke: #6a3d9a; }
+    .k { stroke: #455a64; } .kf { fill: #455a64; }
+    .row { fill: #ffffff; stroke-width: 1; }
+    .dash { stroke-dasharray: 5 4; }
+  </style>
+  <defs>
+    <marker id="ak" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#455a64"/></marker>
+    <marker id="ag" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#2e7d32"/></marker>
+    <marker id="aa" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#b26a00"/></marker>
+    <marker id="ap" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#6a3d9a"/></marker>
+  </defs>
+
+  <rect width="1600" height="1012" fill="#ffffff"/>
+
+  <text x="16" y="32" class="t" font-size="20" font-weight="700">Как входящие запросы доходят до приложений</text>
+  <text x="16" y="54" class="m" font-size="12.5">*.whitediver.keenetic.link · снято с живого кластера 2026-11-01: 19 Ingress (kubectl get ingress -A), 15 KeeneticWebApp, коды ответов проверены curl</text>
+
+  <!-- clients -->
+  <rect x="16" y="300" width="180" height="110" rx="8" class="box"/>
+  <text x="28" y="322" class="t h">Интернет</text>
+  <text x="28" y="342" class="t">браузер</text>
+  <text x="28" y="358" class="t">Claude-коннектор (MCP)</text>
+  <text x="28" y="374" class="t">API, OTLP, вебхуки n8n</text>
+  <text x="28" y="398" class="m">DNS: KeenDNS → WAN роутера</text>
+
+  <rect x="16" y="470" width="180" height="100" rx="8" class="box"/>
+  <text x="28" y="492" class="t h">LAN 192.168.99.0/24</text>
+  <text x="28" y="512" class="t">DNS: ip host на роутере</text>
+  <text x="28" y="528" class="t">*.whitediver… → 192.168.99.1</text>
+  <text x="28" y="550" class="m">тот же путь через роутер,</text>
+  <text x="28" y="564" class="m">что и из интернета</text>
+
+  <line x1="196" y1="355" x2="234" y2="355" class="ln k" marker-end="url(#ak)"/>
+  <line x1="196" y1="520" x2="234" y2="520" class="ln k" marker-end="url(#ak)"/>
+
+  <!-- router -->
+  <rect x="236" y="290" width="210" height="310" rx="8" class="router"/>
+  <text x="248" y="312" class="t h">Keenetic router</text>
+  <text x="248" y="330" class="m">192.168.99.1 · KeenDNS-прокси</text>
+  <text x="248" y="356" class="t b">TLS терминируется здесь</text>
+  <text x="248" y="372" class="t">Let's Encrypt от KeenDNS —</text>
+  <text x="248" y="388" class="t">единственный валидный серт</text>
+  <text x="248" y="414" class="t b">ip http proxy, уровень public:</text>
+  <text x="248" y="430" class="t">dev, notes, homepage, esphome,</text>
+  <text x="248" y="446" class="t">litellm, n8n, tasks, books, photos</text>
+  <text x="248" y="472" class="t b">→ https://192.168.99.44:443</text>
+  <text x="248" y="498" class="m">Имя без публикации не даёт 404:</text>
+  <text x="248" y="514" class="m">роутер отвечает 200 своей</text>
+  <text x="248" y="530" class="m">веб-панелью.</text>
+  <text x="248" y="556" class="m">Записи ведёт keenetic-operator,</text>
+  <text x="248" y="572" class="m">руками на роутере не правим.</text>
+
+  <rect x="236" y="640" width="210" height="96" rx="8" class="box"/>
+  <text x="248" y="662" class="t b">keenetic-operator</text>
+  <text x="248" y="678" class="m">ns keenetic-operator · kube-master</text>
+  <text x="248" y="698" class="t">читает все Ingress и по SSH пишет</text>
+  <text x="248" y="714" class="t">ip host (→ .99.1) и ip http proxy</text>
+  <text x="248" y="728" class="m">(→ .99.44:443)</text>
+  <line x1="341" y1="640" x2="341" y2="603" class="ln k dash" marker-end="url(#ak)"/>
+  <text x="348" y="626" class="m">SSH</text>
+
+  <line x1="446" y1="445" x2="544" y2="445" class="ln k" marker-end="url(#ak)"/>
+  <text x="496" y="436" class="t b" text-anchor="middle">HTTPS :443</text>
+  <text x="496" y="462" class="m" text-anchor="middle">self-signed</text>
+
+  <!-- ingress-nginx -->
+  <rect x="546" y="290" width="220" height="310" rx="8" class="nginx"/>
+  <text x="558" y="312" class="t h">ingress-nginx</text>
+  <text x="558" y="330" class="m">ns nginx · 2 реплики</text>
+  <text x="558" y="346" class="m">externalIP 192.168.99.44 (kube-master)</text>
+  <text x="558" y="362" class="m">маршрут по Host + path</text>
+  <text x="558" y="392" class="t b">3 режима доступа:</text>
+  <rect x="556" y="408" width="200" height="24" rx="12" class="gbg"/>
+  <text x="566" y="424" class="gf b">① auth_request → oauth2-proxy</text>
+  <rect x="556" y="458" width="200" height="24" rx="12" class="abg"/>
+  <text x="566" y="474" class="af b">② basic-auth (htpasswd Secret)</text>
+  <rect x="556" y="508" width="200" height="24" rx="12" class="pbg"/>
+  <text x="566" y="524" class="pf b">③ логин в приложении</text>
+
+  <!-- routes nginx -> lanes -->
+  <polyline points="756,420 776,420 776,122 1113,122" class="ln g" marker-end="url(#ag)"/>
+  <polyline points="756,470 808,470" class="ln a"/>
+  <polyline points="756,520 780,520 780,597 808,597" class="ln p"/>
+
+  <!-- lane 1: oauth2-proxy -->
+  <rect x="790" y="76" width="794" height="174" rx="8" fill="#f7fbf7" stroke="#2e7d32" stroke-width="1.2"/>
+  <text x="802" y="96" class="gf h">① Google-логин через oauth2-proxy — у приложений своей авторизации нет</text>
+
+  <line x1="960" y1="122" x2="960" y2="148" class="ln g dash" marker-end="url(#ag)"/>
+  <text x="952" y="143" class="gf" font-size="10.5" text-anchor="end">auth_request на каждый запрос</text>
+  <rect x="830" y="150" width="270" height="92" rx="6" class="row" stroke="#2e7d32"/>
+  <text x="842" y="168" class="t b">oauth2-proxy :80 · ns mcp</text>
+  <text x="842" y="184" class="t">202 → пропустить; 401 → редирект на</text>
+  <text x="842" y="199" class="t">notes.*/oauth2/start → Google</text>
+  <text x="842" y="214" class="t">allow-list: один email (info@…)</text>
+  <text x="842" y="229" class="t">cookie на .whitediver.keenetic.link = SSO</text>
+
+  <line x1="1115" y1="122" x2="1115" y2="234" class="ln g"/>
+  <line x1="1115" y1="150" x2="1128" y2="150" class="ln g" marker-end="url(#ag)"/>
+  <line x1="1115" y1="178" x2="1128" y2="178" class="ln g" marker-end="url(#ag)"/>
+  <line x1="1115" y1="206" x2="1128" y2="206" class="ln g" marker-end="url(#ag)"/>
+  <line x1="1115" y1="234" x2="1128" y2="234" class="ln g" marker-end="url(#ag)"/>
+  <rect x="1130" y="110" width="440" height="24" rx="5" class="row" stroke="#2e7d32"/>
+  <text x="1140" y="126" class="t"><tspan class="b">notes.*</tspan> / → ignis :8080 <tspan class="m">(ns mcp)</tspan></text>
+  <rect x="1130" y="138" width="440" height="24" rx="5" class="row" stroke="#2e7d32"/>
+  <text x="1140" y="154" class="t"><tspan class="b">homepage.*</tspan> / → homepage :3000</text>
+  <rect x="1130" y="166" width="440" height="24" rx="5" class="row" stroke="#2e7d32"/>
+  <text x="1140" y="182" class="t"><tspan class="b">esphome.*</tspan> / → esphome :6052</text>
+  <rect x="1130" y="194" width="440" height="24" rx="5" class="row" stroke="#2e7d32"/>
+  <text x="1140" y="210" class="t"><tspan class="b">dev.*/prometheus</tspan> → prometheus-server :80 <tspan class="m">(закрыт 2026-11-01)</tspan></text>
+  <rect x="1130" y="222" width="440" height="24" rx="5" class="row" stroke="#2e7d32"/>
+  <text x="1140" y="238" class="t"><tspan class="b">notes.*/oauth2</tspan> → oauth2-proxy <tspan class="m">— старт логина и callback Google, без auth</tspan></text>
+
+  <!-- lane 2: basic-auth -->
+  <rect x="790" y="262" width="794" height="278" rx="8" fill="#fffaf1" stroke="#b26a00" stroke-width="1.2"/>
+  <text x="802" y="282" class="af h">② Basic-auth на nginx (Secret mcp-basic-auth) — логин/пароль несёт сам клиент: Claude-коннектор, OTLP-экспортер</text>
+  <text x="830" y="302" class="t"><tspan class="b">dev.*</tspan> /mcp/jira · /mcp/confluence · /mcp/kubernetes · /mcp/grafana <tspan class="m">(Ingress mcp-gateway)</tspan></text>
+  <text x="830" y="317" class="t"><tspan class="b">dev.*</tspan> /mcp/basic-memory → rewrite /mcp/basic_memory <tspan class="m">(Ingress basic-memory)</tspan></text>
+
+  <line x1="808" y1="359" x2="808" y2="513" class="ln a"/>
+  <line x1="808" y1="359" x2="828" y2="359" class="ln a" marker-end="url(#aa)"/>
+  <rect x="830" y="326" width="232" height="66" rx="6" class="row" stroke="#b26a00"/>
+  <text x="840" y="342" class="t b">oathkeeper-proxy :4455 · ns mcp</text>
+  <text x="840" y="356" class="t">noop → allow → header mutator</text>
+  <text x="840" y="370" class="t">+ x-litellm-api-key (master key)</text>
+  <text x="840" y="384" class="t">Authorization: Basic → Bearer</text>
+  <line x1="1062" y1="359" x2="1088" y2="359" class="ln a" marker-end="url(#aa)"/>
+  <rect x="1090" y="326" width="232" height="66" rx="6" class="row" stroke="#b26a00"/>
+  <text x="1100" y="342" class="t b">litellm :4000 · ns litellm</text>
+  <text x="1100" y="356" class="t">MCP-gateway /mcp/&lt;alias&gt;</text>
+  <text x="1100" y="370" class="t">учёт вызовов по инструментам</text>
+  <text x="1100" y="384" class="m">упал litellm → лежат эти 5 путей</text>
+  <line x1="1322" y1="359" x2="1348" y2="359" class="ln a" marker-end="url(#aa)"/>
+  <rect x="1350" y="326" width="220" height="66" rx="6" class="row" stroke="#b26a00"/>
+  <text x="1360" y="342" class="t b">MCP-серверы · ns mcp</text>
+  <text x="1360" y="356" class="t">jira, confluence (mcp-atlassian)</text>
+  <text x="1360" y="370" class="t">kubernetes, grafana</text>
+  <text x="1360" y="384" class="t">basic-memory</text>
+
+  <line x1="808" y1="417" x2="828" y2="417" class="ln a" marker-end="url(#aa)"/>
+  <line x1="808" y1="449" x2="828" y2="449" class="ln a" marker-end="url(#aa)"/>
+  <line x1="808" y1="481" x2="828" y2="481" class="ln a" marker-end="url(#aa)"/>
+  <line x1="808" y1="513" x2="828" y2="513" class="ln a" marker-end="url(#aa)"/>
+  <rect x="830" y="404" width="740" height="26" rx="5" class="row" stroke="#b26a00"/>
+  <text x="840" y="421" class="t"><tspan class="b">dev.*/mcp/gitlab</tspan> → mcp-gitlab :3002 <tspan class="af">— напрямую, мимо oathkeeper и litellm</tspan></text>
+  <rect x="830" y="436" width="740" height="26" rx="5" class="row" stroke="#b26a00"/>
+  <text x="840" y="453" class="t"><tspan class="b">dev.*/mcpo</tspan> → mcpo :8000 <tspan class="m">(MCP → OpenAPI)</tspan></text>
+  <rect x="830" y="468" width="740" height="26" rx="5" class="row" stroke="#b26a00"/>
+  <text x="840" y="485" class="t"><tspan class="b">dev.*/otel</tspan> → otel-collector :4318 <tspan class="m">(OTLP/HTTP, rewrite /$2)</tspan></text>
+  <rect x="830" y="500" width="740" height="26" rx="5" class="row" stroke="#b26a00"/>
+  <text x="840" y="517" class="t"><tspan class="b">dev.*/opds</tspan> → opds-shelf-opdsagg :8080 <tspan class="af">— свой htpasswd: opds-shelf-basic-auth</tspan></text>
+
+  <!-- lane 3: app's own login -->
+  <rect x="790" y="552" width="794" height="300" rx="8" fill="#faf7fd" stroke="#6a3d9a" stroke-width="1.2"/>
+  <text x="802" y="572" class="pf h">③ nginx пропускает как есть — авторизацию делает само приложение</text>
+  <line x1="808" y1="597" x2="808" y2="828" class="ln p"/>
+  <line x1="808" y1="597" x2="828" y2="597" class="ln p" marker-end="url(#ap)"/>
+  <line x1="808" y1="630" x2="828" y2="630" class="ln p" marker-end="url(#ap)"/>
+  <line x1="808" y1="663" x2="828" y2="663" class="ln p" marker-end="url(#ap)"/>
+  <line x1="808" y1="696" x2="828" y2="696" class="ln p" marker-end="url(#ap)"/>
+  <line x1="808" y1="729" x2="828" y2="729" class="ln p" marker-end="url(#ap)"/>
+  <line x1="808" y1="762" x2="828" y2="762" class="ln p" marker-end="url(#ap)"/>
+  <line x1="808" y1="795" x2="828" y2="795" class="ln p" marker-end="url(#ap)"/>
+  <line x1="808" y1="828" x2="828" y2="828" class="ln p" marker-end="url(#ap)"/>
+  <rect x="830" y="584" width="740" height="26" rx="5" class="row" stroke="#6a3d9a"/>
+  <text x="840" y="601" class="t"><tspan class="b">dev.*/argo-cd</tspan> → argocd-server :443 <tspan class="pf">— Dex → Google OIDC, плюс локальный admin</tspan></text>
+  <rect x="830" y="617" width="740" height="26" rx="5" class="row" stroke="#6a3d9a"/>
+  <text x="840" y="634" class="t"><tspan class="b">dev.*/grafana</tspan> → grafana :80 <tspan class="pf">— Google OAuth, auto_login</tspan></text>
+  <rect x="830" y="650" width="740" height="26" rx="5" class="row" stroke="#6a3d9a"/>
+  <text x="840" y="667" class="t"><tspan class="b">dev.*/octoprint</tspan> → octoprint <tspan class="pf">— встроенный логин OctoPrint</tspan></text>
+  <rect x="830" y="683" width="740" height="26" rx="5" class="row" stroke="#6a3d9a"/>
+  <text x="840" y="700" class="t"><tspan class="b">tasks.*</tspan> → vikunja :3456 <tspan class="pf">— Google OIDC (vikunja-oidc)</tspan></text>
+  <rect x="830" y="716" width="740" height="26" rx="5" class="row" stroke="#6a3d9a"/>
+  <text x="840" y="733" class="t"><tspan class="b">books.*</tspan> → opds-shelf-calibreweb :8083 <tspan class="pf">— логин Calibre-Web + его Google OAuth</tspan></text>
+  <rect x="830" y="749" width="740" height="26" rx="5" class="row" stroke="#6a3d9a"/>
+  <text x="840" y="766" class="t"><tspan class="b">litellm.*</tspan> → litellm :4000 <tspan class="pf">— API: Bearer-ключ (без ключа 401); /ui: Google SSO, домен whitediver.com</tspan></text>
+  <rect x="830" y="782" width="740" height="26" rx="5" class="row" stroke="#6a3d9a"/>
+  <text x="840" y="799" class="t"><tspan class="b">n8n.*</tspan> → n8n :80 <tspan class="pf">— логин n8n;</tspan> <tspan class="b">/webhook/ /webhook-waiting/ /form/</tspan> → n8n-webhook <tspan class="af">— публичны by design</tspan></text>
+  <rect x="830" y="815" width="740" height="26" rx="5" class="row" stroke="#6a3d9a"/>
+  <text x="840" y="832" class="t"><tspan class="b">photos.*</tspan> → pigallery2 :80 <tspan class="m">— сейчас replicas: 0, отвечает 503</tspan></text>
+
+  <!-- notes -->
+  <g transform="translate(0,-88)">
+  <text x="16" y="976" class="t h">Что важно знать</text>
+  <text x="16" y="998" class="t">• Валидный TLS только на роутере. Роутер → nginx идёт по HTTPS с самоподписанным сертом контроллера (роутер его не проверяет); внутри кластера — plain HTTP, кроме argo-cd :443.</text>
+  <text x="16" y="1016" class="t">• use-forwarded-headers: true — nginx верит X-Forwarded-* от роутера. Клиент из LAN, который идёт на 192.168.99.44 напрямую, может эти заголовки подделать.</text>
+  <text x="16" y="1034" class="t">• У mcp-gitlab, mcpo и octoprint есть правило без Host: эти пути отвечают и на голый http://192.168.99.44 из LAN, мимо роутера (у prometheus такое правило теперь тоже за логином).</text>
+  <text x="16" y="1052" class="t">• Cookie oauth2-proxy стоит на .whitediver.keenetic.link и уходит на все хосты, включая незащищённые (n8n, litellm, vikunja…).</text>
+  <text x="16" y="1070" class="t">• 192.168.99.44 — адрес wlan0 на kube-master, не VIP. Две реплики nginx переживают падение пода или воркера, но не kube-master.</text>
+  </g>
+</svg>

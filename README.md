@@ -52,6 +52,12 @@ flowchart TD
     GROUPS --> VPN
 ```
 
+How an incoming request reaches each app — router, ingress-nginx, and which
+auth layer (oauth2-proxy, basic-auth + oathkeeper, or the app's own login)
+guards which host and path:
+
+![Incoming request flow](docs/request-flow.svg)
+
 Two delivery models run side by side — **pull-based** app-of-apps groups that
 Argo CD watches on GitHub, and **push-based** groups applied with `kubectl`
 (see [How services are deployed](#how-services-are-deployed)).
