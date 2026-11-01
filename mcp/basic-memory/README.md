@@ -10,8 +10,102 @@ The `nodeSelector` pins `kube-worker-3` (moved off the CPU-saturated
 `kube-master` control-plane node; the PVC is SMB/network storage, so
 relocating is data-safe).
 
+Deployed as an `ApplicationSet` (`applicationset.yaml`): one Application per
+list element, each with its own pod, Service, ingress path and note volume, so
+every family member gets an independent note space. Today the list holds only
+the original instance, `basic-memory`.
+
 This file holds the rationale that, by repo convention, must **not** live as
-comments inside `application.yaml` (see the root `CLAUDE.md`).
+comments inside `applicationset.yaml` (see the root `CLAUDE.md`).
+
+## One instance per list element
+
+Every per-instance name derives from the element's `name`. `name: basic-memory`
+reproduces the names the instance had as a plain Application, which is what
+keeps its data attached:
+
+| piece | from `name` | original instance |
+| --- | --- | --- |
+| Application, Helm release, Deployment, Service, Ingress | `<name>` | `basic-memory` |
+| note PVC (SMB) | `<name>-data-smb` | `basic-memory-data-smb` |
+| index PVC (local-path) | `<name>-index` | `basic-memory-index` |
+| public path / server `--path` | `/mcp/<name>` | `/mcp/basic-memory` |
+| litellm alias (ingress `rewrite-target`) | `<name>` with `-` → `_` | `basic_memory` |
+
+**Never rename an existing element.** The new name maps to a new, empty PVC, and
+the old Application is deleted (its resources are orphaned, see below), so the
+notes would seem to be gone.
+
+### Adding a family member
+
+1. Add `- name: basic-memory-<member>` to `generators[0].list.elements`. Use lowercase
+   letters, digits and `-` only: the name becomes a DNS label and a PVC name.
+2. Add the litellm MCP server to `mcp_servers` in
+   [`ai/litellm`](../../ai/litellm/application.yaml):
+   `basic_memory_<member>` → `http://basic-memory-<member>.mcp.svc.cluster.local:8000/mcp/basic-memory-<member>`.
+   Without it the ingress routes to an alias litellm does not know.
+3. Optionally, add a `blackbox-mcp` target in
+   [`observability/prometheus`](../../observability/prometheus/application.yaml).
+
+**Do not add an Oathkeeper rule.** The existing `mcp-basic-memory` rule matches
+`/mcp/basic_memory<.*>`, so it already covers `/mcp/basic_memory_<member>`. A
+second rule that matches the same URL makes Oathkeeper fail the request because
+more than one rule matches. No router entry is needed either, because the host
+does not change.
+
+The new PVC lands in its own share folder
+(`//192.168.99.44/smb-csi/pvc-mcp-basic-memory-<member>-data-smb`): `subDir` is
+derived from the PVC name.
+
+### Separate storage is not separate access
+
+All instances sit behind the same `mcp-basic-auth` htpasswd, and Oathkeeper
+injects the same litellm master key for all of them. Anyone with the shared
+basic-auth credentials can therefore reach every member's instance. To make an
+instance private, give its ingress its own htpasswd Secret (`auth-secret`) and
+scope litellm access (drop `allow_all_keys`, use per-member virtual keys).
+
+## Deleting never cascades (`preserveResourcesOnDeletion`)
+
+`syncPolicy.preserveResourcesOnDeletion: true` makes the controller generate the
+Applications **without** `resources-finalizer.argocd.argoproj.io`. Deleting an
+element, the ApplicationSet, or a generated Application therefore leaves the
+Deployment, the PVCs and the notes in place. Teardown of a member is manual and
+deliberate: delete the orphaned workload by hand, and the SMB PV stays `Retain`
+anyway. The note PVC also carries `helm.sh/resource-policy: keep` (`retain: true`),
+which Argo honours on deletion.
+
+## The StorageClass belongs to the app-of-apps
+
+`basic-memory-smb` is shared by every instance, so no generated Application may
+own it: two Applications rendering the same cluster-scoped object fight over its
+tracking annotation. It is the second YAML document in `applicationset.yaml`,
+applied directly by the `mcp` app-of-apps. The file name still matches the
+`*/application*.yaml` include glob, so `bootstrap.yaml` needed no change. The
+class body is byte-for-byte what `rawResources.smb` used to render. That matters
+because `parameters` are immutable. Deleting the class would not touch existing
+volumes: the PV carries its own source, `subDir`, mount options and secret refs.
+
+## Migration from a plain Application (2026-11-01)
+
+The migration took two commits, because the `mcp` app-of-apps runs with
+`prune: true` and the old Application had the resources finalizer. Deleting
+`application.yaml` in the same commit that adds the ApplicationSet would have
+let the parent prune the Application, cascading into the Deployment and PVCs
+before the ApplicationSet controller could adopt it.
+
+1. `application.yaml` got `argocd.argoproj.io/sync-options: Prune=false`, and
+   the finalizer was dropped. This step had to be live before step 2.
+2. `application.yaml` was deleted and `applicationset.yaml` added. The parent
+   skipped the prune. The ApplicationSet controller adopted the same-named
+   Application: per `createOrUpdateInCluster` in Argo CD 3.5 it replaces
+   annotations (dropping the `mcp` tracking-id and `Prune=false`), labels and
+   finalizers, and sets itself as the controller owner. From then on the parent
+   no longer tracks the Application.
+
+The rendered manifests were diffed before the switch (`helm template` of old vs
+new values): identical apart from the StorageClass, so adoption changed no live
+object. A tarball of `/app/data` (694 files, 671 `.md`) was taken first.
 
 ## Why `streamable-http` mounted at the full external path
 
@@ -83,8 +177,9 @@ Lowering it further trades node headroom for slower indexing.
 
 ## SMB volume + StorageClass naming
 
-The data volume and its `StorageClass` are both managed by this one
-Application (no out-of-band files). Both names are pinned with `forceRename`:
+No out-of-band files: the data volume is managed by the generated Application
+and its `StorageClass` by the app-of-apps (see above). Until the ApplicationSet
+both were `app-template` items, so both names were pinned with `forceRename`:
 the class is `basic-memory-smb` and the PVC is `basic-memory-data-smb`.
 app-template 4+ has no `nameOverride` and appends the item key to the release
 name only when there is more than one item of that kind, so unpinned the class
