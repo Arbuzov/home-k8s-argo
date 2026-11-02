@@ -37,7 +37,7 @@ spec:
                   app:
                     image:
                       repository: ghcr.io/basicmachines-co/basic-memory
-                      tag: "0.22.1"
+                      tag: "1.0.0"
                       pullPolicy: IfNotPresent
                     command:
                       - basic-memory
@@ -53,21 +53,20 @@ spec:
                       - /mcp/{{ .name }}
                     env:
                       BASIC_MEMORY_HOME: /app/data
-                      BASIC_MEMORY_CONFIG_DIR: /var/lib/basic-memory/state
+                      BASIC_MEMORY_CONFIG_DIR: /var/lib/basic-memory/state-v1
                       BASIC_MEMORY_DEFAULT_PROJECT: main
-                      BASIC_MEMORY_SYNC_CHANGES: "true"
+                      BASIC_MEMORY_INDEX_CHANGES: "true"
                       BASIC_MEMORY_LOG_LEVEL: INFO
                       BASIC_MEMORY_NO_PROMOS: "1"
-                      BASIC_MEMORY_SEMANTIC_SEARCH_ENABLED: "false"
                     ports:
                       - name: http
                         containerPort: 8000
                     resources:
                       requests:
-                        memory: 1Gi
+                        memory: 1536Mi
                         cpu: 500m
                       limits:
-                        memory: 1536Mi
+                        memory: 2Gi
                         cpu: 2000m
                     probes:
                       liveness:

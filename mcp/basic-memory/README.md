@@ -1,10 +1,10 @@
 # mcp/basic-memory
 
-Basic Memory MCP server (`ghcr.io/basicmachines-co/basic-memory:0.22.1`),
+Basic Memory MCP server (`ghcr.io/basicmachines-co/basic-memory:1.0.0`),
 single replica on `kube-worker-3`, behind the `/mcp/basic-memory`
 ingress on `dev.whitediver.keenetic.link` with `mcp-basic-auth` htpasswd.
-The markdown note tree is SMB-backed; the SQLite index and embedding model
-cache are rebuilt off-volume on each start.
+The markdown note tree is SMB-backed; the SQLite index and the FastEmbed model
+cache live on a separate `local-path` volume (see below).
 
 The `nodeSelector` pins `kube-worker-3` (moved off the CPU-saturated
 `kube-master` control-plane node; the PVC is SMB/network storage, so
@@ -130,30 +130,43 @@ read/send timeouts are raised to 3600s because MCP streamable-http holds
 long-lived responses that nginx would otherwise cut. See
 [`../../platform/oathkeeper`](../../platform/oathkeeper).
 
-## Semantic search is off (FastEmbed segfaults on arm64)
+## Semantic search is on, and cannot be turned off (since 0.24.0)
 
-`BASIC_MEMORY_SEMANTIC_SEARCH_ENABLED: "false"`. The cluster workers are
-arm64 (Raspberry Pi 5); the FastEmbed/onnxruntime path in the image
-dies with SIGSEGV (exit 139) a few minutes after start, right after it pulls
-`bge-small-en-v1.5` from HuggingFace — which put the pod in CrashLoopBackOff
-(119 restarts) and took the whole MCP server down, not just semantic search.
-Search falls back to the SQLite full-text index, which is what `search_notes`
-uses anyway.
+History: on 0.22.1 the FastEmbed/onnxruntime path died with SIGSEGV (exit 139) on
+the arm64 workers (Raspberry Pi 5) a few minutes after start, right after it pulled
+`bge-small-en-v1.5` from HuggingFace. That put the pod in CrashLoopBackOff (119
+restarts) and took the whole MCP server down, so semantic search was switched off
+with `BASIC_MEMORY_SEMANTIC_SEARCH_ENABLED: "false"`.
 
-The `BASIC_MEMORY_SEMANTIC_EMBEDDING_{PROVIDER,MODEL}` and
-`_MIN_SIMILARITY` vars were dropped with it — they only apply when semantic
-search is enabled. To bring it back, embeddings have to be computed off-box
-(e.g. an OpenAI-compatible provider pointed at in-cluster litellm), not by
-onnxruntime on the Pi.
+0.24.0 removed that setting (upstream #1696): semantic search is always on and the
+variable is ignored, so the upgrade past 0.23.x could only go ahead once FastEmbed was
+proven not to crash here. On 2026-11-02 a throwaway canary pod ran 1.0.0
+(onnxruntime 1.27.0, was 1.26.0) on `kube-worker-3` against a copy of the full vault
+(745 notes): it embedded every note, 25,018 chunks, with no crash and no restart. The variable was
+dropped from the manifest because it no longer does anything.
+
+The cost is the first start on an empty index. Files are indexed in about 7 minutes,
+and text search works from then on. The embeddings run at about 115 chunks a minute
+with the CPU at the 2000m limit. The vault is ~25k chunks (a long note is ~90 chunks
+and takes 2+ minutes), so the backlog takes about 3.5 hours: the canary started at
+07:45 UTC and had every note embedded by 11:35. During that time an
+MCP session plus a hybrid search still answered in about 1.2 s. The model
+(~65 MB) and the vectors persist on the `index` volume, so later restarts do not
+re-embed.
+
+If a later image brings the crash back, the fallback is to compute embeddings off-box:
+`BASIC_MEMORY_SEMANTIC_EMBEDDING_PROVIDER=openai` with
+`BASIC_MEMORY_SEMANTIC_EMBEDDING_API_BASE` pointed at an OpenAI-compatible endpoint.
+The `litellm` provider is no longer in the image: since 1.0 it is an optional extra.
 
 ## Image tag is pinned, not `latest`
 
 `latest` is what broke this app: it silently moved onto a build whose
 FastEmbed path segfaults on arm64, and `imagePullPolicy: Always` re-pulled it
 on every restart, so there was no last-known-good to fall back to. The tag is
-pinned to the exact release that was verified healthy here — `0.22.1`, which
-at the time of pinning was byte-identical to `latest`
-(`sha256:0da35f46…`). Upgrades are now an explicit commit. Pin the digest as
+pinned to the exact release that was verified healthy here. That was first `0.22.1`
+(`sha256:0da35f46…`), and since 2026-11-02 it is `1.0.0` (index `sha256:cad49f54…`),
+which passed the canary described above. Upgrades are an explicit commit. Pin the digest as
 well (`tag: "0.22.1@sha256:…"`) only if an upstream release tag is ever found
 to have been re-pushed.
 
@@ -168,9 +181,9 @@ makes a restart depend on the registry being reachable.
 
 | setting | value | was | why |
 | --- | --- | --- | --- |
-| `requests.memory` | `1Gi` | `256Mi` | actual draw is ~943Mi; the request is matched to it so this pod isn't the first evicted under node pressure |
+| `requests.memory` | `1536Mi` | `1Gi` | 1.0.0 loads the FastEmbed model: over the canary's full embedding run the server process held 1.24–1.50Gi anon (RssAnon), ~1.28Gi once idle, against ~873Mi for 0.22.1 with semantic search off. The request is set at the observed peak so this pod isn't the first evicted under node pressure |
 | `requests.cpu` | `500m` | `50m` | bursty — idle ~4m, but indexing peaks near 1880m |
-| `limits.memory` | `1536Mi` | `1Gi` | 943Mi actual was riding the OOM edge at a 1Gi cap |
+| `limits.memory` | `2Gi` | `1536Mi` | the 1.50Gi anon peak alone would hit a 1536Mi cap. A `basic-memory status` or `doctor` exec'd into the pod runs in the same cgroup: one exec pushed the working set to ~1.7Gi, and with a `status` plus a sqlite query exec'd every 15 minutes for the whole run, `memory.events` still recorded no OOM kill under the 2Gi cap |
 | `limits.cpu` | `2000m` | *(none)* | new cap — previously unlimited, and indexing pegged `kube-worker-3` at 1880m / 82% |
 
 The CPU limit is the one to be careful with: it was added to stop indexing from
@@ -214,7 +227,8 @@ gives you is created by the provisioner's helper pod as `root` with mode `0777`.
 `chmod` by the container's uid 1000 on a root-owned directory is `EPERM`, so mounting
 the PVC straight at `~/.basic-memory` crashlooped the pod. Instead the volume is
 mounted at `/var/lib/basic-memory` and `BASIC_MEMORY_CONFIG_DIR` points one level
-deeper (`/var/lib/basic-memory/state`): basic-memory creates that directory itself,
+deeper (`/var/lib/basic-memory/state-v1`, see the 1.0 section for why not `state`):
+basic-memory creates that directory itself,
 owns it, and may chmod it. The same trap applies to any image that chmods its own
 data directory.
 
@@ -246,6 +260,48 @@ so the 3.6.0 → 5.x bump cannot be applied in place. It goes in two commits:
    delete-and-recreate.
 
 The service is down between the two merges.
+
+## 1.0.0: `bm_*` tools and a fresh index directory (2026-11-02)
+
+The jump from 0.22.1 to 1.0.0 crosses 0.23 and 0.24. What matters here:
+
+- **The MCP tools are renamed and the old names are gone.** There are no aliases.
+  `search_notes` → `bm_search`, `read_note` → `bm_read`, `write_note` → `bm_write`,
+  `edit_note` → `bm_edit`, `build_context` → `bm_context`, `recent_activity` →
+  `bm_project(command="recent")`, and so on. Behind litellm the tools are
+  `basic_memory-bm_*`. Every note tool now requires `project` (`main`), even with a
+  default project. Clients need updating together with the server: the Claude Code
+  `basic-memory` plugin, prompts and allowlists that name the old tools. After the
+  sync, clients reconnect to load the new schemas. `bm_project_delete` is opt-in and
+  is not exposed.
+- **Semantic search is always on.** See the section above.
+- `BASIC_MEMORY_SYNC_CHANGES` was renamed `BASIC_MEMORY_INDEX_CHANGES` in 0.23.0.
+  The old name was still auto-migrated, but the manifest now uses the new one.
+- With a non-loopback `--host` the server logs a "no authentication" warning on
+  every start. That is expected here, because the ingress (basic-auth + Oathkeeper)
+  is the authentication. The DNS-rebinding guard (0.24.0) applies only to loopback
+  binds.
+- Streamable HTTP sessions now expire after 30 idle minutes (MCP SDK default). Clients
+  open a new one.
+
+**Why `state-v1` instead of `state`.** The 0.22.1 `memory.db` (~210 MB) would need
+every 0.23/0.24/1.0 migration in place, on the Pi, inside the startup probe's
+5-minute window. That path was not tested. A fresh directory is the path the canary
+did test (empty index → full rebuild from the vault), and it keeps rollback a pure
+`git revert`: 0.22.1 finds its `state/` untouched, with its own `config.json` and
+database. `config.json` in `state-v1` is generated from `BASIC_MEMORY_HOME` and
+`BASIC_MEMORY_DEFAULT_PROJECT`. The old `.bmignore` was the stock default, so nothing
+custom is lost. The canary also confirmed that a full 1.0 index does not modify note
+files: md5 of all 770 files was identical before and after.
+
+Rollback window: once the new version is settled, `state/` can be deleted by hand
+(`kubectl -n mcp exec deploy/basic-memory -- rm -rf /var/lib/basic-memory/state`).
+After that, a rollback rebuilds the 0.22.1 index from scratch, which is still safe
+because the index is derived data.
+
+While the first start is indexing, do not write through MCP until the file stage is
+done (`basic-memory status`: `files: idle`). A note that is not indexed yet can fail
+to resolve by permalink, and the write then creates a duplicate.
 
 ## Connected but no tools: check the master's disk first (2026-10-21)
 
