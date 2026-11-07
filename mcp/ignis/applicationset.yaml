@@ -11,7 +11,7 @@ spec:
     - list:
         elements:
           - name: ignis
-            vault: basic-memory-data-smb
+            vault: basic-memory-data-local
             host: notes.whitediver.keenetic.link
   syncPolicy:
     preserveResourcesOnDeletion: true
@@ -29,7 +29,7 @@ spec:
             controllers:
               ignis:
                 type: deployment
-                replicas: 0
+                replicas: 1
                 strategy: Recreate
                 pod:
                   nodeSelector:

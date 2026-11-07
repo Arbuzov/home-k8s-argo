@@ -27,7 +27,7 @@ spec:
             controllers:
               basic-memory:
                 type: deployment
-                replicas: 0
+                replicas: 1
                 pod:
                   nodeSelector:
                     kubernetes.io/hostname: kube-worker-3
@@ -130,8 +130,8 @@ spec:
                 type: persistentVolumeClaim
                 accessMode: ReadWriteOnce
                 size: 5Gi
-                storageClass: basic-memory-smb
-                forceRename: {{ .name }}-data-smb
+                storageClass: local-ssd
+                forceRename: {{ .name }}-data-local
                 retain: true
                 advancedMounts:
                   basic-memory:
