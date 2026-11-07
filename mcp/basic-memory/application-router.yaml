@@ -58,6 +58,8 @@ spec:
           config:
             data:
               default.conf: |
+                map_hash_bucket_size 128;
+
                 map $http_x_bm_token $bm_instance {
                     default "";
                     include /etc/nginx/bm-tokens/tokens.map;

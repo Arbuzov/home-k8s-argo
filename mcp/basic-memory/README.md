@@ -120,6 +120,12 @@ kubectl -n mcp rollout restart deploy/basic-memory-router
 nginx reads the map only at start, so restart the router after every change. Tokens
 are lowercase hex, so no quoting issues in the map.
 
+`map_hash_bucket_size 128` is required. The default follows the CPU cache line,
+64 bytes on these arm64 nodes, and a 64-character key does not fit: nginx exits
+with `could not build map_hash, you should increase map_hash_bucket_size: 64`. The
+first rollout crashlooped on exactly that, because the pre-merge test used a short
+token.
+
 ### Storing a member's token in litellm
 
 The server id of a config-defined server comes from `GET /v1/mcp/server`. Each
