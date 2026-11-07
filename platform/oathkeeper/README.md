@@ -29,8 +29,9 @@ whitelists `mcp` as a destination for this reason.
 
 First routed server: **basic-memory** (see the ingress in
 [`../../mcp/basic-memory/applicationset.yaml`](../../mcp/basic-memory/applicationset.yaml);
-its `basic_memory<.*>` rule also covers every per-member `basic_memory_<member>`
-instance, see [`../../mcp/basic-memory/README.md`](../../mcp/basic-memory/README.md)).
+this path is being retired: clients move to litellm's own
+`/basic_memory/mcp`, which routes each user to their instance, see
+[`../../mcp/basic-memory/README.md`](../../mcp/basic-memory/README.md#per-user-routing-behind-litellm)).
 Add more by pointing each server's ingress backend at `oathkeeper-proxy:4455` and
 adding a matching rule to the Secret below.
 

@@ -49,7 +49,7 @@ spec:
             CHECKPOINT_DISABLE: "1"
             PRISMA_HIDE_UPDATE_MESSAGE: "true"
             PROXY_BASE_URL: "https://litellm.whitediver.keenetic.link"
-            ALLOWED_EMAIL_DOMAINS: "whitediver.com"
+            ALLOWED_EMAIL_DOMAINS: "whitediver.com,arbuzov.info,arbuzova.info"
             PROXY_ADMIN_ID: "113025592623482135602"
             AUTO_REDIRECT_UI_LOGIN_TO_SSO: "true"
             GITHUB_COPILOT_TOKEN_DIR: "/tmp/github_copilot"
@@ -90,10 +90,16 @@ spec:
                 description: "GitLab (self-hosted, corp VPN)"
                 allow_all_keys: true
               basic_memory:
-                url: "http://basic-memory.mcp.svc.cluster.local:8000/mcp/basic-memory"
+                url: "http://basic-memory-router.mcp.svc.cluster.local:8000/mcp"
                 transport: "http"
-                description: "Basic Memory knowledge base"
+                description: "Basic Memory knowledge base (personal instance per user)"
                 allow_all_keys: true
+                static_headers:
+                  X-BM-Token: "${BM_TOKEN}"
+                env_vars:
+                  - name: BM_TOKEN
+                    scope: user
+                    description: "Personal Basic Memory routing token (ask Serge)"
               kubernetes:
                 url: "http://mcp-kubernetes.mcp.svc.cluster.local:8080/mcp"
                 transport: "http"
