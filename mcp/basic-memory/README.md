@@ -1,5 +1,7 @@
 # mcp/basic-memory
 
+> **Storage update (2026-11-07):** The active notes PVC is `basic-memory-data-local` on `local-ssd` (worker-3 NVMe), shared directly with Ignis. The former `basic-memory-data-smb` PVC and its files are retained as a frozen pre-migration copy; they are no longer live or automatically updated. Historical SMB references below describe the previous layout. Back up the live notes separately from worker-3.
+
 Basic Memory MCP server (`ghcr.io/basicmachines-co/basic-memory:1.0.0`),
 single replica on `kube-worker-3`, behind the `/mcp/basic-memory`
 ingress on `dev.whitediver.keenetic.link` with `mcp-basic-auth` htpasswd.
@@ -27,7 +29,7 @@ keeps its data attached:
 | piece | from `name` | original instance |
 | --- | --- | --- |
 | Application, Helm release, Deployment, Service, Ingress | `<name>` | `basic-memory` |
-| note PVC (SMB) | `<name>-data-smb` | `basic-memory-data-smb` |
+| note PVC (local-ssd) | `<name>-data-local` | `basic-memory-data-local` |
 | index PVC (local-path) | `<name>-index` | `basic-memory-index` |
 | public path / server `--path` | `/mcp/<name>` | `/mcp/basic-memory` |
 | litellm alias (ingress `rewrite-target`) | `<name>` with `-` → `_` | `basic_memory` |
@@ -47,7 +49,7 @@ notes would seem to be gone.
 3. Optionally, add a `blackbox-mcp` target in
    [`observability/prometheus`](../../observability/prometheus/application.yaml).
 4. For a browser UI, add the member's [Ignis](../ignis/README.md#adding-a-family-member)
-   element with `vault: basic-memory-<member>-data-smb`.
+   element with `vault: basic-memory-<member>-data-local`.
 
 **Do not add an Oathkeeper rule.** The existing `mcp-basic-memory` rule matches
 `/mcp/basic_memory<.*>`, so it already covers `/mcp/basic_memory_<member>`. A

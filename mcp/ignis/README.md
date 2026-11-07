@@ -1,5 +1,7 @@
 # mcp/ignis
 
+> **Storage update (2026-11-07):** Ignis and Basic Memory mount the same `basic-memory-data-local` PVC on worker-3 NVMe. Historical references to the SMB vault below describe the previous layout. Both deployments must remain on the same node.
+
 [Ignis](https://github.com/Nystik-gh/ignis) (`docker.io/nobbe/ignis:0.8.10`) — Obsidian
 running as a real web app in the browser, pointed at the **basic-memory note tree** so the
 vault can be read (and edited) from a phone or laptop without a desktop Obsidian install.
@@ -23,7 +25,7 @@ rather than derived:
 | field | original instance | used for |
 | --- | --- | --- |
 | `name` | `ignis` | Application, release, Deployment, Service, Ingress; cache PVC `<name>-state-ssd` |
-| `vault` | `basic-memory-data-smb` | `existingClaim` of the note volume; must be the `<basic-memory name>-data-smb` of the same member |
+| `vault` | `basic-memory-data-local` | `existingClaim` of the note volume; must be the `<basic-memory name>-data-local` of the same member |
 | `host` | `notes.whitediver.keenetic.link` | Ingress host and `WS_ORIGINS` |
 
 **Never rename `name` of an existing element.** The cache PVC would start empty (one slow
@@ -35,7 +37,7 @@ either way, because it is only referenced.
 
 Do this after the member's basic-memory element exists, because its PVC must already be there:
 
-1. Add an element, for example `{name: ignis-<member>, vault: basic-memory-<member>-data-smb,
+1. Add an element, for example `{name: ignis-<member>, vault: basic-memory-<member>-data-local,
    host: notes-<member>.whitediver.keenetic.link}`.
 2. Add the host to the router's `ip http proxy` table (see [below](#notes-needs-a-router-entry--the-ingress-alone-is-not-enough)).
 3. Add the member's Google account to `restricted_access` in
@@ -57,7 +59,7 @@ Every pair of instances for one member must share a node: the note PVC is `ReadW
 ## Why it lives under `mcp/`, though it is not an MCP server
 
 It mounts `basic-memory`'s note volume, and a PVC can only be mounted from **its own
-namespace**. The vault PVC is `basic-memory-data-smb` in `mcp`, so Ignis is an `mcp`
+namespace**. The vault PVC is `basic-memory-data-local` in `mcp`, so Ignis is an `mcp`
 Application too. The alternative — a second static `PersistentVolume` in another namespace
 pointing at the same SMB sub-directory — would mean a second object with delete power over
 the live note tree, for no gain. [`mcp-gateway/`](../mcp-gateway/) is the other
@@ -65,7 +67,7 @@ non-server member of this group.
 
 ## The vault volume is *referenced*, never provisioned here
 
-`persistence.vault` is `existingClaim: <vault>` (`basic-memory-data-smb` for the original
+`persistence.vault` is `existingClaim: <vault>` (`basic-memory-data-local` for the original
 instance). This Application creates no
 PVC, no PV and no `StorageClass` for the notes — all three stay owned by
 [`../basic-memory`](../basic-memory/README.md) (whose PVC also carries
@@ -79,7 +81,7 @@ the notes would appear to have vanished.
 
 ## Why the node pin has to match basic-memory's
 
-`basic-memory-data-smb` is `ReadWriteOnce`. Two pods may share an RWO claim only when they
+`basic-memory-data-local` is `ReadWriteOnce`. Two pods may share an RWO claim only when they
 are **on the same node**, so `nodeSelector: kube-worker-3` here mirrors the pin in
 `basic-memory`. If that app is ever moved to another node, move this one in the same
 commit or its pod stays `Pending` on the RWO restriction.
