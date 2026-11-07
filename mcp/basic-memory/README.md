@@ -167,7 +167,18 @@ master key → litellm. Anyone with the shared credentials arrived as
 `default_user_id` and so reached Serge's instance. Removed once nginx logs showed
 only this workstation's Claude Code and Copilot CLI on it and both had moved:
 
-- `ingress:` dropped from `applicationset.yaml`;
+- `ingress:` dropped from `applicationset.yaml`, then the live Ingress removed with
+  a one-off pruning sync of just that resource. The generated Applications run
+  `automated` with `selfHeal` only, **no `prune`**, so dropping something from the
+  values leaves the live object in place (Application `OutOfSync`, resource
+  `requiresPruning`). Automated prune was not turned on for this: in an app that
+  holds notes, each removal is pruned deliberately instead:
+
+  ```sh
+  kubectl -n argo-cd patch application basic-memory --type merge -p \
+    '{"operation":{"initiatedBy":{"username":"admin"},"sync":{"prune":true,"resources":[{"group":"networking.k8s.io","kind":"Ingress","name":"basic-memory","namespace":"mcp"}]}}}'
+  ```
+
 - rule `mcp-basic-memory` deleted from Secret `oathkeeper-rules`;
 - the `default_user_id` value deleted
   (`DELETE /v1/mcp/server/<server_id>/user-env-vars` with the master key).
