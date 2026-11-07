@@ -55,6 +55,10 @@ spec:
         alertmanager:
           enabled: false
           ingressClassName: "nginx"
+        configmapReload:
+          prometheus:
+            image:
+              tag: v0.94.2
         forceNamespace: "prometheus"
         extraScrapeConfigs: |
           - job_name: cloudnative-pg

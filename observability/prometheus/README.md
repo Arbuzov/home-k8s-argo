@@ -49,6 +49,25 @@ consecutive days, so 30d keeps roughly a 3× margin. Do not cut below ~15d witho
 re-reading that constraint — and if more history is genuinely needed, the answer is to
 move this volume off the master's card, not to raise the number again.
 
+## `configmapReload` image — pinned to `v0.94.2`
+
+Chart 29.43.0 defaults the reload sidecar to
+`quay.io/prometheus-operator/prometheus-config-reloader:v0.95.1`, and that tag
+was published **amd64-only**: its index holds two `linux/amd64` manifests and no
+arm64. On the Pi `kube-master` the pull fails with `no match for platform in
+manifest`, the pod sticks at 1/2 `ImagePullBackOff`, and the Service gets no
+ready endpoints, so Grafana loses the datasource (2026-11-06).
+
+`v0.94.2` (the previous chart default) is multi-arch. Drop the pin once a chart
+bump ships a reloader tag whose index includes `linux/arm64`:
+
+```sh
+curl -s -H "Accept: application/vnd.oci.image.index.v1+json" \
+  -H "Authorization: Bearer $(curl -s 'https://quay.io/v2/auth?service=quay.io&scope=repository:prometheus-operator/prometheus-config-reloader:pull' | jq -r .token)" \
+  https://quay.io/v2/prometheus-operator/prometheus-config-reloader/manifests/<tag> \
+  | jq -r '.manifests[].platform.architecture'
+```
+
 ## Resources — the CPU limit is a burst allowance, not a steady draw
 
 `limits.cpu: "1"` / `memory: 1Gi`, `requests.cpu: 200m` / `memory: 768Mi`.
