@@ -90,6 +90,7 @@ spec:
                 description: "GitLab (self-hosted, corp VPN)"
                 allow_all_keys: true
               basic_memory:
+                server_id: "7347706aba0d4e2ec4b907cc4744fdab"
                 url: "http://basic-memory-router.mcp.svc.cluster.local:8000/mcp"
                 transport: "http"
                 description: "Basic Memory knowledge base (personal instance per user)"

@@ -27,13 +27,15 @@ can point their backend at the `oathkeeper-proxy` Service — an Ingress can onl
 reference a Service in its own namespace. [`../project.yaml`](../project.yaml)
 whitelists `mcp` as a destination for this reason.
 
-First routed server: **basic-memory** (see the ingress in
-[`../../mcp/basic-memory/applicationset.yaml`](../../mcp/basic-memory/applicationset.yaml);
-this path is being retired: clients move to litellm's own
-`/basic_memory/mcp`, which routes each user to their instance, see
-[`../../mcp/basic-memory/README.md`](../../mcp/basic-memory/README.md#per-user-routing-behind-litellm)).
-Add more by pointing each server's ingress backend at `oathkeeper-proxy:4455` and
-adding a matching rule to the Secret below.
+Routed servers: `jira`, `confluence`, `kubernetes`, `grafana` (via the shared
+[`mcp-gateway`](../../mcp/mcp-gateway/gateway-ingress.yaml) ingress). The first
+routed server, **basic-memory**, left on 2026-11-08: it has no ingress any more and
+is reached only through litellm's own `/basic_memory/mcp`, which routes each user
+to their instance (see
+[`../../mcp/basic-memory/README.md`](../../mcp/basic-memory/README.md#per-user-routing-behind-litellm)),
+and its `mcp-basic-memory` rule was deleted from the Secret. Add more by pointing
+a server's ingress backend at `oathkeeper-proxy:4455` and adding a matching rule
+to the Secret below.
 
 ## Access rules live in a Secret, not git
 
@@ -59,8 +61,8 @@ MK=$(kubectl -n litellm get secret litellm-masterkey -o jsonpath='{.data.masterk
 
 # one rule object per routed MCP server (match /mcp/<litellm-alias>)
 cat > access-rules.json <<JSON
-[{"id":"mcp-basic-memory",
-  "match":{"url":"<http|https>://<[^/]+>/mcp/basic_memory<.*>","methods":["GET","POST","PUT","DELETE","OPTIONS"]},
+[{"id":"mcp-jira",
+  "match":{"url":"<http|https>://<[^/]+>/mcp/jira<.*>","methods":["GET","POST","PUT","DELETE","OPTIONS"]},
   "authenticators":[{"handler":"noop"}],
   "authorizer":{"handler":"allow"},
   "mutators":[{"handler":"header","config":{"headers":{
@@ -71,7 +73,7 @@ kubectl -n mcp create secret generic oathkeeper-rules --from-file=access-rules.j
   --dry-run=client -o yaml | kubectl apply -f -
 ```
 
-Add `jira` / `confluence` / `gitlab` / `kubernetes` / `grafana` as more rule
+Add `confluence` / `gitlab` / `kubernetes` / `grafana` as more rule
 objects (same shape, alias swapped) in the same Secret. Oathkeeper hot-reloads
 the file (kubelet syncs the Secret to the pod within ~60s). The `kubernetes` and
 `grafana` rules match `/mcp/<alias><.*>` and upstream to the same litellm

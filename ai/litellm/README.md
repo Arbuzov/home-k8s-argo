@@ -187,11 +187,13 @@ the MCP OAuth bridge, which the per-user `basic_memory` token needs. litellm spl
 the value on `,` without trimming and matches the domain exactly, so no spaces
 around the commas. A family member's first SSO sign-in creates them as
 `internal_user_viewer` (`INTERNAL_USER_VIEW_ONLY`, the fallback in `ui_sso.py`
-when neither SSO nor DB carries a role); only `PROXY_ADMIN_ID` is admin. Storing
-a `basic_memory` token checks only that the server is in the caller's allowed set,
-which `allow_all_keys` covers. Whether the viewer role's route checks let the UI
-reach that endpoint has not been tested yet. If not, raise the member to
-`internal_user` in the UI (Internal Users). `AUTO_REDIRECT_UI_LOGIN_TO_SSO: "true"` makes the `/ui` login
+when neither SSO nor DB carries a role); only `PROXY_ADMIN_ID` is admin. That is
+enough to store a `basic_memory` token: route checks let every role through on
+`/v1/mcp/*` (`route_checks.py`: "authN/authZ handled by api itself"), and the
+endpoint checks only that the server is in the caller's allowed set, which
+`allow_all_keys` covers. Verified 2026-11-08 with a throwaway
+`internal_user_viewer` user and key: GET, POST and DELETE on
+`/v1/mcp/server/<id>/user-env-vars` all returned `200`. `AUTO_REDIRECT_UI_LOGIN_TO_SSO: "true"` makes the `/ui` login
 page bounce straight to Google instead of showing the username/password form.
 
 ## Request logging is redacted
@@ -401,6 +403,14 @@ a user has stored a token, tools still list but calls get `412`, or `403` from t
 router. litellm cannot health-probe a server that needs a per-user value, so its
 health shows `unknown`. See
 [`mcp/basic-memory/README.md`](../../mcp/basic-memory/README.md#per-user-routing-behind-litellm).
+
+`basic_memory` carries a pinned `server_id`. Without it litellm derives the id of a
+config-defined server from a hash of `name|url|transport|auth_type|alias`, and the
+stored per-user tokens are keyed by that id: changing the `url` would silently
+detach every family member's token. The pinned value is the id the tokens were
+stored under (pinning a different one would also detach them). Since 2026-11-08
+`basic_memory` is the only way into Basic Memory: the old
+`dev.whitediver.keenetic.link/mcp/basic-memory` ingress is gone.
 
 `gitlab` differs: port `3002` (its token-injector sidecar adds the `Private-Token`)
 and the app serves at `/mcp` (its ingress rewrites `/mcp/gitlab`→`/mcp`), not

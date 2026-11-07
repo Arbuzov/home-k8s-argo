@@ -195,6 +195,13 @@ above, and the two are complementary — neither alone is sufficient.
 `openconnect-gateway` is deliberately absent: it is a headless Service and a
 VPN gateway, not an HTTP endpoint, so an HTTP probe would be permanently red.
 
+`basic-memory-router` is probed on `/healthz` (always `200` while nginx runs),
+not on `/`. Since 2026-11-08 Basic Memory has no ingress path. Clients reach it
+through litellm and this router (see
+[`../../mcp/basic-memory/README.md`](../../mcp/basic-memory/README.md#per-user-routing-behind-litellm)),
+so the `basic-memory` and `basic-memory-router` probes are its only Prometheus
+signals. Per-user call counts come from litellm's Postgres instead.
+
 The `mcp_http` blackbox module (defined in `../blackbox-exporter`) accepts a
 wide list of status codes rather than 2xx only. MCP is JSON-RPC over POST/SSE:
 a healthy server answers `GET /` with 404/405/406/426, and anything behind

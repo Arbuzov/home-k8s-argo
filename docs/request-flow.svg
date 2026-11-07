@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1012" viewBox="0 0 1600 1012" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="11.5">
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1045" viewBox="0 0 1600 1045" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="11.5">
   <title>Входящие запросы: роутер → ingress-nginx → приложения</title>
   <style>
     .t { fill: #1f2933; }
@@ -23,10 +23,10 @@
     <marker id="ap" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#6a3d9a"/></marker>
   </defs>
 
-  <rect width="1600" height="1012" fill="#ffffff"/>
+  <rect width="1600" height="1045" fill="#ffffff"/>
 
   <text x="16" y="32" class="t" font-size="20" font-weight="700">Как входящие запросы доходят до приложений</text>
-  <text x="16" y="54" class="m" font-size="12.5">*.whitediver.keenetic.link · снято с живого кластера 2026-11-01: 19 Ingress (kubectl get ingress -A), 15 KeeneticWebApp, коды ответов проверены curl</text>
+  <text x="16" y="54" class="m" font-size="12.5">*.whitediver.keenetic.link · снято с живого кластера 2026-11-01: 19 Ingress (kubectl get ingress -A), 15 KeeneticWebApp, коды ответов проверены curl · 2026-11-08: basic-memory ушёл за litellm, Ingress стало 18</text>
 
   <!-- clients -->
   <rect x="16" y="300" width="180" height="110" rx="8" class="box"/>
@@ -128,7 +128,7 @@
   <rect x="790" y="262" width="794" height="278" rx="8" fill="#fffaf1" stroke="#b26a00" stroke-width="1.2"/>
   <text x="802" y="282" class="af h">② Basic-auth на nginx (Secret mcp-basic-auth) — логин/пароль несёт сам клиент: Claude-коннектор, OTLP-экспортер</text>
   <text x="830" y="302" class="t"><tspan class="b">dev.*</tspan> /mcp/jira · /mcp/confluence · /mcp/kubernetes · /mcp/grafana <tspan class="m">(Ingress mcp-gateway)</tspan></text>
-  <text x="830" y="317" class="t"><tspan class="b">dev.*</tspan> /mcp/basic-memory → rewrite /mcp/basic_memory <tspan class="m">(Ingress basic-memory)</tspan></text>
+  <text x="830" y="317" class="m"><tspan class="b">dev.*</tspan> /mcp/basic-memory убран 2026-11-08 — Basic Memory теперь только через litellm.* (③)</text>
 
   <line x1="808" y1="359" x2="808" y2="513" class="ln a"/>
   <line x1="808" y1="359" x2="828" y2="359" class="ln a" marker-end="url(#aa)"/>
@@ -142,14 +142,13 @@
   <text x="1100" y="342" class="t b">litellm :4000 · ns litellm</text>
   <text x="1100" y="356" class="t">MCP-gateway /mcp/&lt;alias&gt;</text>
   <text x="1100" y="370" class="t">учёт вызовов по инструментам</text>
-  <text x="1100" y="384" class="m">упал litellm → лежат эти 5 путей</text>
+  <text x="1100" y="384" class="m">упал litellm → лежат эти 4 пути</text>
   <line x1="1322" y1="359" x2="1348" y2="359" class="ln a" marker-end="url(#aa)"/>
   <rect x="1350" y="326" width="220" height="66" rx="6" class="row" stroke="#b26a00"/>
   <text x="1360" y="342" class="t b">MCP-серверы · ns mcp</text>
   <text x="1360" y="356" class="t">jira, confluence (mcp-atlassian)</text>
   <text x="1360" y="370" class="t">kubernetes, grafana</text>
-  <text x="1360" y="384" class="t">basic-memory</text>
-
+  
   <line x1="808" y1="417" x2="828" y2="417" class="ln a" marker-end="url(#aa)"/>
   <line x1="808" y1="449" x2="828" y2="449" class="ln a" marker-end="url(#aa)"/>
   <line x1="808" y1="481" x2="828" y2="481" class="ln a" marker-end="url(#aa)"/>
@@ -164,9 +163,9 @@
   <text x="840" y="517" class="t"><tspan class="b">dev.*/opds</tspan> → opds-shelf-opdsagg :8080 <tspan class="af">— свой htpasswd: opds-shelf-basic-auth</tspan></text>
 
   <!-- lane 3: app's own login -->
-  <rect x="790" y="552" width="794" height="300" rx="8" fill="#faf7fd" stroke="#6a3d9a" stroke-width="1.2"/>
+  <rect x="790" y="552" width="794" height="333" rx="8" fill="#faf7fd" stroke="#6a3d9a" stroke-width="1.2"/>
   <text x="802" y="572" class="pf h">③ nginx пропускает как есть — авторизацию делает само приложение</text>
-  <line x1="808" y1="597" x2="808" y2="828" class="ln p"/>
+  <line x1="808" y1="597" x2="808" y2="861" class="ln p"/>
   <line x1="808" y1="597" x2="828" y2="597" class="ln p" marker-end="url(#ap)"/>
   <line x1="808" y1="630" x2="828" y2="630" class="ln p" marker-end="url(#ap)"/>
   <line x1="808" y1="663" x2="828" y2="663" class="ln p" marker-end="url(#ap)"/>
@@ -175,6 +174,7 @@
   <line x1="808" y1="762" x2="828" y2="762" class="ln p" marker-end="url(#ap)"/>
   <line x1="808" y1="795" x2="828" y2="795" class="ln p" marker-end="url(#ap)"/>
   <line x1="808" y1="828" x2="828" y2="828" class="ln p" marker-end="url(#ap)"/>
+  <line x1="808" y1="861" x2="828" y2="861" class="ln p" marker-end="url(#ap)"/>
   <rect x="830" y="584" width="740" height="26" rx="5" class="row" stroke="#6a3d9a"/>
   <text x="840" y="601" class="t"><tspan class="b">dev.*/argo-cd</tspan> → argocd-server :443 <tspan class="pf">— Dex → Google OIDC, плюс локальный admin</tspan></text>
   <rect x="830" y="617" width="740" height="26" rx="5" class="row" stroke="#6a3d9a"/>
@@ -186,14 +186,16 @@
   <rect x="830" y="716" width="740" height="26" rx="5" class="row" stroke="#6a3d9a"/>
   <text x="840" y="733" class="t"><tspan class="b">books.*</tspan> → opds-shelf-calibreweb :8083 <tspan class="pf">— логин Calibre-Web + его Google OAuth</tspan></text>
   <rect x="830" y="749" width="740" height="26" rx="5" class="row" stroke="#6a3d9a"/>
-  <text x="840" y="766" class="t"><tspan class="b">litellm.*</tspan> → litellm :4000 <tspan class="pf">— API: Bearer-ключ (без ключа 401); /ui: Google SSO, домен whitediver.com</tspan></text>
+  <text x="840" y="766" class="t"><tspan class="b">litellm.*</tspan> → litellm :4000 <tspan class="pf">— API: Bearer-ключ; /ui и MCP OAuth: Google SSO (whitediver.com, arbuzov.info, arbuzova.info)</tspan></text>
   <rect x="830" y="782" width="740" height="26" rx="5" class="row" stroke="#6a3d9a"/>
-  <text x="840" y="799" class="t"><tspan class="b">n8n.*</tspan> → n8n :80 <tspan class="pf">— логин n8n;</tspan> <tspan class="b">/webhook/ /webhook-waiting/ /form/</tspan> → n8n-webhook <tspan class="af">— публичны by design</tspan></text>
+  <text x="840" y="799" class="t"><tspan class="b">litellm.*/basic_memory/mcp</tspan> → litellm → basic-memory-router → свой инстанс <tspan class="pf">— OAuth или ключ; инстанс по токену пользователя</tspan></text>
   <rect x="830" y="815" width="740" height="26" rx="5" class="row" stroke="#6a3d9a"/>
-  <text x="840" y="832" class="t"><tspan class="b">photos.*</tspan> → pigallery2 :80 <tspan class="m">— сейчас replicas: 0, отвечает 503</tspan></text>
+  <text x="840" y="832" class="t"><tspan class="b">n8n.*</tspan> → n8n :80 <tspan class="pf">— логин n8n;</tspan> <tspan class="b">/webhook/ /webhook-waiting/ /form/</tspan> → n8n-webhook <tspan class="af">— публичны by design</tspan></text>
+  <rect x="830" y="848" width="740" height="26" rx="5" class="row" stroke="#6a3d9a"/>
+  <text x="840" y="865" class="t"><tspan class="b">photos.*</tspan> → pigallery2 :80 <tspan class="m">— сейчас replicas: 0, отвечает 503</tspan></text>
 
   <!-- notes -->
-  <g transform="translate(0,-88)">
+  <g transform="translate(0,-55)">
   <text x="16" y="976" class="t h">Что важно знать</text>
   <text x="16" y="998" class="t">• Валидный TLS только на роутере. Роутер → nginx идёт по HTTPS с самоподписанным сертом контроллера (роутер его не проверяет); внутри кластера — plain HTTP, кроме argo-cd :443.</text>
   <text x="16" y="1016" class="t">• use-forwarded-headers: true — nginx верит X-Forwarded-* от роутера. Клиент из LAN, который идёт на 192.168.99.44 напрямую, может эти заголовки подделать.</text>
