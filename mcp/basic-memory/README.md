@@ -5,9 +5,9 @@
 Basic Memory MCP server (`ghcr.io/basicmachines-co/basic-memory:1.0.0`),
 single replica on `kube-worker-3`, reached through litellm's `basic_memory`
 MCP server, which routes each user to their own instance (see
-[Per-user routing behind litellm](#per-user-routing-behind-litellm)). The old
-`/mcp/basic-memory` ingress on `dev.whitediver.keenetic.link` (`mcp-basic-auth`
-htpasswd) is still up while clients move off it.
+[Per-user routing behind litellm](#per-user-routing-behind-litellm)). There is no
+ingress: since 2026-11-08 the only way in is
+`https://litellm.whitediver.keenetic.link/basic_memory/mcp`.
 The markdown note tree is SMB-backed; the SQLite index and the FastEmbed model
 cache live on a separate `local-path` volume (see below).
 
@@ -16,7 +16,7 @@ The `nodeSelector` pins `kube-worker-3` (moved off the CPU-saturated
 relocating is data-safe).
 
 Deployed as an `ApplicationSet` (`applicationset.yaml`): one Application per
-list element, each with its own pod, Service, ingress path and note volume, so
+list element, each with its own pod, Service and note volume, so
 every family member gets an independent note space. Today the list holds only
 the original instance, `basic-memory`.
 
@@ -31,10 +31,10 @@ keeps its data attached:
 
 | piece | from `name` | original instance |
 | --- | --- | --- |
-| Application, Helm release, Deployment, Service, Ingress | `<name>` | `basic-memory` |
+| Application, Helm release, Deployment, Service | `<name>` | `basic-memory` |
 | note PVC (local-ssd) | `<name>-data-local` | `basic-memory-data-local` |
 | index PVC (local-path) | `<name>-index` | `basic-memory-index` |
-| public path / server `--path` | `/mcp/<name>` | `/mcp/basic-memory` |
+| server `--path` | `/mcp/<name>` | `/mcp/basic-memory` |
 | router upstream | `http://<name>.mcp.svc.cluster.local:8000/mcp/<name>` | same |
 
 **Never rename an existing element.** The new name maps to a new, empty PVC, and
@@ -91,10 +91,17 @@ name, anyone could type someone else's name. A random token works because nobody
 can guess another member's token. The router drops `X-BM-Token` before it
 proxies, so the token never reaches the pod.
 
-The value is keyed by litellm `user_id`. A Claude connector that signs in through
-litellm's OAuth bridge carries the member's SSO user id. The master key resolves to
-`default_user_id`, which is what the old ingress path (Oathkeeper injects the master
-key) arrives as.
+The value is keyed by litellm `user_id`. A Claude connector or Claude Code that
+signs in through litellm's OAuth bridge carries the member's SSO user id. A client
+that can only send a static header (Copilot CLI) uses a virtual key created **for
+that user** (`/key/generate` with `user_id`), so it resolves to the same stored
+token. The master key resolves to `default_user_id`, which has no token, so it
+gets `412`.
+
+The values are tied to the server id. For a config-defined server litellm hashes
+`name|url|transport|auth_type|alias`, so editing the `url` would mint a new id and
+silently detach every stored token. `server_id` is therefore pinned in
+`ai/litellm` to the id the tokens were stored under.
 
 Upstream MCP sessions are keyed by the client's gateway session plus the auth
 fingerprint (`_upstream_session_for` in `mcp_server_manager.py`), so two users never
@@ -152,14 +159,24 @@ restart:
 Rollback: revert the `basic_memory` block in `ai/litellm` to the direct
 `http://basic-memory.mcp.svc.cluster.local:8000/mcp/basic-memory` URL.
 
-### Next step: hide the old path
+### The old path is gone (2026-11-08)
 
-After every client uses `https://litellm.whitediver.keenetic.link/basic_memory/mcp`:
-drop `ingress:` from `applicationset.yaml`, delete the `mcp-basic-memory` rule from
-Secret `oathkeeper-rules`, and remove the `default_user_id` value
-(`DELETE /v1/mcp/server/<server_id>/user-env-vars` with the master key). Until then,
-anyone with the shared `mcp-basic-auth` credentials arrives as `default_user_id`
-and so reaches Serge's instance, which is the same exposure as before.
+Before 2026-11-08 every instance had an ingress `dev.whitediver.keenetic.link/mcp/<name>`
+(shared `mcp-basic-auth` htpasswd) → `oathkeeper-proxy`, which injected the litellm
+master key → litellm. Anyone with the shared credentials arrived as
+`default_user_id` and so reached Serge's instance. Removed once nginx logs showed
+only this workstation's Claude Code and Copilot CLI on it and both had moved:
+
+- `ingress:` dropped from `applicationset.yaml`;
+- rule `mcp-basic-memory` deleted from Secret `oathkeeper-rules`;
+- the `default_user_id` value deleted
+  (`DELETE /v1/mcp/server/<server_id>/user-env-vars` with the master key).
+
+That ingress had buffering off and 3600 s read/send timeouts. The `litellm.*`
+ingress that fronts this traffic now has 600 s timeouts and default buffering;
+Claude Code and Copilot CLI worked over it, so nothing was carried over. Raise
+those timeouts on the litellm ingress if long-lived streams start getting cut at
+10 minutes.
 
 ## Deleting never cascades (`preserveResourcesOnDeletion`)
 
@@ -207,22 +224,10 @@ object. A tarball of `/app/data` (694 files, 671 `.md`) was taken first.
 
 The image default CMD is `mcp --transport sse`, whose SSE message callback is
 advertised at the server root (`/messages/`) and so bypasses the
-`/mcp/basic-memory` ingress prefix. We override `command`/`args` to run
-`--transport streamable-http --path /mcp/basic-memory` so every URL the server
+`/mcp/basic-memory` prefix. We override `command`/`args` to run
+`--transport streamable-http --path /mcp/<name>` so every URL the server
 emits stays correctly prefixed (mirrors mcpo's `--path-prefix` approach). The
-ingress therefore needs **no rewrite** — the app already serves at this exact
-path, so the original URL is passed straight through.
-
-## Ingress routes through litellm (usage stats)
-
-The ingress `rewrite-target` sends traffic to litellm's MCP gateway via
-`oathkeeper-proxy` (which injects the litellm key) instead of straight to the
-pod, so tool calls land in litellm's per-tool usage stats. The rewrite maps the
-external `/mcp/basic-memory` onto the litellm alias `/mcp/basic_memory`
-(hyphen→underscore — litellm rejects `-` in a server name). Buffering is off and
-read/send timeouts are raised to 3600s because MCP streamable-http holds
-long-lived responses that nginx would otherwise cut. See
-[`../../platform/oathkeeper`](../../platform/oathkeeper).
+router proxies to exactly that path (`/mcp/<name>`), so no rewrite is needed.
 
 ## Semantic search is on, and cannot be turned off (since 0.24.0)
 
@@ -372,8 +377,8 @@ The jump from 0.22.1 to 1.0.0 crosses 0.23 and 0.24. What matters here:
 - `BASIC_MEMORY_SYNC_CHANGES` was renamed `BASIC_MEMORY_INDEX_CHANGES` in 0.23.0.
   The old name was still auto-migrated, but the manifest now uses the new one.
 - With a non-loopback `--host` the server logs a "no authentication" warning on
-  every start. That is expected here, because the ingress (basic-auth + Oathkeeper)
-  is the authentication. The DNS-rebinding guard (0.24.0) applies only to loopback
+  every start. That is expected here: the pod has no ingress, and the only way in
+  is litellm (OAuth or a virtual key) plus the router's token check. The DNS-rebinding guard (0.24.0) applies only to loopback
   binds.
 - Streamable HTTP sessions now expire after 30 idle minutes (MCP SDK default). Clients
   open a new one.

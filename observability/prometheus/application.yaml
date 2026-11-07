@@ -128,6 +128,8 @@ spec:
             static_configs:
               - targets: ['http://basic-memory.mcp.svc:8000']
                 labels: {server: basic-memory}
+              - targets: ['http://basic-memory-router.mcp.svc:8000/healthz']
+                labels: {server: basic-memory-router}
               - targets: ['http://codex.mcp.svc:4141']
                 labels: {server: codex}
               - targets: ['http://grafana-mcp.mcp.svc:8000']

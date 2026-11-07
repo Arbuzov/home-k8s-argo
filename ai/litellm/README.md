@@ -402,6 +402,14 @@ router. litellm cannot health-probe a server that needs a per-user value, so its
 health shows `unknown`. See
 [`mcp/basic-memory/README.md`](../../mcp/basic-memory/README.md#per-user-routing-behind-litellm).
 
+`basic_memory` carries a pinned `server_id`. Without it litellm derives the id of a
+config-defined server from a hash of `name|url|transport|auth_type|alias`, and the
+stored per-user tokens are keyed by that id: changing the `url` would silently
+detach every family member's token. The pinned value is the id the tokens were
+stored under (pinning a different one would also detach them). Since 2026-11-08
+`basic_memory` is the only way into Basic Memory: the old
+`dev.whitediver.keenetic.link/mcp/basic-memory` ingress is gone.
+
 `gitlab` differs: port `3002` (its token-injector sidecar adds the `Private-Token`)
 and the app serves at `/mcp` (its ingress rewrites `/mcp/gitlab`→`/mcp`), not
 `/mcp/gitlab` like the atlassian pair.
