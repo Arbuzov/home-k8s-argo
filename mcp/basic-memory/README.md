@@ -3,8 +3,11 @@
 > **Storage update (2026-11-07):** The active notes PVC is `basic-memory-data-local` on `local-ssd` (worker-3 NVMe), shared directly with Ignis. The former `basic-memory-data-smb` PVC and its files are retained as a frozen pre-migration copy; they are no longer live or automatically updated. Historical SMB references below describe the previous layout. Back up the live notes separately from worker-3.
 
 Basic Memory MCP server (`ghcr.io/basicmachines-co/basic-memory:1.0.0`),
-single replica on `kube-worker-3`, behind the `/mcp/basic-memory`
-ingress on `dev.whitediver.keenetic.link` with `mcp-basic-auth` htpasswd.
+single replica on `kube-worker-3`, reached through litellm's `basic_memory`
+MCP server, which routes each user to their own instance (see
+[Per-user routing behind litellm](#per-user-routing-behind-litellm)). The old
+`/mcp/basic-memory` ingress on `dev.whitediver.keenetic.link` (`mcp-basic-auth`
+htpasswd) is still up while clients move off it.
 The markdown note tree is SMB-backed; the SQLite index and the FastEmbed model
 cache live on a separate `local-path` volume (see below).
 
@@ -32,7 +35,7 @@ keeps its data attached:
 | note PVC (local-ssd) | `<name>-data-local` | `basic-memory-data-local` |
 | index PVC (local-path) | `<name>-index` | `basic-memory-index` |
 | public path / server `--path` | `/mcp/<name>` | `/mcp/basic-memory` |
-| litellm alias (ingress `rewrite-target`) | `<name>` with `-` → `_` | `basic_memory` |
+| router upstream | `http://<name>.mcp.svc.cluster.local:8000/mcp/<name>` | same |
 
 **Never rename an existing element.** The new name maps to a new, empty PVC, and
 the old Application is deleted (its resources are orphaned, see below), so the
@@ -42,32 +45,115 @@ notes would seem to be gone.
 
 1. Add `- name: basic-memory-<member>` to `generators[0].list.elements`. Use lowercase
    letters, digits and `-` only: the name becomes a DNS label and a PVC name.
-2. Add the litellm MCP server to `mcp_servers` in
-   [`ai/litellm`](../../ai/litellm/application.yaml):
-   `basic_memory_<member>` → `http://basic-memory-<member>.mcp.svc.cluster.local:8000/mcp/basic-memory-<member>`.
-   Without it the ingress routes to an alias litellm does not know.
+2. Give the member a routing token: add a line to the router's token Secret and
+   restart the router (see [Per-user routing](#per-user-routing-behind-litellm)).
+   The member stores the same token once in the litellm UI. Their
+   `basic_memory-bm_*` tools then reach their own instance. No new litellm server
+   is needed.
 3. Optionally, add a `blackbox-mcp` target in
    [`observability/prometheus`](../../observability/prometheus/application.yaml).
 4. For a browser UI, add the member's [Ignis](../ignis/README.md#adding-a-family-member)
    element with `vault: basic-memory-<member>-data-local`.
 
-**Do not add an Oathkeeper rule.** The existing `mcp-basic-memory` rule matches
-`/mcp/basic_memory<.*>`, so it already covers `/mcp/basic_memory_<member>`. A
-second rule that matches the same URL makes Oathkeeper fail the request because
-more than one rule matches. No router entry is needed either, because the host
-does not change.
+A **shared** instance (the planned `basic-memory-home`) is not routed by token,
+because everyone should reach it. It gets its own litellm server instead,
+`basic_memory_home` → `http://basic-memory-home.mcp.svc.cluster.local:8000/mcp/basic-memory-home`,
+so its tools are `basic_memory_home-bm_*` next to the personal `basic_memory-bm_*`.
 
 The new PVC lands in its own share folder
 (`//192.168.99.44/smb-csi/pvc-mcp-basic-memory-<member>-data-smb`): `subDir` is
 derived from the PVC name.
 
-### Separate storage is not separate access
+## Per-user routing behind litellm
 
-All instances sit behind the same `mcp-basic-auth` htpasswd, and Oathkeeper
-injects the same litellm master key for all of them. Anyone with the shared
-basic-auth credentials can therefore reach every member's instance. To make an
-instance private, give its ingress its own htpasswd Secret (`auth-secret`) and
-scope litellm access (drop `allow_all_keys`, use per-member virtual keys).
+```text
+client (litellm OAuth/SSO or own key)
+  -> litellm /basic_memory/mcp
+       static header  X-BM-Token: ${BM_TOKEN}   (scope: user, value per litellm user_id)
+  -> basic-memory-router :8000 /mcp           (application-router.yaml, nginx)
+       map X-BM-Token -> instance name; unknown, empty or literal ${BM_TOKEN} -> 403
+  -> <instance>.mcp.svc.cluster.local:8000/mcp/<instance>
+```
+
+Everyone uses the same litellm server and therefore the same tool names
+(`basic_memory-bm_*`), so one `CLAUDE.md`, skill set and connector setup works for
+the whole family. Only the token differs.
+
+litellm has one `url` per MCP server, so it cannot choose a backend per user by
+itself. What it can do (verified in the 1.108.1 source) is fill a `${NAME}`
+placeholder in `static_headers` from a value stored per `user_id`. The router does
+the rest.
+
+**The token is the credential, not a label.** litellm lets every user set their
+own `scope: user` value (`POST /v1/mcp/server/{server_id}/user-env-vars`, or the UI
+page `/ui/mcp-servers?fill_env_vars=<server_id>`). If the value were the instance
+name, anyone could type someone else's name. A random token works because nobody
+can guess another member's token. The router drops `X-BM-Token` before it
+proxies, so the token never reaches the pod.
+
+The value is keyed by litellm `user_id`. A Claude connector that signs in through
+litellm's OAuth bridge carries the member's SSO user id. The master key resolves to
+`default_user_id`, which is what the old ingress path (Oathkeeper injects the master
+key) arrives as.
+
+Upstream MCP sessions are keyed by the client's gateway session plus the auth
+fingerprint (`_upstream_session_for` in `mcp_server_manager.py`), so two users never
+share an upstream session. litellm skips its health and instructions probes for a
+server that needs a per-user value, so `basic_memory` shows health `unknown`.
+
+### The token map is an out-of-band Secret
+
+The repo is public, so the map lives in Secret `basic-memory-router-tokens`
+(namespace `mcp`), key `tokens.map`, one nginx `map` line per member. The pod does
+not start without it.
+
+```sh
+TOK_SERGE=$(openssl rand -hex 32)
+cat > tokens.map <<EOF
+"$TOK_SERGE" basic-memory;
+EOF
+kubectl -n mcp create secret generic basic-memory-router-tokens --from-file=tokens.map \
+  --dry-run=client -o yaml | kubectl apply -f -
+kubectl -n mcp rollout restart deploy/basic-memory-router
+```
+
+nginx reads the map only at start, so restart the router after every change. Tokens
+are lowercase hex, so no quoting issues in the map.
+
+### Storing a member's token in litellm
+
+The server id of a config-defined server comes from `GET /v1/mcp/server`. Each
+member stores their own value, signed in as themselves (UI page above, or
+`POST /v1/mcp/server/<server_id>/user-env-vars` with
+`{"values": {"BM_TOKEN": "<token>"}}` and their own key). Without a value, tool
+calls return `412` with the setup URL.
+
+### Cutover order (2026-11)
+
+The `env_vars` declaration has to be live before anyone can store a value
+(litellm accepts only declared names), so there is a short gap after the litellm
+restart:
+
+1. Create the Secret, merge. The router comes up next to the old path, idle.
+2. litellm restarts with `basic_memory` → router. Until step 3 every
+   `basic_memory` call gets `403`.
+3. Store `TOK_SERGE` for Serge's SSO user (UI) **and** with the master key for
+   `default_user_id`. The second one keeps the old
+   `dev.whitediver.keenetic.link/mcp/basic-memory` path (Oathkeeper + master key)
+   working while clients move off it.
+4. Smoke test: `bm_search` through both paths; the router log shows `200`.
+
+Rollback: revert the `basic_memory` block in `ai/litellm` to the direct
+`http://basic-memory.mcp.svc.cluster.local:8000/mcp/basic-memory` URL.
+
+### Next step: hide the old path
+
+After every client uses `https://litellm.whitediver.keenetic.link/basic_memory/mcp`:
+drop `ingress:` from `applicationset.yaml`, delete the `mcp-basic-memory` rule from
+Secret `oathkeeper-rules`, and remove the `default_user_id` value
+(`DELETE /v1/mcp/server/<server_id>/user-env-vars` with the master key). Until then,
+anyone with the shared `mcp-basic-auth` credentials arrives as `default_user_id`
+and so reaches Serge's instance, which is the same exposure as before.
 
 ## Deleting never cascades (`preserveResourcesOnDeletion`)
 

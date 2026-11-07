@@ -179,9 +179,19 @@ when any are pending. `migrate deploy` in its place applies them (2026-09-24:
 The admin UI is at `https://litellm.whitediver.keenetic.link` (`PROXY_BASE_URL`).
 Google SSO reuses the cluster's shared Google OAuth client (`GOOGLE_CLIENT_ID` /
 `GOOGLE_CLIENT_SECRET` in `litellm-env-secret`, the same client as
-argo-cd/grafana/vikunja/photoprism); `ALLOWED_EMAIL_DOMAINS: whitediver.com`
-gates sign-in and `PROXY_ADMIN_ID` (the owner's Google SSO user id) grants
-`proxy_admin`. `AUTO_REDIRECT_UI_LOGIN_TO_SSO: "true"` makes the `/ui` login
+argo-cd/grafana/vikunja/photoprism); `ALLOWED_EMAIL_DOMAINS` gates sign-in and
+`PROXY_ADMIN_ID` (the owner's Google SSO user id) grants `proxy_admin`.
+`ALLOWED_EMAIL_DOMAINS` is `whitediver.com` (the owner) plus the family domains
+`arbuzov.info` and `arbuzova.info`, so family members can sign in to the UI and to
+the MCP OAuth bridge, which the per-user `basic_memory` token needs. litellm splits
+the value on `,` without trimming and matches the domain exactly, so no spaces
+around the commas. A family member's first SSO sign-in creates them as
+`internal_user_viewer` (`INTERNAL_USER_VIEW_ONLY`, the fallback in `ui_sso.py`
+when neither SSO nor DB carries a role); only `PROXY_ADMIN_ID` is admin. Storing
+a `basic_memory` token checks only that the server is in the caller's allowed set,
+which `allow_all_keys` covers. Whether the viewer role's route checks let the UI
+reach that endpoint has not been tested yet. If not, raise the member to
+`internal_user` in the UI (Internal Users). `AUTO_REDIRECT_UI_LOGIN_TO_SSO: "true"` makes the `/ui` login
 page bounce straight to Google instead of showing the username/password form.
 
 ## Request logging is redacted
@@ -378,9 +388,19 @@ tools through its own MCP gateway at `/mcp`:
 | `jira` | `http://mcp-atlassian-jira.mcp.svc.cluster.local:8000/mcp/jira` |
 | `confluence` | `http://mcp-atlassian-confluence.mcp.svc.cluster.local:8000/mcp/confluence` |
 | `gitlab` | `http://mcp-gitlab.mcp.svc.cluster.local:3002/mcp` |
-| `basic_memory` | `http://basic-memory.mcp.svc.cluster.local:8000/mcp/basic-memory` |
+| `basic_memory` | `http://basic-memory-router.mcp.svc.cluster.local:8000/mcp` |
 | `kubernetes` | `http://mcp-kubernetes.mcp.svc.cluster.local:8080/mcp` |
 | `grafana` | `http://grafana-mcp.mcp.svc.cluster.local:8000/mcp` |
+
+`basic_memory` does not point at one instance. It sends the caller's own
+`X-BM-Token: ${BM_TOKEN}` (a `scope: user` env var, filled by each user in the UI
+at `/ui/mcp-servers?fill_env_vars=<server_id>`) to a small nginx router, and the
+router picks that user's Basic Memory instance by the token. Because every user
+writes their own value, the token, not the instance name, is the credential. Until
+a user has stored a token, tools still list but calls get `412`, or `403` from the
+router. litellm cannot health-probe a server that needs a per-user value, so its
+health shows `unknown`. See
+[`mcp/basic-memory/README.md`](../../mcp/basic-memory/README.md#per-user-routing-behind-litellm).
 
 `gitlab` differs: port `3002` (its token-injector sidecar adds the `Private-Token`)
 and the app serves at `/mcp` (its ingress rewrites `/mcp/gitlab`→`/mcp`), not
