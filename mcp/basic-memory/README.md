@@ -133,6 +133,13 @@ with `could not build map_hash, you should increase map_hash_bucket_size: 64`. T
 first rollout crashlooped on exactly that, because the pre-merge test used a short
 token.
 
+`client_max_body_size 100m` matches the ingress controller's global
+`proxy-body-size: 100m`. nginx's own default is 1 MiB, so without it a `bm_write`
+over 1 MiB would get `413` at the router although every hop in front of it allows
+100 MiB (review finding on PR #64; a 2 MB body was checked to reach Basic Memory).
+The ConfigMap is mounted with `subPath`, so after a config change run
+`kubectl -n mcp rollout restart deploy/basic-memory-router`.
+
 ### Storing a member's token in litellm
 
 The server id of a config-defined server comes from `GET /v1/mcp/server`. Each
