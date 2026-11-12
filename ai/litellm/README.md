@@ -331,6 +331,50 @@ To add another provider: a new `model_list` entry whose `api_key` is
 `os.environ/<KEY>`, plus that `<KEY>` added to `litellm-env-secret`
 (`environmentSecrets` already exports the whole Secret).
 
+### Self-hosted speech-to-text (`local/whisper-large-v3-turbo`)
+
+The second `model_list` entry routes `POST /v1/audio/transcriptions` to the
+whisper.cpp server in [`../whisper/`](../whisper/README.md), which runs on the Pi 5:
+
+```yaml
+          - model_name: "local/whisper-large-v3-turbo"
+            litellm_params:
+              model: "openai/whisper-large-v3-turbo"
+              api_base: "http://whisper.whisper.svc.cluster.local:8080/v1"
+              api_key: "none"
+              timeout: 18000
+              max_retries: 0
+            model_info:
+              mode: audio_transcription
+```
+
+- **`local/` prefix**: self-hosted models stay visibly apart from the
+  NIM-synced `<org>/<model>` names.
+- **`openai/` + `api_base`**: the server listens on the OpenAI path, so the
+  stock OpenAI transcription handler posts to `<api_base>/audio/transcriptions`
+  unchanged. The URL is plain `http://` inside the cluster, so `HTTPS_PROXY`
+  leaves it direct.
+- **`api_key: "none"`**: the server has no auth. Without an explicit key, an
+  `openai/` entry falls back to the `OPENAI_API_KEY` env var and would send it
+  to the self-hosted backend.
+- **`timeout: 18000`** (5 h): transcription runs at ~2.6× real time, so an
+  hour-long call needs ~2.6 h. That is far past the router-wide `timeout: 280`
+  ([below](#router-retries-and-timeout--the-nemotron-times-out-report-2026-09-04)).
+  A deployment's own `timeout` wins over the router default — checked in the
+  1.108.1 source: `Router._get_non_stream_timeout` tries the request's
+  `timeout`, then `litellm_params.timeout`, then `request_timeout`, and only
+  then `router_settings.timeout`. The OpenAI transcription handler passes the
+  result to every `audio.transcriptions.create(..., timeout=...)` call.
+- **`max_retries: 0`**: an explicit guard so the SDK never resends a
+  multi-hour upload after a timeout. `router_settings.num_retries: 0` already
+  covers router-level retries.
+- **`mode: audio_transcription`**: health checks and the admin UI treat the
+  model as speech-to-text, not chat.
+
+Long recordings can only come from **in-cluster** clients
+(`litellm.litellm.svc.cluster.local:4000`). Through the public ingress they hit
+the 600 s `proxy-read-timeout` ([Ingress timeouts](#ingress-timeouts--slow-reasoning-models)).
+
 ### GitHub Copilot
 
 Copilot models are **not** in `model_list`. They are registered explicitly by
@@ -743,6 +787,11 @@ and covers the worst case. A per-ingress annotation overrides the controller
 default regardless of any global value. (Streaming clients don't hit this — each
 chunk resets the read timer — but the council isn't one.)
 
+This does **not** cover long speech-to-text. A transcription answers only when
+the whole recording is done (hours for an hour-long call), so long recordings
+must come from inside the cluster — see
+[Self-hosted speech-to-text](#self-hosted-speech-to-text-localwhisper-large-v3-turbo).
+
 ## Router retries and timeout — the "nemotron times out" report (2026-09-04)
 
 ```yaml
@@ -806,6 +855,11 @@ Both are `router_settings`, read at
 to the Router — the per-model NIM entries live in the DB (written by
 `litellm-nim-sync`), so a router-level default is the only place to set this
 once for all of them.
+
+The one deliberate exception is `local/whisper-large-v3-turbo`, which sets its
+own `timeout: 18000` in `litellm_params`. A per-deployment timeout outranks this
+router default; see
+[Self-hosted speech-to-text](#self-hosted-speech-to-text-localwhisper-large-v3-turbo).
 
 ## Smoke test
 

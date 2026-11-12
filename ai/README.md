@@ -1,8 +1,8 @@
 # ai
 
 AI / automation app-of-apps. `bootstrap.yaml` is the group app-of-apps;
-`project.yaml` is the `ai` AppProject; child services (`n8n`, `litellm`)
-ship their own `application.yaml`. Delivery model, the `default`-vs-`ai`
+`project.yaml` is the `ai` AppProject; child services (`n8n`, `litellm`,
+`whisper`) ship their own `application.yaml`. Delivery model, the `default`-vs-`ai`
 project split, the self-excluding `include` glob, and the per-service
 Secrets table are all in the root [`README.md`](../README.md) — not
 repeated here.
@@ -26,3 +26,10 @@ Two entries, both required:
   `n8n` Application pulls its chart from.
 
 Drop either and the corresponding sync is rejected by the AppProject.
+
+### `destinations`
+
+One entry per child namespace (`n8n`, `litellm`, `whisper`) plus `argo-cd`.
+A new child whose namespace is missing here fails its sync with "destination
+is not permitted in project", so add the namespace in the same change that
+adds the child.

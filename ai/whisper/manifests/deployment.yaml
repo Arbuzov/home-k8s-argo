@@ -1,0 +1,166 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: whisper
+  namespace: whisper
+  labels:
+    app.kubernetes.io/name: whisper
+spec:
+  replicas: 1
+  revisionHistoryLimit: 2
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: whisper
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: whisper
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: kube-worker-3
+      initContainers:
+        - name: build
+          image: ghcr.io/ggml-org/whisper.cpp:main-arm64-d1be6fde11ac6e0407606b4e42fe72d34add8037@sha256:eff7bc40d89d01c614ea7689203326f2329fbc304d2e5927df1cb81f9b63c798
+          command: ["bash", "-c"]
+          args:
+            - |
+              set -euo pipefail
+              build_id="$(sha256sum /app/build/bin/whisper-server | cut -c1-12)-${GGML_CPU_ARM_ARCH}"
+              out="/data/bin/${build_id}"
+              if [ -x "${out}/whisper-server" ]; then
+                echo "whisper-server ${build_id}: cached"
+              else
+                echo "whisper-server ${build_id}: building"
+                apt-get update -qq
+                DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends g++ > /dev/null
+                cmake -S /app -B /tmp/build \
+                  -DCMAKE_BUILD_TYPE=Release \
+                  -DGGML_NATIVE=OFF \
+                  -DGGML_CPU_ARM_ARCH="${GGML_CPU_ARM_ARCH}" \
+                  -DBUILD_SHARED_LIBS=OFF \
+                  -DWHISPER_BUILD_TESTS=OFF
+                cmake --build /tmp/build -j "${BUILD_JOBS}" --target whisper-server
+                mkdir -p /data/bin
+                rm -rf "${out}.tmp"
+                mkdir "${out}.tmp"
+                cp /tmp/build/bin/whisper-server "${out}.tmp/"
+                mv "${out}.tmp" "${out}"
+              fi
+              find /data/bin -mindepth 1 -maxdepth 1 ! -name "${build_id}" -exec rm -rf {} +
+              ln -sfn "bin/${build_id}" /data/current
+              /data/current/whisper-server --help > /dev/null 2>&1
+          env:
+            - name: GGML_CPU_ARM_ARCH
+              value: armv8.2-a+dotprod+fp16
+            - name: BUILD_JOBS
+              value: "3"
+          volumeMounts:
+            - name: data
+              mountPath: /data
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: "3"
+              memory: 3Gi
+        - name: models
+          image: ghcr.io/ggml-org/whisper.cpp:main-arm64-d1be6fde11ac6e0407606b4e42fe72d34add8037@sha256:eff7bc40d89d01c614ea7689203326f2329fbc304d2e5927df1cb81f9b63c798
+          command: ["bash", "-c"]
+          args:
+            - |
+              set -euo pipefail
+              mkdir -p /data/models
+              fetch() {
+                local url="$1" sha="$2" dst="/data/models/$3"
+                if [ -f "${dst}" ] && echo "${sha}  ${dst}" | sha256sum -c --status; then
+                  echo "$3: ok"
+                  return
+                fi
+                echo "$3: downloading ${url}"
+                curl -fsSL --retry 5 --retry-delay 10 -o "${dst}.part" "${url}"
+                echo "${sha}  ${dst}.part" | sha256sum -c -
+                mv "${dst}.part" "${dst}"
+              }
+              fetch "${MODEL_URL}" "${MODEL_SHA256}" model.bin
+              fetch "${VAD_URL}" "${VAD_SHA256}" vad.bin
+          env:
+            - name: MODEL_URL
+              value: https://huggingface.co/ggerganov/whisper.cpp/resolve/5359861c739e955e79d9a303bcbc70fb988958b1/ggml-large-v3-turbo-q5_0.bin
+            - name: MODEL_SHA256
+              value: 394221709cd5ad1f40c46e6031ca61bce88931e6e088c188294c6d5a55ffa7e2
+            - name: VAD_URL
+              value: https://huggingface.co/ggml-org/whisper-vad/resolve/9ffd54a1e1ee413ddf265af9913beaf518d1639b/ggml-silero-v6.2.0.bin
+            - name: VAD_SHA256
+              value: 2aa269b785eeb53a82983a20501ddf7c1d9c48e33ab63a41391ac6c9f7fb6987
+          volumeMounts:
+            - name: data
+              mountPath: /data
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+      containers:
+        - name: whisper
+          image: ghcr.io/ggml-org/whisper.cpp:main-arm64-d1be6fde11ac6e0407606b4e42fe72d34add8037@sha256:eff7bc40d89d01c614ea7689203326f2329fbc304d2e5927df1cb81f9b63c798
+          command:
+            - /data/current/whisper-server
+          args:
+            - --host
+            - 0.0.0.0
+            - --port
+            - "8080"
+            - --model
+            - /data/models/model.bin
+            - --language
+            - ru
+            - --threads
+            - "3"
+            - --convert
+            - --inference-path
+            - /v1/audio/transcriptions
+            - --vad
+            - --vad-model
+            - /data/models/vad.bin
+          ports:
+            - name: http
+              containerPort: 8080
+          volumeMounts:
+            - name: data
+              mountPath: /data
+          startupProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 5
+            failureThreshold: 60
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 60
+            timeoutSeconds: 15
+            failureThreshold: 5
+          resources:
+            requests:
+              cpu: 500m
+              memory: 1Gi
+            limits:
+              cpu: "3"
+              memory: 2Gi
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: whisper-data
