@@ -67,7 +67,7 @@ Argo CD watches on GitHub, and **push-based** groups applied with `kubectl`
 Top-level directories group services by role:
 
 ```
-ai/             # AI / automation (n8n, litellm)
+ai/             # AI / automation (n8n, litellm, whisper)
 apps/           # User-facing apps (heimdall, homepage, octoprint, openclaw)
 mcp/            # Model Context Protocol servers (atlassian, basic-memory, graphiti, kubernetes, mcpo)
 media/          # Media (jellyfin, opds-shelf, photoprism, pigallery2)

@@ -17,6 +17,8 @@ spec:
     - server: https://kubernetes.default.svc
       namespace: litellm
     - server: https://kubernetes.default.svc
+      namespace: whisper
+    - server: https://kubernetes.default.svc
       namespace: argo-cd
   clusterResourceWhitelist:
     - group: '*'

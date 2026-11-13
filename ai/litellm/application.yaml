@@ -65,6 +65,15 @@ spec:
                   model: "nvidia_nim/*"
                   api_key: os.environ/NVIDIA_NIM_API_KEY
                   api_base: os.environ/NVIDIA_NIM_API_BASE
+              - model_name: "local/whisper-large-v3-turbo"
+                litellm_params:
+                  model: "openai/whisper-large-v3-turbo"
+                  api_base: "http://whisper.whisper.svc.cluster.local:8080/v1"
+                  api_key: "none"
+                  timeout: 18000
+                  max_retries: 0
+                model_info:
+                  mode: audio_transcription
             general_settings:
               master_key: os.environ/PROXY_MASTER_KEY
               store_model_in_db: true
