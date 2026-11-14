@@ -251,7 +251,7 @@ spec:
             periodSeconds: 15
             timeoutSeconds: 10
     repoURL: https://argoproj.github.io/argo-helm
-    targetRevision: 10.14.0
+    targetRevision: 10.18.0
   syncPolicy:
     automated:
       selfHeal: true
