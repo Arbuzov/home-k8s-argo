@@ -1,0 +1,69 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: audio-converter
+  namespace: n8n
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: audio-converter
+  template:
+    metadata:
+      labels:
+        app: audio-converter
+    spec:
+      automountServiceAccountToken: false
+      nodeSelector:
+        kubernetes.io/hostname: kube-worker-3
+      containers:
+        - name: converter
+          image: ghcr.io/ggml-org/whisper.cpp:main-arm64-d1be6fde11ac6e0407606b4e42fe72d34add8037@sha256:eff7bc40d89d01c614ea7689203326f2329fbc304d2e5927df1cb81f9b63c798
+          command: [python3, /app-config/server.py]
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - name: CONVERTER_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: audio-converter-auth
+                  key: token
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+          resources:
+            requests:
+              cpu: 100m
+              memory: 96Mi
+            limits:
+              cpu: "1"
+              memory: 256Mi
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 10
+          volumeMounts:
+            - name: code
+              mountPath: /app-config
+              readOnly: true
+            - name: scratch
+              mountPath: /tmp
+      volumes:
+        - name: code
+          configMap:
+            name: audio-converter-code
+        - name: scratch
+          emptyDir:
+            sizeLimit: 256Mi
