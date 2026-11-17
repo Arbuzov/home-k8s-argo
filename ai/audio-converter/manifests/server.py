@@ -7,11 +7,17 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from threading import BoundedSemaphore
 
 TOKEN = os.environ['CONVERTER_TOKEN']
+if not TOKEN:
+    raise RuntimeError('CONVERTER_TOKEN must not be empty')
 MAX_BYTES = 20_000_000
 SLOTS = BoundedSemaphore(1)
 
 
 class Handler(BaseHTTPRequestHandler):
+    def setup(self):
+        super().setup()
+        self.connection.settimeout(30)
+
     def do_GET(self):
         self.send_response(200 if self.path == '/health' else 404)
         self.end_headers()

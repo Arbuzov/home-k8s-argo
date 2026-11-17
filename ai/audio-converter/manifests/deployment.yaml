@@ -16,6 +16,8 @@ spec:
         app: audio-converter
     spec:
       automountServiceAccountToken: false
+      securityContext:
+        fsGroup: 1000
       nodeSelector:
         kubernetes.io/hostname: kube-worker-3
       containers:
