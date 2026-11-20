@@ -41,7 +41,7 @@ spec:
                 name: homepage-bookmarks
                 key: HOMEPAGE_VAR_WORK_GRAFANA_URL
         image:
-          tag: v2.7.0
+          tag: v2.8.0
         config:
           settings:
             theme: dark
