@@ -98,7 +98,7 @@ spec:
               httpGet:
                 path: /healthz
                 port: 4466
-              timeoutSeconds: 3
+              timeoutSeconds: 5
             resources:
               requests:
                 cpu: 10m
@@ -148,7 +148,7 @@ spec:
                     location = /healthz {
                       access_log off;
                       proxy_pass http://127.0.0.1:4467/headlamp/;
-                      proxy_method HEAD;
+                      proxy_method GET;
                       proxy_pass_request_body off;
                       proxy_pass_request_headers off;
                       proxy_set_header Host 127.0.0.1:4467;
