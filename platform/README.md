@@ -13,11 +13,12 @@ services under `platform/` automatically.
 | `<service>/application.yaml` | `Application` | One app each (`project: platform`) |
 
 Services deployed: `argo-cd`, `arc-operator`, `cnpg-operator`, `nginx`,
-`oathkeeper`, `priority-classes` (cluster-scoped objects, not a workload),
+`oathkeeper`, `headlamp`, `priority-classes` (cluster-scoped objects, not a workload),
 `local-path` (the provisioner's config + the `local-ssd` class, not the
 provisioner itself).
-Kept in git but **disabled**: `kubernetes-dashboard` and
-`metrics-server`, both via the `exclude` glob in `bootstrap.yaml`. Each service
+Kept in git but **disabled**: `metrics-server`, via the `exclude` glob in
+`bootstrap.yaml`. Kubernetes Dashboard has been retired and replaced by
+[Headlamp](headlamp/README.md). Each service
 with out-of-band Secrets documents them in its own `README.md`.
 
 > `oathkeeper` used to be disabled by a `.disabled` rename, and this section
@@ -80,16 +81,15 @@ Remove its path from the app-of-apps `exclude` glob in [`bootstrap.yaml`](bootst
     directory:
       recurse: true
       include: '{project.yaml,*/application*.yaml}'
-      exclude: '{metrics-server/application.yaml}'   # e.g. enabling kubernetes-dashboard
+      exclude: 'metrics-server/application.yaml'   # metrics-server remains disabled
 ```
 
 Then add the service's chart repo to `sourceRepos` and its destination namespace
 to `destinations` in [`project.yaml`](project.yaml), or the child Application is
-rejected by the `platform` project. The two disabled services need:
+rejected by the `platform` project. The remaining disabled service needs:
 
 | Service | `sourceRepos` entry | `destinations` namespace |
 | --- | --- | --- |
-| `kubernetes-dashboard` | `https://kubernetes.github.io/dashboard/` | `kubernetes-dashboard` |
 | `metrics-server` | `https://kubernetes-sigs.github.io/metrics-server/` | `kube-system` |
 
 Commit + push, then **re-apply the app-of-apps** — `bootstrap.yaml` is excluded

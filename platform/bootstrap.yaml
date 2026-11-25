@@ -12,7 +12,7 @@ spec:
     directory:
       recurse: true
       include: '{project.yaml,*/application*.yaml}'
-      exclude: '{kubernetes-dashboard/application.yaml,metrics-server/application.yaml}'
+      exclude: 'metrics-server/application.yaml'
   destination:
     server: https://kubernetes.default.svc
     namespace: argo-cd

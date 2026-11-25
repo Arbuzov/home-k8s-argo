@@ -73,7 +73,7 @@ mcp/            # Model Context Protocol servers (atlassian, basic-memory, graph
 media/          # Media (jellyfin, opds-shelf, photoprism, pigallery2)
 networking/     # VPN / tunnels (openconnect-gateway, wg-vless-gateway, wstunnel)
 observability/  # Metrics / logs (influxdb, keenetic-grafana-monitoring, prometheus)
-platform/       # Cluster plumbing (argo-cd, arc-operator, kubernetes-dashboard, metrics-server)
+platform/       # Cluster plumbing (argo-cd, arc-operator, headlamp, metrics-server)
 storage/        # Storage backends (smb)
 ```
 
@@ -145,7 +145,7 @@ the `bootstrap.yaml` `exclude` glob. Currently held back:
 | `media/` | `jellyfin`, `photoprism` |
 | `networking/` | `openconnect-gateway`, `wstunnel` |
 | `observability/` | `influxdb`, `cloud-billing/stackdriver-exporter` |
-| `platform/` | `kubernetes-dashboard`, `metrics-server` |
+| `platform/` | `metrics-server` |
 | `storage/` | — |
 
 Everything else in each group is reconciled automatically. Read this table off

@@ -140,6 +140,10 @@ spec:
                       type: argocd
                       url: https://dev.whitediver.keenetic.link/argo-cd/
                       key: "{{HOMEPAGE_VAR_ARGOCD_TOKEN}}"
+                - Headlamp:
+                    icon: kubernetes.png
+                    description: Kubernetes cluster overview
+                    href: https://dev.whitediver.keenetic.link/headlamp/
                 - Prometheus:
                     icon: prometheus.png
                     description: Metrics

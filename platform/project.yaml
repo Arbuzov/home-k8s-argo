@@ -14,6 +14,7 @@ spec:
     - https://k8s.ory.sh/helm/charts
     - https://cloudnative-pg.github.io/charts
     - https://kubernetes.github.io/ingress-nginx
+    - https://kubernetes-sigs.github.io/headlamp/
   destinations:
     - server: https://kubernetes.default.svc
       namespace: argo-cd
@@ -29,6 +30,8 @@ spec:
       namespace: nginx
     - server: https://kubernetes.default.svc
       namespace: local-path-storage
+    - server: https://kubernetes.default.svc
+      namespace: headlamp
   clusterResourceWhitelist:
     - group: '*'
       kind: '*'

@@ -1,0 +1,245 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: headlamp
+  namespace: argo-cd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: platform
+  source:
+    repoURL: https://kubernetes-sigs.github.io/headlamp/
+    chart: headlamp
+    targetRevision: 0.46.0
+    helm:
+      values: |
+        config:
+          inCluster: true
+          baseURL: /headlamp
+          unsafeUseServiceAccountToken: true
+          enableHelm: false
+          extraArgs:
+            - -listen-addr=127.0.0.1
+            - -port=4467
+            - -proxy-auth=true
+
+        # Only the Headlamp container receives the rotating Kubernetes token.
+        automountServiceAccountToken: false
+        serviceAccount:
+          create: true
+          name: headlamp
+        clusterRoleBinding:
+          create: true
+          clusterRoleName: view
+
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 100
+          runAsGroup: 101
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop: [ALL]
+          seccompProfile:
+            type: RuntimeDefault
+          readOnlyRootFilesystem: true
+
+        volumeMounts:
+          - name: kube-api-access
+            mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+            readOnly: true
+        volumes:
+          - name: kube-api-access
+            projected:
+              sources:
+                - serviceAccountToken:
+                    path: token
+                    expirationSeconds: 3600
+                - configMap:
+                    name: kube-root-ca.crt
+                    items:
+                      - key: ca.crt
+                        path: ca.crt
+                - downwardAPI:
+                    items:
+                      - path: namespace
+                        fieldRef:
+                          fieldPath: metadata.namespace
+          - name: auth-proxy-config
+            configMap:
+              name: headlamp-auth-proxy
+          - name: auth-proxy-tmp
+            emptyDir: {}
+
+        # Flannel alone does not enforce NetworkPolicy. Headlamp listens only
+        # on loopback; the sidecar revalidates the existing Google session on
+        # every request, including requests to the Service from inside the cluster.
+        # The chart's named http port (4466) is served by the sidecar.
+        extraContainers:
+          - name: auth-proxy
+            image: nginx:1.30.8-alpine
+            command: ["nginx", "-g", "daemon off;", "-c", "/etc/headlamp-proxy/nginx.conf"]
+            securityContext:
+              runAsNonRoot: true
+              runAsUser: 101
+              runAsGroup: 101
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              capabilities:
+                drop: [ALL]
+              seccompProfile:
+                type: RuntimeDefault
+            volumeMounts:
+              - name: auth-proxy-config
+                mountPath: /etc/headlamp-proxy
+                readOnly: true
+              - name: auth-proxy-tmp
+                mountPath: /tmp
+            readinessProbe:
+              httpGet:
+                path: /healthz
+                port: 4466
+              timeoutSeconds: 3
+            resources:
+              requests:
+                cpu: 10m
+                memory: 16Mi
+              limits:
+                memory: 64Mi
+
+        extraManifests:
+          - |
+            apiVersion: v1
+            kind: ConfigMap
+            metadata:
+              name: headlamp-auth-proxy
+            data:
+              nginx.conf: |
+                worker_processes 1;
+                pid /tmp/nginx.pid;
+                error_log /dev/stderr warn;
+                events { worker_connections 512; }
+                http {
+                  access_log /dev/stdout;
+                  client_body_temp_path /tmp/client_body;
+                  proxy_temp_path /tmp/proxy;
+                  fastcgi_temp_path /tmp/fastcgi;
+                  uwsgi_temp_path /tmp/uwsgi;
+                  scgi_temp_path /tmp/scgi;
+                  map $http_upgrade $connection_upgrade {
+                    default upgrade;
+                    '' close;
+                  }
+                  server {
+                    listen 4466;
+                    server_name _;
+                    location = /_oauth2_auth {
+                      internal;
+                      proxy_pass http://oauth2-proxy.mcp.svc.cluster.local/oauth2/auth;
+                      proxy_pass_request_body off;
+                      proxy_pass_request_headers off;
+                      proxy_set_header Content-Length "";
+                      proxy_set_header Cookie $http_cookie;
+                      proxy_set_header Host notes.whitediver.keenetic.link;
+                      proxy_set_header X-Forwarded-Proto https;
+                      proxy_set_header X-Forwarded-Host dev.whitediver.keenetic.link;
+                      proxy_set_header X-Original-URI $request_uri;
+                    }
+                    # Probe exposes no API or credentials; only checks the fixed UI root.
+                    location = /healthz {
+                      access_log off;
+                      proxy_pass http://127.0.0.1:4467/headlamp/;
+                      proxy_method HEAD;
+                      proxy_pass_request_body off;
+                      proxy_pass_request_headers off;
+                      proxy_set_header Host 127.0.0.1:4467;
+                      proxy_set_header Content-Length "";
+                    }
+                    location / {
+                      auth_request /_oauth2_auth;
+                      auth_request_set $auth_email $upstream_http_x_auth_request_email;
+                      error_page 401 = @login;
+                      proxy_pass http://127.0.0.1:4467;
+                      proxy_http_version 1.1;
+                      proxy_set_header Host 127.0.0.1:4467;
+                      proxy_set_header X-Forwarded-Host dev.whitediver.keenetic.link;
+                      proxy_set_header X-Forwarded-Proto https;
+                      proxy_set_header X-Forwarded-User $auth_email;
+                      proxy_set_header X-Forwarded-Email $auth_email;
+                      proxy_set_header X-Forwarded-Group "";
+                      proxy_set_header X-Forwarded-Id-Token "";
+                      proxy_set_header X-Auth-Request-User "";
+                      proxy_set_header X-Auth-Request-Email "";
+                      proxy_set_header Authorization "";
+                      proxy_set_header Upgrade $http_upgrade;
+                      proxy_set_header Connection $connection_upgrade;
+                      proxy_read_timeout 3600s;
+                      proxy_send_timeout 3600s;
+                      proxy_buffering off;
+                    }
+                    location @login {
+                      return 302 https://notes.whitediver.keenetic.link/oauth2/start?rd=https://dev.whitediver.keenetic.link/headlamp/;
+                    }
+                  }
+                }
+          - |
+            apiVersion: rbac.authorization.k8s.io/v1
+            kind: ClusterRole
+            metadata:
+              name: headlamp-cluster-view
+            rules:
+              - apiGroups: [""]
+                resources: ["nodes", "persistentvolumes"]
+                verbs: ["get", "list", "watch"]
+              - apiGroups: ["storage.k8s.io"]
+                resources: ["storageclasses", "csinodes", "csidrivers", "volumeattachments"]
+                verbs: ["get", "list", "watch"]
+              - apiGroups: ["apiextensions.k8s.io"]
+                resources: ["customresourcedefinitions"]
+                verbs: ["get", "list", "watch"]
+              - apiGroups: ["networking.k8s.io"]
+                resources: ["ingressclasses"]
+                verbs: ["get", "list", "watch"]
+          - |
+            apiVersion: rbac.authorization.k8s.io/v1
+            kind: ClusterRoleBinding
+            metadata:
+              name: headlamp-cluster-view
+            roleRef:
+              apiGroup: rbac.authorization.k8s.io
+              kind: ClusterRole
+              name: headlamp-cluster-view
+            subjects:
+              - kind: ServiceAccount
+                name: headlamp
+                namespace: headlamp
+
+        ingress:
+          enabled: true
+          ingressClassName: nginx
+          annotations:
+            nginx.ingress.kubernetes.io/auth-url: "http://oauth2-proxy.mcp.svc.cluster.local/oauth2/auth"
+            nginx.ingress.kubernetes.io/auth-signin: "https://notes.whitediver.keenetic.link/oauth2/start?rd=https://$host$escaped_request_uri"
+            nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+            nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+          hosts:
+            - host: dev.whitediver.keenetic.link
+              paths:
+                - path: /headlamp
+                  type: Prefix
+
+        resources:
+          requests:
+            cpu: 50m
+            memory: 96Mi
+          limits:
+            memory: 256Mi
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: headlamp
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
