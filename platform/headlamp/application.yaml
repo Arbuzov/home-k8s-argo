@@ -23,6 +23,9 @@ spec:
             - -port=4467
             - -proxy-auth=true
 
+        podAnnotations:
+          whitediver.keenetic.link/headlamp-proxy-config: "2"
+
         # Only the Headlamp container receives the rotating Kubernetes token.
         automountServiceAccountToken: false
         serviceAccount:
@@ -153,6 +156,9 @@ spec:
                       proxy_pass_request_headers off;
                       proxy_set_header Host 127.0.0.1:4467;
                       proxy_set_header Content-Length "";
+                    }
+                    location = /headlamp {
+                      return 308 https://dev.whitediver.keenetic.link/headlamp/$is_args$args;
                     }
                     location / {
                       auth_request /_oauth2_auth;
